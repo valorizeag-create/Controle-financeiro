@@ -1,7 +1,6 @@
 import 'server-only'
 import { cookies } from 'next/headers'
-
-export const FLASH_COOKIE = 'iris_flash'
+import { FLASH_COOKIE_NAME as FLASH_COOKIE } from '@/features/shell/flash-name'
 
 export async function setFlash(message: string) {
   const store = await cookies()

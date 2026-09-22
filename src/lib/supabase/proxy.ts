@@ -4,14 +4,15 @@ import { env } from '@/lib/env'
 import { isAnonOnlyPath, isPublicPath } from '@/features/auth/routes'
 
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request })
+  request.headers.set('x-pathname', request.nextUrl.pathname)
+  let response = NextResponse.next({ request: { headers: request.headers } })
   let cacheHeaders: Record<string, string> = {}
   const supabase = createServerClient(env.supabaseUrl, env.supabaseKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (toSet, headers) => {
         toSet.forEach(({ name, value }) => request.cookies.set(name, value))
-        response = NextResponse.next({ request })
+        response = NextResponse.next({ request: { headers: request.headers } })
         toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
         cacheHeaders = headers ?? {}
         Object.entries(cacheHeaders).forEach(([key, value]) => response.headers.set(key, value))
