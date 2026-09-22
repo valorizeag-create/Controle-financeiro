@@ -59,18 +59,20 @@ create trigger transactions_touch before update on public.transactions
 
 -- Proteção das categorias padrão: default_key não muda e "Outros" não é apagável,
 -- exceto quando a pessoa é removida (o cascade de auth.users precisa passar).
+-- security definer: a checagem em auth.users roda com privilégio do dono da função,
+-- já que o papel authenticated não tem select em auth.users.
 create function public.protect_default_categories() returns trigger
-language plpgsql set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 begin
   if tg_op = 'DELETE' then
     if old.default_key = 'outros' and exists (select 1 from auth.users u where u.id = old.user_id) then
-      raise exception 'categoria padrão "Outros" não pode ser apagada';
+      raise exception 'A categoria Outros não pode ser excluída.';
     end if;
     return old;
   end if;
 
   if new.default_key is distinct from old.default_key then
-    raise exception 'default_key de uma categoria não pode ser alterado';
+    raise exception 'A chave da categoria padrão não pode mudar.';
   end if;
   return new;
 end;

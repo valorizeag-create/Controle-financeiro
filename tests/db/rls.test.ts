@@ -28,14 +28,16 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  const errors: unknown[] = []
   if (a?.id) {
     const { error } = await admin.auth.admin.deleteUser(a.id)
-    if (error) throw error
+    if (error) errors.push(error)
   }
   if (b?.id) {
     const { error } = await admin.auth.admin.deleteUser(b.id)
-    if (error) throw error
+    if (error) errors.push(error)
   }
+  if (errors.length > 0) throw errors[0]
 })
 
 describe('cadastro novo', () => {
@@ -147,14 +149,31 @@ describe('integridade e mais privacidade', () => {
     expect(error).not.toBeNull()
   })
 
+  test('categoria própria sem default_key pode ser criada e apagada normalmente', async () => {
+    const { data: pet, error: insertError } = await a.client
+      .from('categories')
+      .insert({ name: 'Pet' })
+      .select('id')
+      .single()
+    expect(insertError).toBeNull()
+
+    const del = await a.client.from('categories').delete().eq('id', pet!.id)
+    expect(del.error).toBeNull()
+
+    const { data: stillThere } = await a.client.from('categories').select('id').eq('id', pet!.id)
+    expect(stillThere).toEqual([])
+  })
+
   test('categorias padrão são protegidas: "Outros" não pode ser apagada nem ter a chave trocada', async () => {
     const { data: outros } = await a.client.from('categories').select('id').eq('default_key', 'outros').single()
     const del = await a.client.from('categories').delete().eq('id', outros!.id)
     expect(del.error).not.toBeNull()
+    expect(del.error?.message).toContain('A categoria Outros não pode ser excluída.')
 
     const { data: mercado } = await a.client.from('categories').select('id').eq('default_key', 'mercado').single()
     const upd = await a.client.from('categories').update({ default_key: 'mudou' }).eq('id', mercado!.id)
     expect(upd.error).not.toBeNull()
+    expect(upd.error?.message).toContain('A chave da categoria padrão não pode mudar.')
   })
 
   test('ninguém apaga o próprio perfil', async () => {
