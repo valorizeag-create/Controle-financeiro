@@ -1,0 +1,1 @@
+-- Dados de exemplo para desenvolvimento local (vazio por enquanto).

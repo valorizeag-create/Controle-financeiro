@@ -28,8 +28,14 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await admin.auth.admin.deleteUser(a.id)
-  await admin.auth.admin.deleteUser(b.id)
+  if (a?.id) {
+    const { error } = await admin.auth.admin.deleteUser(a.id)
+    if (error) throw error
+  }
+  if (b?.id) {
+    const { error } = await admin.auth.admin.deleteUser(b.id)
+    if (error) throw error
+  }
 })
 
 describe('cadastro novo', () => {
@@ -80,5 +86,81 @@ describe('privacidade', () => {
     expect(zero.error).not.toBeNull()
     expect(semCat.error).not.toBeNull()
     expect(entradaComCat.error).not.toBeNull()
+  })
+})
+
+describe('integridade e mais privacidade', () => {
+  test('ninguém altera ou apaga registro de outra pessoa', async () => {
+    const { data: catA } = await a.client.from('categories').select('id').eq('default_key', 'casa').single()
+    const { data: inserted, error: insertError } = await a.client
+      .from('transactions')
+      .insert({ user_id: a.id, kind: 'expense', amount_cents: 5000, category_id: catA!.id, occurred_on: '2026-09-22' })
+      .select('id, amount_cents')
+      .single()
+    expect(insertError).toBeNull()
+
+    const { data: updatedByB } = await b.client
+      .from('transactions')
+      .update({ amount_cents: 9999 })
+      .eq('id', inserted!.id)
+      .select()
+    expect(updatedByB).toEqual([])
+
+    const { data: deletedByB } = await b.client
+      .from('transactions')
+      .delete()
+      .eq('id', inserted!.id)
+      .select()
+    expect(deletedByB).toEqual([])
+
+    const { data: stillThere } = await a.client
+      .from('transactions')
+      .select('id, amount_cents')
+      .eq('id', inserted!.id)
+      .single()
+    expect(stillThere).toEqual({ id: inserted!.id, amount_cents: 5000 })
+  })
+
+  test('ninguém muda o dono ou a categoria de um registro para os de outra pessoa', async () => {
+    const { data: catA } = await a.client.from('categories').select('id').eq('default_key', 'mercado').single()
+    const { data: catB } = await b.client.from('categories').select('id').eq('default_key', 'casa').single()
+    const { data: ownTx } = await a.client
+      .from('transactions')
+      .insert({ user_id: a.id, kind: 'expense', amount_cents: 700, category_id: catA!.id, occurred_on: '2026-09-22' })
+      .select('id')
+      .single()
+
+    const toOtherUser = await a.client.from('transactions').update({ user_id: b.id }).eq('id', ownTx!.id)
+    expect(toOtherUser.error).not.toBeNull()
+
+    const toOtherCategory = await a.client.from('transactions').update({ category_id: catB!.id }).eq('id', ownTx!.id)
+    expect(toOtherCategory.error).not.toBeNull()
+  })
+
+  test('ninguém lê o perfil de outra pessoa', async () => {
+    const { data } = await b.client.from('profiles').select('id').eq('id', a.id)
+    expect(data).toEqual([])
+  })
+
+  test('ninguém cria categoria em nome de outra pessoa', async () => {
+    const { error } = await a.client.from('categories').insert({ user_id: b.id, name: 'Categoria falsa' })
+    expect(error).not.toBeNull()
+  })
+
+  test('categorias padrão são protegidas: "Outros" não pode ser apagada nem ter a chave trocada', async () => {
+    const { data: outros } = await a.client.from('categories').select('id').eq('default_key', 'outros').single()
+    const del = await a.client.from('categories').delete().eq('id', outros!.id)
+    expect(del.error).not.toBeNull()
+
+    const { data: mercado } = await a.client.from('categories').select('id').eq('default_key', 'mercado').single()
+    const upd = await a.client.from('categories').update({ default_key: 'mudou' }).eq('id', mercado!.id)
+    expect(upd.error).not.toBeNull()
+  })
+
+  test('ninguém apaga o próprio perfil', async () => {
+    const del = await a.client.from('profiles').delete().eq('id', a.id)
+    expect(del.error).not.toBeNull()
+    const { data: stillThere } = await a.client.from('profiles').select('id').eq('id', a.id).single()
+    expect(stillThere).toEqual({ id: a.id })
   })
 })
