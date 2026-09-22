@@ -152,7 +152,7 @@ describe('integridade e mais privacidade', () => {
   test('categoria própria sem default_key pode ser criada e apagada normalmente', async () => {
     const { data: pet, error: insertError } = await a.client
       .from('categories')
-      .insert({ name: 'Pet' })
+      .insert({ user_id: a.id, name: 'Pet' })
       .select('id')
       .single()
     expect(insertError).toBeNull()
