@@ -16,4 +16,7 @@ test('safeNext só aceita caminhos internos', () => {
   expect(safeNext('https://malicioso.com')).toBe('/inicio')
   expect(safeNext('/\\malicioso.com')).toBe('/inicio')
   expect(safeNext(null)).toBe('/inicio')
+  expect(safeNext('/\t/malicioso.com')).toBe('/inicio')
+  expect(safeNext('/a\\b')).toBe('/inicio')
+  expect(safeNext('/%0a')).toBe('/%0a')
 })

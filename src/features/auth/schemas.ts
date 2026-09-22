@@ -12,7 +12,7 @@ export const signUpSchema = z.object({
   password: z
     .string()
     .min(8, { error: 'A senha precisa ter pelo menos 8 caracteres.' })
-    .max(72, { error: 'Use até 72 caracteres.' }),
+    .refine((s) => new TextEncoder().encode(s).length <= 72, { error: 'Use até 72 caracteres.' }),
 })
 
 export const signInSchema = z.object({

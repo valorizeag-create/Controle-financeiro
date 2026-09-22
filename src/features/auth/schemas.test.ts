@@ -25,3 +25,12 @@ test('entrar exige senha', () => {
 test('recuperar senha exige e-mail válido', () => {
   expect(resetSchema.safeParse({ email: 'x' }).success).toBe(false)
 })
+
+test('senha tem limite de 72 bytes (bcrypt), não 72 caracteres', () => {
+  const long = signUpSchema.safeParse({ displayName: 'Camila', email: 'a@b.com', password: 'á'.repeat(40) })
+  expect(long.success).toBe(false)
+  expect(firstFieldErrors(long.error!)).toEqual({ password: 'Use até 72 caracteres.' })
+
+  const ok = signUpSchema.safeParse({ displayName: 'Camila', email: 'a@b.com', password: 'a'.repeat(72) })
+  expect(ok.success).toBe(true)
+})
