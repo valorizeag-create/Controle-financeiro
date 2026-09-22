@@ -18,6 +18,9 @@ build/
 /supabase/.temp/
 /supabase/.branches/
 
+# TypeScript
+*.tsbuildinfo
+
 # Sistema e editores
 .DS_Store
 Thumbs.db
