@@ -5,13 +5,13 @@ export const MAX_CENTS = 9_999_999_999
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export function formatBRL(cents: Cents): string {
-  const text = brl.format(Math.abs(cents) / 100).replace(/\s/g, ' ')
-  return cents < 0 ? `−${text}` : text
+  const text = brl.format(Math.abs(cents) / 100).replace(/\s/g, '\u00a0')
+  return cents < 0 ? `\u2212${text}` : text
 }
 
 export function parseBRL(input: string): Cents | null {
-  const s = input.replace(/R\$/gi, '').replace(/[\s ]/g, '')
-  if (s === '' || !/^[\d.,]+$/.test(s)) return null
+  const s = input.trim().replace(/^R\$[\s\u00a0]*/i, '').trim()
+  if (s === '' || /[\s\u00a0]/.test(s) || !/\d/.test(s) || !/^[\d.,]+$/.test(s)) return null
 
   let intPart: string
   let decPart = ''

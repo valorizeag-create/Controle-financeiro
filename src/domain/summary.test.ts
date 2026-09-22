@@ -97,4 +97,29 @@ describe('summarizeMonth', () => {
     expect(s.saldoTotalCents).toBe(700000)
     expect(s.guardadoTotalCents).toBe(20000)
   })
+
+  test('mês corrente conta conta vencida de mês anterior ainda não paga', () => {
+    const overdue = tx({ kind: 'expense', amountCents: 18000, occurredOn: '2026-08-28', status: 'pending', dueOn: '2026-08-28' })
+
+    const currentMonth = summarizeMonth({ ...base, month: '2026-09', today: '2026-09-22', transactions: [overdue], goalMovements: [] })
+    expect(currentMonth.contasAPagarCents).toBe(18000)
+
+    const ownMonth = summarizeMonth({ ...base, month: '2026-08', today: '2026-09-22', transactions: [overdue], goalMovements: [] })
+    expect(ownMonth.contasAPagarCents).toBe(18000)
+
+    const laterMonth = summarizeMonth({ ...base, month: '2026-10', today: '2026-09-22', transactions: [overdue], goalMovements: [] })
+    expect(laterMonth.contasAPagarCents).toBe(0)
+  })
+
+  test('mês futuro mostra gasto confirmado futuro como previsão (Saiu conta, Saldo total não)', () => {
+    const s = summarizeMonth({
+      ...base,
+      month: '2026-11',
+      today: '2026-09-22',
+      transactions: [tx({ kind: 'expense', amountCents: 7980, occurredOn: '2026-11-22' })],
+      goalMovements: [],
+    })
+    expect(s.saiuCents).toBe(7980)
+    expect(s.saldoTotalCents).toBe(0)
+  })
 })

@@ -1,5 +1,5 @@
 import type { Cents } from './money'
-import { isInMonth, type ISODate, type MonthKey } from './dates'
+import { isInMonth, monthOf, type ISODate, type MonthKey } from './dates'
 
 export type TxKind = 'income' | 'expense'
 export type TxStatus = 'confirmed' | 'pending'
@@ -81,9 +81,14 @@ export function summarizeMonth(input: {
 
   const disponivelCents = entrouCents - saiuCents - guardadoLiquido
 
+  const isCurrentMonth = monthOf(today) === month
   const contasAPagarCents = sum(
     transactions
-      .filter((t) => t.kind === 'expense' && t.status === 'pending' && t.dueOn !== null && isInMonth(t.dueOn, month))
+      .filter((t) => {
+        if (t.kind !== 'expense' || t.status !== 'pending' || t.dueOn === null) return false
+        if (isInMonth(t.dueOn, month)) return true
+        return isCurrentMonth && t.dueOn < `${month}-01`
+      })
       .map((t) => t.amountCents),
   )
 
