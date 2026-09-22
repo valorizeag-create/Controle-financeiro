@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-brand: #a0e870;
+  --color-brand-ink: #122801;
+  --color-brand-wash: #eef4e9;
+  --color-brand-wash-border: #ddf6c9;
+  --color-brand-text: #22500a;
+  --color-brand-text-hover: #3f7d1c;
+  --color-selected: #6cbf38;
+  --color-canvas: #f8f8f8;
+  --color-card: #ffffff;
+  --color-line: #ececec;
+  --color-control: #e4e4e4;
+  --color-sunken: #f2f2f2;
+  --color-ink: #171717;
+  --color-body: #3a3a3a;
+  --color-muted: #666666;
+  --color-inactive: #525252;
+  --color-amber-wash: #fff8e8;
+  --color-amber-ink: #8a4204;
+  --color-amber-bar: #f2b54a;
+  --color-spend: #525252;
+  --color-error-wash: #fef2f2;
+  --color-error-ink: #b91c1c;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-control: 8px;
+  --radius-panel: 10px;
+  --radius-card: 12px;
+  --radius-hero: 16px;
+  --radius-sheet: 20px;
+
+  --shadow-card: 0 1px 2px rgba(18, 40, 1, 0.04);
+  --shadow-sheet: 0 24px 48px rgba(18, 40, 1, 0.12);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--color-canvas);
+    color: var(--color-body);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(160, 232, 112, 0.45); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
