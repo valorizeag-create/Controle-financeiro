@@ -1,0 +1,26 @@
+# Dependências e builds
+node_modules/
+.next/
+out/
+build/
+
+# Variáveis de ambiente (nunca versionar)
+.env
+.env.local
+.env.*.local
+
+# Testes
+/test-results/
+/playwright-report/
+/coverage/
+
+# Supabase local
+/supabase/.temp/
+/supabase/.branches/
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
