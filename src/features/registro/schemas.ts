@@ -4,11 +4,19 @@ import { addDays, isValidISODate, type ISODate } from '@/domain/dates'
 
 export const PAYMENT_METHODS = ['pix', 'cash', 'boleto', 'debit', 'credit', 'other'] as const
 
+const MIN_DATE: ISODate = '2000-01-01'
+
+function withinBounds(date: ISODate, today: ISODate): boolean {
+  return date >= MIN_DATE && date <= addDays(today, 365)
+}
+
 export function resolveWhen(when: string, date: string, today: ISODate): ISODate | null {
-  if (when === 'today') return today
-  if (when === 'yesterday') return addDays(today, -1)
-  if (when === 'other' && isValidISODate(date)) return date
-  return null
+  let resolved: ISODate | null = null
+  if (when === 'today') resolved = today
+  else if (when === 'yesterday') resolved = addDays(today, -1)
+  else if (when === 'other' && isValidISODate(date)) resolved = date
+  if (resolved === null || !withinBounds(resolved, today)) return null
+  return resolved
 }
 
 const amount = z.string().transform((raw, ctx) => {
@@ -55,7 +63,7 @@ export const makeExpenseSchema = (today: ISODate) =>
       note: optionalText(140),
       paymentMethod: z
         .string()
-        .transform((s) => (s === '' ? null : s))
+        .transform((s) => ((PAYMENT_METHODS as readonly string[]).includes(s) ? s : null))
         .pipe(z.enum(PAYMENT_METHODS).nullable()),
     },
     today,

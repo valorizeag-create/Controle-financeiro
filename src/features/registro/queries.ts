@@ -1,6 +1,8 @@
 import 'server-only'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import type { CategorizedTx } from '@/domain/breakdown'
+import { fetchAllPages } from './paging'
 
 export type Profile = { displayName: string; initialBalanceCents: number }
 export type Category = { id: string; name: string; defaultKey: string | null }
@@ -12,32 +14,55 @@ export interface TxRow extends CategorizedTx {
   createdAt: string
 }
 
-export async function loadCategories(): Promise<Category[]> {
-  await requireUser()
-  const supabase = await createClient()
+type TxRawRow = {
+  id: string
+  kind: string
+  amount_cents: number
+  category_id: string | null
+  source: string | null
+  note: string | null
+  payment_method: string | null
+  occurred_on: string
+  status: string
+  due_on: string | null
+  paid_on: string | null
+  created_at: string
+}
+
+async function fetchCategories(supabase: SupabaseClient): Promise<Category[]> {
   const { data, error } = await supabase.from('categories').select('id, name, default_key').order('sort_order')
   if (error) throw error
   return data.map((c) => ({ id: c.id, name: c.name, defaultKey: c.default_key }))
 }
 
+export async function loadCategories(): Promise<Category[]> {
+  await requireUser()
+  const supabase = await createClient()
+  return fetchCategories(supabase)
+}
+
 export async function loadLedger(): Promise<{ profile: Profile; categories: Category[]; transactions: TxRow[] }> {
   await requireUser()
   const supabase = await createClient()
-  const [profile, categories, txs] = await Promise.all([
+  const [profile, categories, rawTxs] = await Promise.all([
     supabase.from('profiles').select('display_name, initial_balance_cents').single(),
-    loadCategories(),
-    supabase
-      .from('transactions')
-      .select('id, kind, amount_cents, category_id, source, note, payment_method, occurred_on, status, due_on, paid_on, created_at')
-      .order('occurred_on', { ascending: false })
-      .order('created_at', { ascending: false }),
+    fetchCategories(supabase),
+    fetchAllPages<TxRawRow>(async (from, to) => {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('id, kind, amount_cents, category_id, source, note, payment_method, occurred_on, status, due_on, paid_on, created_at')
+        .order('occurred_on', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to)
+      return { data, error }
+    }),
   ])
   if (profile.error) throw profile.error
-  if (txs.error) throw txs.error
   return {
     profile: { displayName: profile.data.display_name, initialBalanceCents: Number(profile.data.initial_balance_cents) },
     categories,
-    transactions: txs.data.map((t) => ({
+    transactions: rawTxs.map((t) => ({
       id: t.id,
       kind: t.kind as 'income' | 'expense',
       amountCents: Number(t.amount_cents),
