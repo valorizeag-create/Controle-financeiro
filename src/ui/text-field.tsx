@@ -12,7 +12,7 @@ type Props = {
 }
 
 export function TextField({ name, label, type = 'text', hint, error, defaultValue, autoComplete, inputMode }: Props) {
-  const describedBy = [hint && `${name}-hint`, error && `${name}-error`].filter(Boolean).join(' ') || undefined
+  const describedBy = [hint && !error && `${name}-hint`, error && `${name}-error`].filter(Boolean).join(' ') || undefined
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={name} className="text-sm font-medium text-[#262626]">{label}</label>
