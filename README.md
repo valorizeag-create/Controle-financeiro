@@ -43,7 +43,7 @@ A publicação só acontece quando a pessoa responsável pelo projeto decidir �
 2. `npx supabase link` para associar o repositório a esse projeto.
 3. `npx supabase db push` para aplicar as migrações no banco de produção.
 4. Configure o site na [Netlify](https://www.netlify.com/) apontando para este repositório (usa `netlify.toml` para build e publicação).
-5. Nas variáveis de ambiente da Netlify, defina `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` e `NEXT_PUBLIC_SITE_URL` (com a URL pública do site).
+5. Nas variáveis de ambiente da Netlify, defina `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `NEXT_PUBLIC_SITE_URL` (com a URL pública do site). `SUPABASE_SECRET_KEY` **não** é necessária em produção — ela só é usada pelos testes locais de banco e end-to-end.
 6. No provedor de login Google (OAuth), atualize a URL de redirecionamento para corresponder ao `NEXT_PUBLIC_SITE_URL` de produção.
 
 ## Documentação do produto

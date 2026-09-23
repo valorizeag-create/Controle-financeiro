@@ -1,3 +1,7 @@
+# O SSR e as Server Actions do Next.js na Netlify rodam pelo Next.js Runtime
+# (baseado em OpenNext), detectado automaticamente pela Netlify — não precisa
+# instalar plugin nem configurar aqui. O primeiro deploy real precisa ser
+# verificado manualmente antes de considerar a publicação concluída.
 [build]
   command = "npm run build"
   publish = ".next"

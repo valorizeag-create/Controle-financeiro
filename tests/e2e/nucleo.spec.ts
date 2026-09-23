@@ -21,9 +21,18 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (loginUserId) await admin.auth.admin.deleteUser(loginUserId)
-  const { data } = await admin.auth.admin.listUsers({ perPage: 1000 })
-  const signup = data.users.find((u) => u.email === signupEmail)
-  if (signup) await admin.auth.admin.deleteUser(signup.id)
+  let page = 1
+  for (;;) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
+    if (error) throw error
+    const signup = data.users.find((u) => u.email === signupEmail)
+    if (signup) {
+      await admin.auth.admin.deleteUser(signup.id)
+      break
+    }
+    if (data.users.length < 1000) break
+    page += 1
+  }
 })
 
 async function entrar(page: import('@playwright/test').Page) {
