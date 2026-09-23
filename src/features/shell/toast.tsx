@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { FLASH_COOKIE_NAME } from './flash-name'
+import { readFlash } from './flash-read'
 
 function readAndClear(): string | null {
-  const match = document.cookie.split('; ').find((c) => c.startsWith(`${FLASH_COOKIE_NAME}=`))
-  if (!match) return null
-  document.cookie = `${FLASH_COOKIE_NAME}=; path=/; max-age=0`
-  return decodeURIComponent(match.split('=')[1])
+  const message = readFlash(document.cookie)
+  if (document.cookie.split('; ').some((c) => c.startsWith(`${FLASH_COOKIE_NAME}=`))) {
+    document.cookie = `${FLASH_COOKIE_NAME}=; path=/; max-age=0`
+  }
+  return message
 }
 
 export function Toast() {

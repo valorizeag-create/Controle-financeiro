@@ -17,7 +17,7 @@ export function Sidebar({ current, displayName }: { current: string; displayName
             key={item.href}
             href={item.href}
             aria-current={current === item.href ? 'page' : undefined}
-            className={`flex h-[42px] items-center gap-3 rounded-control px-3 text-sm ${current === item.href ? 'bg-brand-wash font-semibold text-brand-ink' : 'font-medium text-inactive hover:bg-canvas'}`}
+            className={`flex h-11 items-center gap-3 rounded-control px-3 text-sm ${current === item.href ? 'bg-brand-wash font-semibold text-brand-ink' : 'font-medium text-inactive hover:bg-canvas'}`}
           >
             <item.icon className="size-[18px]" strokeWidth={1.8} aria-hidden="true" />
             {item.label}
