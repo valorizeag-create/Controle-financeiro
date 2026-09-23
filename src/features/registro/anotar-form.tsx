@@ -9,7 +9,7 @@ import { createTransaction } from './actions'
 import type { Category } from './queries'
 
 const chip =
-  'flex min-h-11 cursor-pointer items-center justify-center rounded-control border border-control bg-card px-3 text-sm font-medium text-[#262626] has-[:checked]:border-[1.5px] has-[:checked]:border-selected has-[:checked]:bg-brand-wash has-[:checked]:font-semibold has-[:checked]:text-brand-ink has-[:focus-visible]:shadow-[0_0_0_3px_rgba(160,232,112,.45)]'
+  'flex min-h-11 cursor-pointer items-center justify-center rounded-control border border-control bg-card px-3 text-[15px] font-medium text-[#262626] has-[:checked]:border-[1.5px] has-[:checked]:border-selected has-[:checked]:bg-brand-wash has-[:checked]:font-semibold has-[:checked]:text-brand-ink has-[:focus-visible]:shadow-[0_0_0_3px_rgba(160,232,112,.45)]'
 
 const SOURCES = ['Salário', 'Freela', 'Presente', 'Outros']
 const PAYMENT_LABELS: Record<string, string> = {
@@ -65,7 +65,7 @@ export function AnotarForm({ kind, categories }: { kind: 'expense' | 'income'; c
         </fieldset>
       )}
 
-      <fieldset className="flex flex-col gap-2.5">
+      <fieldset className="flex flex-col gap-2.5" aria-describedby={e.date ? 'date-error' : undefined}>
         <legend className="mb-2.5 text-[15px] font-medium">Quando?</legend>
         <div className="flex flex-wrap gap-2">
           {[['today', 'Hoje'], ['yesterday', 'Ontem'], ['other', 'Outro dia']].map(([value, label]) => (
@@ -76,10 +76,13 @@ export function AnotarForm({ kind, categories }: { kind: 'expense' | 'income'; c
           ))}
         </div>
         {when === 'other' && (
-          <input type="date" name="date" defaultValue={v.date} aria-label="Dia" className="h-12 rounded-control border border-control px-3.5 text-base" />
+          <input
+            type="date" name="date" defaultValue={v.date} aria-label="Dia"
+            aria-invalid={e.date ? true : undefined} aria-describedby={e.date ? 'date-error' : undefined}
+            className="h-12 rounded-control border border-control px-3.5 text-base"
+          />
         )}
-        {when !== 'other' && <input type="hidden" name="date" value="" />}
-        {e.date && <span className="text-sm text-error-ink">{e.date}</span>}
+        {e.date && <span id="date-error" className="text-sm text-error-ink">{e.date}</span>}
       </fieldset>
 
       {isExpense && (

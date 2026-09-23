@@ -8,7 +8,7 @@ export default async function AnotarPage({ searchParams }: { searchParams: Promi
   const kind = tipo === 'entrada' ? 'income' : 'expense'
   const categories = await loadCategories()
   const tab = (active: boolean) =>
-    `flex h-10 items-center justify-center rounded-control text-[15px] ${active ? 'bg-card font-semibold text-ink shadow-[0_1px_2px_rgba(18,40,1,.08)]' : 'font-medium text-inactive'}`
+    `flex h-11 items-center justify-center rounded-control text-[15px] ${active ? 'bg-card font-semibold text-ink shadow-[0_1px_2px_rgba(18,40,1,.08)]' : 'font-medium text-inactive'}`
 
   return (
     <div className="min-h-dvh bg-[rgba(18,40,1,.32)] md:flex md:justify-end">

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+import { useActionState } from 'react'
 
 vi.mock('./actions', () => ({ createTransaction: vi.fn() }))
 vi.mock('react', async (orig) => {
@@ -9,6 +10,8 @@ vi.mock('react', async (orig) => {
 })
 
 import { AnotarForm } from './anotar-form'
+
+const mockUseActionState = vi.mocked(useActionState)
 
 const categories = [
   { id: '1', name: 'Casa', defaultKey: 'casa' },
@@ -33,5 +36,17 @@ describe('AnotarForm', () => {
     render(<AnotarForm kind="income" categories={categories} />)
     expect(screen.getByLabelText('Quanto entrou?')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Salvar entrada' })).toBeTruthy()
+  })
+  test('erro de data mostra input com aria-describedby e mensagem', () => {
+    mockUseActionState.mockReturnValueOnce([
+      { status: 'error', submission: 1, fieldErrors: { date: 'Escolha o dia.' }, values: { when: 'other', date: '' } },
+      vi.fn(),
+      false,
+    ])
+    render(<AnotarForm kind="expense" categories={categories} />)
+    const dateInput = screen.getByLabelText('Dia')
+    expect(dateInput.getAttribute('aria-describedby')).toBe('date-error')
+    expect(dateInput.getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getByText('Escolha o dia.')).toBeTruthy()
   })
 })
