@@ -20,3 +20,8 @@ test('linha de metas só aparece com valor', () => {
   render(<Hero summary={summary} />)
   expect(screen.queryByText('Guardado este mês')).toBeNull()
 })
+
+test('linha de metas aparece quando goalLine está definido', () => {
+  render(<Hero summary={{ ...summary, goalLine: { label: 'Guardado este mês', amountCents: 5000 } }} />)
+  expect(screen.getByText('Guardado este mês')).not.toBeNull()
+})

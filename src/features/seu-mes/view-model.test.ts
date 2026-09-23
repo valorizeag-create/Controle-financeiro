@@ -37,7 +37,17 @@ test('monta o Seu mês com maior gasto, categorias e últimos registros', () => 
 
 test('mês sem registros', () => {
   const v = buildSeuMes({ month: '2026-10', today: '2026-09-22', profile: { displayName: 'C', initialBalanceCents: 0 }, categories, transactions: [] })
-  expect(v.hasAnyInMonth).toBe(false)
   expect(v.isCurrentMonth).toBe(false)
   expect(v.biggest).toBeNull()
+})
+
+test('últimos registros ordenados pela data efetiva, não pela data do lançamento', () => {
+  const v = buildSeuMes({
+    month: '2026-09', today: '2026-09-30', profile: { displayName: 'Camila', initialBalanceCents: 0 }, categories,
+    transactions: [
+      row({ id: 't1', kind: 'income', amountCents: 500000, occurredOn: '2026-09-05', source: 'Salário' }),
+      row({ id: 't2', kind: 'expense', amountCents: 20000, occurredOn: '2026-08-25', paidOn: '2026-09-21', categoryId: 'c1' }),
+    ],
+  })
+  expect(v.recent[0]).toMatchObject({ title: 'Mercado', subtitle: '21 de setembro' })
 })

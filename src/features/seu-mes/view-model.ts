@@ -7,7 +7,6 @@ export interface SeuMesView {
   month: MonthKey
   label: string
   isCurrentMonth: boolean
-  hasAnyInMonth: boolean
   summary: MonthSummary
   biggest: { name: string; cents: number } | null
   categories: { name: string; cents: number; share: number }[]
@@ -41,19 +40,25 @@ export function buildSeuMes(input: {
     return d !== null && isInMonth(d, month)
   })
 
-  const recent = monthTx.slice(0, 3).map((t) => ({
-    id: t.id,
-    title: t.kind === 'income' ? t.source ?? 'Entrada' : nameOf.get(t.categoryId ?? '') ?? 'Outros',
-    subtitle: dayLabel(effectiveDate(t)!, today),
-    cents: t.amountCents,
-    kind: t.kind,
-  }))
+  const recent = [...monthTx]
+    .sort((a, b) => {
+      const dateDiff = effectiveDate(b)!.localeCompare(effectiveDate(a)!)
+      if (dateDiff !== 0) return dateDiff
+      return b.createdAt.localeCompare(a.createdAt)
+    })
+    .slice(0, 3)
+    .map((t) => ({
+      id: t.id,
+      title: t.kind === 'income' ? t.source ?? 'Entrada' : nameOf.get(t.categoryId ?? '') ?? 'Outros',
+      subtitle: dayLabel(effectiveDate(t)!, today),
+      cents: t.amountCents,
+      kind: t.kind,
+    }))
 
   return {
     month,
     label: monthLabel(month),
     isCurrentMonth: month === monthOf(today),
-    hasAnyInMonth: monthTx.length > 0,
     summary,
     biggest: cats[0] ? { name: cats[0].name, cents: cats[0].cents } : null,
     categories: cats,

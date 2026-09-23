@@ -36,7 +36,7 @@ export function monthOf(d: ISODate): MonthKey {
 }
 
 export function parseMonthKey(s: string | null | undefined): MonthKey | null {
-  return s && /^\d{4}-(0[1-9]|1[0-2])$/.test(s) ? s : null
+  return s && /^20\d{2}-(0[1-9]|1[0-2])$/.test(s) ? s : null
 }
 
 export function addMonths(m: MonthKey, n: number): MonthKey {

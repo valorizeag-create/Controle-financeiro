@@ -34,6 +34,8 @@ describe('validação', () => {
     expect(parseMonthKey('2026-13')).toBeNull()
     expect(parseMonthKey('abc')).toBeNull()
     expect(parseMonthKey(undefined)).toBeNull()
+    expect(parseMonthKey('1999-12')).toBeNull()
+    expect(parseMonthKey('2100-01')).toBeNull()
   })
   test('isValidISODate recusa dia inexistente', () => {
     expect(isValidISODate('2026-02-28')).toBe(true)
