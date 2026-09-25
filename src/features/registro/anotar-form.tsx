@@ -5,27 +5,42 @@ import { ChevronDown } from 'lucide-react'
 import { Button } from '@/ui/button'
 import { FormAlert } from '@/ui/form-alert'
 import { idle } from '@/lib/forms'
-import { createTransaction } from './actions'
+import { addDays, type ISODate } from '@/domain/dates'
+import { createTransaction, updateTransaction } from './actions'
 import type { Category } from './queries'
 import { PAYMENT_LABELS } from './labels'
-import { addDays, type ISODate } from '@/domain/dates'
+import { recordToFormValues, type EditableRecord } from './form-values'
 
 const chip =
   'flex min-h-11 cursor-pointer items-center justify-center rounded-control border border-control bg-card px-3 text-[15px] font-medium text-[#262626] has-[:checked]:border-[1.5px] has-[:checked]:border-selected has-[:checked]:bg-brand-wash has-[:checked]:font-semibold has-[:checked]:text-brand-ink has-[:focus-visible]:shadow-[0_0_0_3px_rgba(160,232,112,.45)]'
 
 const SOURCES = ['Salário', 'Freela', 'Presente', 'Outros']
 
-export function AnotarForm({ kind, categories, today }: { kind: 'expense' | 'income'; categories: Category[]; today: ISODate }) {
-  const [state, action, pending] = useActionState(createTransaction, idle)
+type Props = { kind: 'expense' | 'income'; categories: Category[]; today: ISODate; record?: EditableRecord }
+
+export function AnotarForm({ kind, categories, today, record }: Props) {
+  const [state, action, pending] = useActionState(record ? updateTransaction : createTransaction, idle)
   const err = state.status === 'error' ? state : null
-  const v = err?.values ?? {}
+  const v = err?.values ?? (record ? recordToFormValues(record, today) : {})
   const e = err?.fieldErrors ?? {}
   const [when, setWhen] = useState(v.when || 'today')
+  // "Sujo" = há algo digitado que ainda não foi salvo; o botão Fechar pergunta antes de descartar.
+  const [touched, setTouched] = useState(false)
   const isExpense = kind === 'expense'
+  const hasDetails = Boolean(v.note || v.paymentMethod)
 
   return (
-    <form key={err ? err.submission : 'idle'} action={action} noValidate className="flex flex-col gap-5">
+    <form
+      key={err ? err.submission : 'idle'}
+      action={action}
+      noValidate
+      onInput={() => setTouched(true)}
+      onChange={() => setTouched(true)}
+      data-dirty={touched || err ? 'true' : undefined}
+      className="flex flex-col gap-5"
+    >
       <input type="hidden" name="kind" value={kind} />
+      {record && <input type="hidden" name="id" value={record.id} />}
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="amount" className="text-[15px] font-medium">{isExpense ? 'Quanto foi?' : 'Quanto entrou?'}</label>
@@ -86,7 +101,7 @@ export function AnotarForm({ kind, categories, today }: { kind: 'expense' | 'inc
       </fieldset>
 
       {isExpense && (
-        <details className="group border-y border-line">
+        <details open={hasDetails} className="group border-y border-line">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between text-[15px] font-medium text-ink">
             Mais detalhes
             <ChevronDown className="size-[18px] transition-transform group-open:rotate-180" aria-hidden="true" />
@@ -112,7 +127,7 @@ export function AnotarForm({ kind, categories, today }: { kind: 'expense' | 'inc
       {err?.message && <FormAlert>{err.message}</FormAlert>}
 
       <Button type="submit" disabled={pending} className="h-[52px]">
-        {isExpense ? 'Salvar gasto' : 'Salvar entrada'}
+        {record ? 'Salvar alterações' : isExpense ? 'Salvar gasto' : 'Salvar entrada'}
       </Button>
     </form>
   )

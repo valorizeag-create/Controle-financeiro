@@ -52,3 +52,8 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
   revalidatePath('/inicio')
   redirect('/inicio')
 }
+
+// Stub temporário: a Task 13 implementa a edição de verdade.
+export async function updateTransaction(_: FormState, _fd: FormData): Promise<FormState> {
+  return errorState({ message: SAVE_FAILED })
+}
