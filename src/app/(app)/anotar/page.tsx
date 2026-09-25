@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { X } from 'lucide-react'
+import { todayInSaoPaulo } from '@/domain/dates'
 import { loadCategories } from '@/features/registro/queries'
 import { AnotarForm } from '@/features/registro/anotar-form'
 
@@ -22,7 +23,7 @@ export default async function AnotarPage({ searchParams }: { searchParams: Promi
             <X className="size-5" aria-hidden="true" />
           </Link>
         </div>
-        <AnotarForm key={kind} kind={kind} categories={categories} />
+        <AnotarForm key={kind} kind={kind} categories={categories} today={todayInSaoPaulo()} />
       </section>
     </div>
   )

@@ -7,6 +7,7 @@ import { FormAlert } from '@/ui/form-alert'
 import { idle } from '@/lib/forms'
 import { createTransaction } from './actions'
 import type { Category } from './queries'
+import { addDays, type ISODate } from '@/domain/dates'
 
 const chip =
   'flex min-h-11 cursor-pointer items-center justify-center rounded-control border border-control bg-card px-3 text-[15px] font-medium text-[#262626] has-[:checked]:border-[1.5px] has-[:checked]:border-selected has-[:checked]:bg-brand-wash has-[:checked]:font-semibold has-[:checked]:text-brand-ink has-[:focus-visible]:shadow-[0_0_0_3px_rgba(160,232,112,.45)]'
@@ -16,7 +17,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   pix: 'Pix', cash: 'Dinheiro', boleto: 'Boleto', debit: 'Débito', credit: 'Crédito', other: 'Outra forma',
 }
 
-export function AnotarForm({ kind, categories }: { kind: 'expense' | 'income'; categories: Category[] }) {
+export function AnotarForm({ kind, categories, today }: { kind: 'expense' | 'income'; categories: Category[]; today: ISODate }) {
   const [state, action, pending] = useActionState(createTransaction, idle)
   const err = state.status === 'error' ? state : null
   const v = err?.values ?? {}
@@ -78,6 +79,7 @@ export function AnotarForm({ kind, categories }: { kind: 'expense' | 'income'; c
         {when === 'other' && (
           <input
             type="date" name="date" defaultValue={v.date} aria-label="Dia"
+            min="2000-01-01" max={isExpense ? addDays(today, 365) : today}
             aria-invalid={e.date ? true : undefined} aria-describedby={e.date ? 'date-error' : undefined}
             className="h-12 rounded-control border border-control px-3.5 text-base"
           />
