@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { X } from 'lucide-react'
 import { todayInSaoPaulo } from '@/domain/dates'
 import { loadCategories } from '@/features/registro/queries'
 import { AnotarForm } from '@/features/registro/anotar-form'
+import { SheetClose } from '@/features/registro/sheet-close'
 
 export default async function AnotarPage({ searchParams }: { searchParams: Promise<{ tipo?: string }> }) {
   const { tipo } = await searchParams
@@ -19,9 +19,7 @@ export default async function AnotarPage({ searchParams }: { searchParams: Promi
             <Link href="/anotar" aria-current={kind === 'expense' ? 'page' : undefined} className={tab(kind === 'expense')}>Saiu dinheiro</Link>
             <Link href="/anotar?tipo=entrada" aria-current={kind === 'income' ? 'page' : undefined} className={tab(kind === 'income')}>Entrou dinheiro</Link>
           </nav>
-          <Link href="/inicio" aria-label="Fechar" className="flex size-11 items-center justify-center rounded-full bg-sunken text-[#262626]">
-            <X className="size-5" aria-hidden="true" />
-          </Link>
+          <SheetClose href="/inicio" />
         </div>
         <AnotarForm key={kind} kind={kind} categories={categories} today={todayInSaoPaulo()} />
       </section>
