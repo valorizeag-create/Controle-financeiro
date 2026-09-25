@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { isSheetRoute } from './nav-items'
+import { BOTTOM_NAV_ITEMS, SIDEBAR_ITEMS, isActive, isSheetRoute } from './nav-items'
 
 test('painéis que cobrem a tela não têm barra inferior', () => {
   expect(isSheetRoute('/anotar')).toBe(true)
@@ -9,4 +9,14 @@ test('painéis que cobrem a tela não têm barra inferior', () => {
   expect(isSheetRoute('/extrato/a/b')).toBe(false)
   expect(isSheetRoute('/anotarx')).toBe(false)
   expect(isSheetRoute('/inicio')).toBe(false)
+})
+
+test('isActive reconhece a página e as subpáginas, sem confundir prefixos', () => {
+  const extrato = SIDEBAR_ITEMS.find((i) => i.href === '/extrato')!
+  expect(isActive('/extrato', extrato)).toBe(true)
+  expect(isActive('/extrato/abc', extrato)).toBe(true)
+  expect(isActive('/extratos', extrato)).toBe(false)
+  const mais = BOTTOM_NAV_ITEMS.find((i) => i.href === '/mais')!
+  expect(isActive('/configuracoes', mais)).toBe(true)
+  expect(isActive('/inicio', mais)).toBe(false)
 })
