@@ -17,11 +17,13 @@ update public.categories
 -- antiga mantém o nome. O sufixo usa os 8 primeiros caracteres do próprio id
 -- (único por linha), não um contador — não pode colidir com um nome literal
 -- que já exista (ex.: "Pet" e uma categoria já chamada "Pet (2)"). A base do
--- nome é cortada em 29 caracteres quando precisar, para caber no limite de 40.
+-- nome é cortada em 29 caracteres quando precisar, para caber no limite de 40
+-- (com rtrim: o corte pode parar bem antes de um espaço do nome original, e
+-- sem aparar isso viraria espaço duplo antes do "(", quebrando a normalização).
 update public.categories c
   set name = case
       when char_length(c.name) <= 29 then c.name || ' (' || left(c.id::text, 8) || ')'
-      else left(c.name, 29) || ' (' || left(c.id::text, 8) || ')'
+      else rtrim(left(c.name, 29)) || ' (' || left(c.id::text, 8) || ')'
     end
   from (
     select id, default_key, row_number() over (
