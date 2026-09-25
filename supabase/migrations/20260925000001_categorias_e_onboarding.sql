@@ -4,16 +4,30 @@
 -- 1. Nomes de categoria guardados sempre limpos e únicos por pessoa sem
 --    diferenciar maiúsculas: "Pet", "PET" e " pet " são a mesma categoria.
 --    O app limpa o nome antes de gravar; a restrição é a rede de segurança.
+--    btrim precisa vir por fora do regexp_replace: só o regexp colapsa tabs e
+--    quebras de linha em espaço, e é esse resultado que o btrim final apara.
 update public.categories
-  set name = regexp_replace(btrim(name), '\s+', ' ', 'g')
-  where name <> regexp_replace(btrim(name), '\s+', ' ', 'g');
+  set name = btrim(regexp_replace(name, '\s+', ' ', 'g'))
+  where name <> btrim(regexp_replace(name, '\s+', ' ', 'g'));
+
+-- Duas categorias da mesma pessoa podem colapsar para o mesmo nome depois da
+-- limpeza (ex.: "Pet" e "PET  "). Antes de criar o índice único, desempata
+-- por ordem de criação: a mais antiga mantém o nome, as demais ganham
+-- " (2)", " (3)"... para o índice não falhar por causa da limpeza acima.
+update public.categories c
+  set name = c.name || ' (' || sub.rn || ')'
+  from (
+    select id, row_number() over (partition by user_id, lower(name) order by created_at, id) as rn
+    from public.categories
+  ) sub
+  where c.id = sub.id and sub.rn > 1;
 
 alter table public.categories drop constraint categories_user_id_name_key;
 
-alter table public.categories
-  add constraint categories_name_normalized check (name = regexp_replace(btrim(name), '\s+', ' ', 'g'));
-
 create unique index categories_user_name_ci_uidx on public.categories (user_id, lower(name));
+
+alter table public.categories
+  add constraint categories_name_normalized check (name = btrim(regexp_replace(name, '\s+', ' ', 'g')));
 
 -- 2. "Outros" recebe os gastos de categorias excluídas; o texto da confirmação
 --    diz 'vão para "Outros"', então ela também não pode ser renomeada.
@@ -59,7 +73,7 @@ begin
     where c.id = p_category_id and c.user_id = v_uid
     for update;
   if not found then
-    raise exception 'Categoria não encontrada.' using errcode = 'P0002';
+    raise exception 'Categoria não encontrada.';
   end if;
   if v_key = 'outros' then
     raise exception 'A categoria Outros não pode ser excluída.';
@@ -69,7 +83,7 @@ begin
     from public.categories c
     where c.user_id = v_uid and c.default_key = 'outros';
   if v_outros is null then
-    raise exception 'Categoria Outros não encontrada.' using errcode = 'P0002';
+    raise exception 'Categoria Outros não encontrada.';
   end if;
 
   update public.transactions t
