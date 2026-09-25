@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import type { CategorizedTx } from '@/domain/breakdown'
 import { fetchAllPages } from './paging'
+import { orderCategories } from '@/features/categorias/names'
 
 export type Profile = { displayName: string; initialBalanceCents: number }
 export type Category = { id: string; name: string; defaultKey: string | null }
@@ -30,9 +31,15 @@ type TxRawRow = {
 }
 
 async function fetchCategories(supabase: SupabaseClient): Promise<Category[]> {
-  const { data, error } = await supabase.from('categories').select('id, name, default_key').order('sort_order')
+  const { data, error } = await supabase.from('categories').select('id, name, default_key, sort_order').order('sort_order')
   if (error) throw error
-  return data.map((c) => ({ id: c.id, name: c.name, defaultKey: c.default_key }))
+  const rows = data.map((c) => ({
+    id: c.id as string,
+    name: c.name as string,
+    defaultKey: c.default_key as string | null,
+    sortOrder: c.sort_order as number,
+  }))
+  return orderCategories(rows).map(({ id, name, defaultKey }) => ({ id, name, defaultKey }))
 }
 
 export async function loadCategories(): Promise<Category[]> {
