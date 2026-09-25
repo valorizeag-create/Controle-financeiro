@@ -31,6 +31,8 @@ type TxRawRow = {
 }
 
 async function fetchCategories(supabase: SupabaseClient): Promise<Category[]> {
+  // O `.order('sort_order')` aqui é só para a página vir com uma ordem razoável;
+  // orderCategories() abaixo é quem decide a ordem final (Outros sempre por último).
   const { data, error } = await supabase.from('categories').select('id, name, default_key, sort_order').order('sort_order')
   if (error) throw error
   const rows = data.map((c) => ({

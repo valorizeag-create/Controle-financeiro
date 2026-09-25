@@ -57,6 +57,32 @@ test('botão só com ícone usa o rótulo acessível', () => {
   expect(screen.getByRole('button', { name: 'Sair da Íris' })).toBeTruthy()
 })
 
+test('Tab e Shift+Tab prendem o foco dentro do diálogo', () => {
+  render(
+    <ConfirmAction
+      trigger="Excluir"
+      title="Excluir este gasto?"
+      confirmLabel="Excluir"
+      cancelLabel="Cancelar"
+      action={vi.fn()}
+    />,
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Excluir' }))
+  const dialog = screen.getByRole('alertdialog', { name: 'Excluir este gasto?' })
+  const cancelBtn = screen.getByRole('button', { name: 'Cancelar' })
+  const confirmBtn = dialog.querySelector('button[type="submit"]') as HTMLButtonElement
+
+  expect(document.activeElement).toBe(cancelBtn)
+
+  // Shift+Tab do primeiro item vai para o último.
+  fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+  expect(document.activeElement).toBe(confirmBtn)
+
+  // Tab do último item volta para o primeiro.
+  fireEvent.keyDown(dialog, { key: 'Tab' })
+  expect(document.activeElement).toBe(cancelBtn)
+})
+
 test('ConfirmPanel chama onCancel no botão de cancelar e mostra o controle de confirmar', () => {
   const onCancel = vi.fn()
   render(

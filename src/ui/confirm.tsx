@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { useFormStatus } from 'react-dom'
 import { Button } from './button'
 
@@ -15,6 +15,7 @@ type PanelProps = {
 export function ConfirmPanel({ title, body, cancelLabel, onCancel, children }: PanelProps) {
   const titleId = useId()
   const bodyId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -24,13 +25,37 @@ export function ConfirmPanel({ title, body, cancelLabel, onCancel, children }: P
     return () => document.removeEventListener('keydown', onKey)
   }, [onCancel])
 
+  // Prende o foco dentro do diálogo: Tab do último item volta ao primeiro, e vice-versa.
+  const onKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab' || !dialogRef.current) return
+    const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), a[href], input:not(:disabled)',
+    )
+    if (focusable.length === 0) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+  }, [])
+
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-[rgba(18,40,1,.32)] md:items-center">
       <div
+        ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={body ? bodyId : undefined}
+        onKeyDown={onKeyDown}
         className="flex w-full max-w-[480px] flex-col gap-4 rounded-t-sheet bg-card px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-5 shadow-sheet md:rounded-sheet md:pb-5"
       >
         <h2 id={titleId} className="text-lg font-semibold text-ink">{title}</h2>
@@ -74,7 +99,7 @@ export function ConfirmAction({
 
   return (
     <>
-      <button ref={triggerRef} type="button" aria-label={triggerAriaLabel} className={triggerClassName} onClick={() => setOpen(true)}>
+      <button ref={triggerRef} type="button" aria-label={triggerAriaLabel} className={`min-h-11 ${triggerClassName}`} onClick={() => setOpen(true)}>
         {trigger}
       </button>
       {open && (
