@@ -4,7 +4,7 @@ import type { Category } from '@/features/registro/queries'
 import { MAX_QUERY_LENGTH, extratoHref, type ExtratoFilters } from './view-model'
 
 const chip = (active: boolean) =>
-  `flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm ${
+  `flex h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm ${
     active ? 'border-[1.5px] border-selected bg-brand-wash font-semibold text-brand-ink' : 'border border-control bg-card font-medium text-[#262626]'
   }`
 
@@ -41,8 +41,9 @@ export function FiltersBar({ filters, categories, categoryName }: Props) {
         <Link href={withFilters({ kind: isExpense ? null : 'expense', categoryId: null })} aria-current={isExpense ? 'true' : undefined} className={chip(isExpense)}>
           Gastos
         </Link>
-        <details role="group" aria-label="Categoria" className="relative">
-          <summary className={`${chip(Boolean(filters.categoryId))} cursor-pointer list-none`}>
+        {/* key: remonta fechado depois de escolher (ou limpar) uma categoria. */}
+        <details key={filters.categoryId ?? 'none'} role="group" aria-label="Categoria" className="relative">
+          <summary className={`${chip(Boolean(filters.categoryId))} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
             {categoryName ?? 'Categoria'}
             <ChevronDown className="size-4" aria-hidden="true" />
           </summary>

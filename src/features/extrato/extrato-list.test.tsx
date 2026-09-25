@@ -50,7 +50,14 @@ test('busca sem resultado repete o termo', () => {
 })
 
 test('filtro sem resultado oferece limpar os filtros do mês', () => {
-  render(<ExtratoList view={{ ...base, filters: { ...base.filters, kind: 'income' }, empty: 'no-matches' }} />)
+  render(<ExtratoList view={{ ...base, filters: { ...base.filters, kind: 'expense', categoryId: '11111111-1111-4111-8111-111111111111' }, empty: 'no-matches' }} />)
   expect(screen.getByText('Nenhum registro com esses filtros.')).toBeTruthy()
   expect(screen.getByRole('link', { name: 'Limpar filtros' }).getAttribute('href')).toBe('/extrato?mes=2026-09')
+})
+
+test('sem entradas no mês com filtro Entradas: convite específico para registrar entrada (fix round 1)', () => {
+  render(<ExtratoList view={{ ...base, filters: { ...base.filters, kind: 'income' }, empty: 'no-matches' }} />)
+  expect(screen.getByText('Nenhuma entrada este mês ainda. Registrar o que entrou ajuda a ver quanto está disponível.')).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Registrar entrada' }).getAttribute('href')).toBe('/anotar?tipo=entrada')
+  expect(screen.queryByText('Nenhum registro com esses filtros.')).toBeNull()
 })

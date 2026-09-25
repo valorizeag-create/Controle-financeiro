@@ -18,6 +18,15 @@ export function ExtratoList({ view }: { view: ExtratoView }) {
     return <p className="px-1 py-6 text-center text-[15px]">{`Nada encontrado para "${view.filters.q}". Tente outra palavra ou um valor.`}</p>
   }
   if (view.empty === 'no-matches') {
+    // Entradas sem nenhum registro no mês tem um convite específico (Plano 2, fix round 1).
+    if (view.filters.kind === 'income' && !view.filters.categoryId) {
+      return (
+        <Card className="flex flex-col items-start gap-3.5 border-dashed">
+          <p className="text-[17px] font-medium text-ink">Nenhuma entrada este mês ainda. Registrar o que entrou ajuda a ver quanto está disponível.</p>
+          <Button href="/anotar?tipo=entrada">Registrar entrada</Button>
+        </Card>
+      )
+    }
     return (
       <div className="flex flex-col items-center gap-3 px-1 py-6 text-center">
         <p className="text-[15px]">Nenhum registro com esses filtros.</p>

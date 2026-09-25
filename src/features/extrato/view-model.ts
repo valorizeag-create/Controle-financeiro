@@ -115,9 +115,10 @@ export function buildExtrato(input: {
   const visible = inMonth.filter((t) => {
     if (filters.kind && t.kind !== filters.kind) return false
     if (categoryId && t.categoryId !== categoryId) return false
-    const categoryName = t.categoryId ? (nameOf.get(t.categoryId) ?? null) : null
+    // A busca também precisa achar os rótulos que aparecem na linha (toRow): "Outros" e "Entrada".
+    const displayedName = t.kind === 'income' ? (t.source ?? 'Entrada') : (nameOf.get(t.categoryId ?? '') ?? 'Outros')
     const payment = t.paymentMethod ? (PAYMENT_LABELS[t.paymentMethod] ?? null) : null
-    return matchesQuery([categoryName, t.note, t.source, payment], t.amountCents, filters.q)
+    return matchesQuery([displayedName, t.note, payment], t.amountCents, filters.q)
   })
 
   const sorted = [...visible].sort((a, b) => {

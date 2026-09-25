@@ -88,6 +88,16 @@ describe('busca (Review Focus 1)', () => {
     expect(ids(f({ q: '1.234' }))).toEqual(['t2'])
     expect(ids(f({ q: 'cafe' }))).toEqual(['t3'])
   })
+  test('busca pelos rótulos exibidos quando não há categoria/origem (fix round 1)', () => {
+    const semCategoriaOuOrigem: TxRow[] = [
+      row({ id: 'e1', kind: 'expense', amountCents: 1000, occurredOn: '2026-09-10', categoryId: null }),
+      row({ id: 'i1', kind: 'income', amountCents: 2000, occurredOn: '2026-09-11', source: null }),
+    ]
+    const v = (filters: ExtratoFilters) => buildExtrato({ filters, today, categories, transactions: semCategoriaOuOrigem })
+    const idsOf = (filters: ExtratoFilters) => v(filters).groups.flatMap((g) => g.rows.map((r) => r.id))
+    expect(idsOf(f({ q: 'outros' }))).toEqual(['e1'])
+    expect(idsOf(f({ q: 'entrada' }))).toEqual(['i1'])
+  })
 })
 
 describe('buildExtrato', () => {
