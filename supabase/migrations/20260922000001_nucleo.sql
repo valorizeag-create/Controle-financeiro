@@ -40,7 +40,10 @@ create table public.transactions (
   updated_at timestamptz not null default now(),
   constraint expense_has_category check ((kind = 'expense') = (category_id is not null)),
   constraint status_dates check ((status = 'pending' and due_on is not null and paid_on is null) or status = 'confirmed'),
-  foreign key (category_id, user_id) references public.categories (id, user_id) on delete restrict
+  -- `restrict` é verificado imediatamente (não no fim da transação) e pode
+  -- quebrar o cascade de exclusão de auth.users; `no action` é adiável e não
+  -- interfere com esse cascade.
+  foreign key (category_id, user_id) references public.categories (id, user_id) on delete no action
 );
 
 create index transactions_user_date_idx on public.transactions (user_id, occurred_on);

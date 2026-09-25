@@ -4,7 +4,6 @@ import { env } from '@/lib/env'
 import { isAnonOnlyPath, isPublicPath } from '@/features/auth/routes'
 
 export async function updateSession(request: NextRequest) {
-  request.headers.set('x-pathname', request.nextUrl.pathname)
   let response = NextResponse.next({ request: { headers: request.headers } })
   let cacheHeaders: Record<string, string> = {}
   const supabase = createServerClient(env.supabaseUrl, env.supabaseKey, {

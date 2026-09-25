@@ -5,8 +5,11 @@ export function CategoriesCard({ categories }: { categories: { name: string; cen
   const top = categories.slice(0, 4)
   const rest = categories.slice(4)
   const Row = ({ c }: { c: { name: string; cents: number; share: number } }) => (
-    <li className="grid grid-cols-[92px_1fr_84px] items-center gap-2.5 text-[15px]">
-      <span className="truncate text-ink">{c.name}</span>
+    // A coluna do nome é flexível (minmax(0,6rem)) e trunca, e a do valor não
+    // tem largura fixa (auto) — um valor fixo em 84px estourava com valores
+    // grandes (ex.: R$ 10.000,00) em telas estreitas.
+    <li className="grid grid-cols-[minmax(0,6rem)_1fr_auto] items-center gap-2.5 text-[15px]">
+      <span className="min-w-0 truncate text-ink">{c.name}</span>
       <span className="h-2 rounded-full bg-spend" style={{ width: `${Math.max(c.share * 100, 4)}%` }} aria-hidden="true" />
       <Money cents={c.cents} className="text-right text-ink" />
     </li>

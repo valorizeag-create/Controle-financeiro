@@ -27,6 +27,8 @@ O ambiente local usa uma instância do Supabase rodando em Docker — nenhum dad
 
 `SUPABASE_SECRET_KEY` só é usada pelos testes de banco e end-to-end (para criar/apagar usuários de teste) e nunca deve ser usada no código do app nem exposta ao navegador.
 
+O login por e-mail funciona sem nenhuma configuração extra. Já "Continuar com Google" só funciona depois de configurar `[auth.external.google]` em `supabase/config.toml` com as credenciais OAuth do Google (`client_id` e `secret`) via variáveis de ambiente — nunca comitadas.
+
 ## Testes
 
 - `npm test` — regras de dinheiro, datas, formulários e componentes (Vitest)

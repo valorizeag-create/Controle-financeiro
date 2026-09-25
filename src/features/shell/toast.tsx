@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { FLASH_COOKIE_NAME } from './flash-name'
 import { readFlash } from './flash-read'
@@ -15,7 +16,11 @@ function readAndClear(): string | null {
 
 export function Toast() {
   const [message, setMessage] = useState<string | null>(null)
+  const pathname = usePathname()
   useEffect(() => {
+    // O layout autenticado fica montado entre navegações do App Router, então
+    // precisamos reler o cookie a cada troca de rota — é assim que o aviso
+    // aparece depois que a Server Action de /anotar redireciona para /inicio.
     const m = readAndClear()
     if (!m) return
     // Sincronizando com um sistema externo (cookie do navegador) que só existe
@@ -24,7 +29,7 @@ export function Toast() {
     setMessage(m)
     const t = setTimeout(() => setMessage(null), 4000)
     return () => clearTimeout(t)
-  }, [])
+  }, [pathname])
   return (
     <div aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-24 z-30 flex justify-center md:bottom-8">
       {message && (

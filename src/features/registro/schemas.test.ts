@@ -91,4 +91,28 @@ describe('entrada', () => {
     const r = makeIncomeSchema(today).safeParse({ amount: '5.000', source: 'a'.repeat(41), when: 'today', date: '' })
     expect(firstFieldErrors(r.error!)).toEqual({ source: 'Use até 40 caracteres.' })
   })
+  test('entrada não pode ser datada de amanhã: dinheiro que ainda não chegou não conta', () => {
+    const r = makeIncomeSchema(today).safeParse({
+      amount: '10',
+      source: '',
+      when: 'other',
+      date: addDays(today, 1),
+    })
+    expect(firstFieldErrors(r.error!)).toEqual({ date: 'Escolha o dia.' })
+  })
+  test('entrada datada de hoje é permitida', () => {
+    const r = makeIncomeSchema(today).parse({ amount: '10', source: '', when: 'other', date: today })
+    expect(r.occurredOn).toBe(today)
+  })
+  test('gasto datado de amanhã continua permitido (dentro do limite de 365 dias à frente)', () => {
+    const r = makeExpenseSchema(today).parse({
+      amount: '10',
+      categoryId: cat,
+      when: 'other',
+      date: addDays(today, 1),
+      note: '',
+      paymentMethod: '',
+    })
+    expect(r.occurredOn).toBe(addDays(today, 1))
+  })
 })

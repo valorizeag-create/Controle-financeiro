@@ -6,16 +6,16 @@ export const PAYMENT_METHODS = ['pix', 'cash', 'boleto', 'debit', 'credit', 'oth
 
 const MIN_DATE: ISODate = '2000-01-01'
 
-function withinBounds(date: ISODate, today: ISODate): boolean {
-  return date >= MIN_DATE && date <= addDays(today, 365)
+function withinBounds(date: ISODate, today: ISODate, maxDate: ISODate): boolean {
+  return date >= MIN_DATE && date <= maxDate
 }
 
-export function resolveWhen(when: string, date: string, today: ISODate): ISODate | null {
+export function resolveWhen(when: string, date: string, today: ISODate, maxDate: ISODate = addDays(today, 365)): ISODate | null {
   let resolved: ISODate | null = null
   if (when === 'today') resolved = today
   else if (when === 'yesterday') resolved = addDays(today, -1)
   else if (when === 'other' && isValidISODate(date)) resolved = date
-  if (resolved === null || !withinBounds(resolved, today)) return null
+  if (resolved === null || !withinBounds(resolved, today, maxDate)) return null
   return resolved
 }
 
@@ -39,13 +39,13 @@ const amount = z.string().transform((raw, ctx) => {
 const optionalText = (max: number) =>
   z.string().trim().max(max, { error: `Use até ${max} caracteres.` }).transform((s) => (s === '' ? null : s))
 
-function withDate<T extends z.ZodRawShape>(shape: T, today: ISODate) {
+function withDate<T extends z.ZodRawShape>(shape: T, today: ISODate, maxDate: ISODate = addDays(today, 365)) {
   type ShapeOutput = z.output<z.ZodObject<T>>
   return z
     .object({ ...shape, when: z.string(), date: z.string() })
     .transform((raw, ctx) => {
       const v = raw as ShapeOutput & { when: string; date: string }
-      const occurredOn = resolveWhen(v.when, v.date, today)
+      const occurredOn = resolveWhen(v.when, v.date, today, maxDate)
       if (!occurredOn) {
         ctx.addIssue({ code: 'custom', path: ['date'], message: 'Escolha o dia.' })
         return z.NEVER
@@ -70,7 +70,9 @@ export const makeExpenseSchema = (today: ISODate) =>
   ).transform(({ amount: amountCents, ...rest }) => ({ amountCents, ...rest }))
 
 export const makeIncomeSchema = (today: ISODate) =>
-  withDate({ amount, source: optionalText(40) }, today).transform(({ amount: amountCents, ...rest }) => ({
+  // Dinheiro que ainda não chegou não conta: entrada não pode ser datada de
+  // amanhã em diante (diferente de gasto, que permite datas futuras).
+  withDate({ amount, source: optionalText(40) }, today, today).transform(({ amount: amountCents, ...rest }) => ({
     amountCents,
     ...rest,
   }))
