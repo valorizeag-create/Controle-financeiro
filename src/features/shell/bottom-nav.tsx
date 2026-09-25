@@ -3,13 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Plus } from 'lucide-react'
-import { NAV_ITEMS } from './nav-items'
+import { NAV_ITEMS, isSheetRoute } from './nav-items'
 
 export function BottomNav() {
   const pathname = usePathname()
-  // /anotar tem sua própria navegação (abas de gasto/entrada) — a barra
+  // Painéis (Anotar, Editar) têm navegação própria — a barra
   // inferior competiria por espaço e esconderia a rota atual.
-  if (pathname.startsWith('/anotar')) return null
+  if (isSheetRoute(pathname)) return null
   const [first, ...rest] = NAV_ITEMS
   const items = [first, 'anotar' as const, ...rest]
   return (
