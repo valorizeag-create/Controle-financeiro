@@ -53,8 +53,12 @@ export function monthLabel(m: MonthKey): string {
   return monthFmt.format(toUTC(`${m}-01`))
 }
 
+export function dayMonthLabel(d: ISODate): string {
+  return dayMonthFmt.format(toUTC(d))
+}
+
 export function dayLabel(d: ISODate, today: ISODate): string {
   if (d === today) return 'Hoje'
   if (d === addDays(today, -1)) return 'Ontem'
-  return dayMonthFmt.format(toUTC(d))
+  return dayMonthLabel(d)
 }

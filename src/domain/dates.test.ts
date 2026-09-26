@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
-  addDays, addMonths, dayLabel, isInMonth, isValidISODate, monthLabel, monthOf, parseMonthKey, todayInSaoPaulo,
+  addDays, addMonths, dayLabel, dayMonthLabel, isInMonth, isValidISODate, monthLabel, monthOf, parseMonthKey,
+  todayInSaoPaulo,
 } from './dates'
 
 describe('todayInSaoPaulo', () => {
@@ -52,5 +53,9 @@ describe('rótulos', () => {
     expect(dayLabel('2026-09-22', '2026-09-22')).toBe('Hoje')
     expect(dayLabel('2026-09-21', '2026-09-22')).toBe('Ontem')
     expect(dayLabel('2026-09-19', '2026-09-22')).toBe('19 de setembro')
+  })
+  test('dayMonthLabel escreve dia e mês por extenso', () => {
+    expect(dayMonthLabel('2026-09-10')).toBe('10 de setembro')
+    expect(dayMonthLabel('2027-01-01')).toBe('1 de janeiro')
   })
 })
