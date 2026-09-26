@@ -36,8 +36,9 @@ Decisões tomadas durante o desenvolvimento, quando a documentação aprovada n�
 | 23 | "Mudar senha" usa a tela "Crie uma nova senha."; com login antigo, a Íris pede para sair e entrar de novo. | O Supabase exige login recente para trocar senha (decisão 9). |
 | 24 | "Sair da Íris?" pede confirmação também no menu lateral do desktop. | Mesmo comportamento em todo lugar. |
 | 25 | Fechar Anotar/Editar com algo digitado pergunta "Descartar este registro?". | Evita perder o que foi digitado por um toque sem querer. |
+| 26 | Rótulo do saldo inicial trocado de "Somando conta e dinheiro guardado" (texto já aprovado) para "Somando banco, carteira e dinheiro guardado". | A regra de terminologia aprovada reserva "conta" para contas a pagar/receber; "conta" no texto antigo significava conta bancária. |
 
 ## Textos novos usados (fora da copy oficial)
 
 Aprovados antes: "Falta o seu nome.", "Falta a senha.", "Use até {n} caracteres.", "Escolha o dia.", "Crie uma nova senha.", "Salvar nova senha", "Voltar", formas de pagamento (Pix, Dinheiro, Boleto, Débito, Crédito, Outra forma, Não informar).
-Plano 2: ver a seção "Textos novos" do plano `docs/superpowers/plans/2026-09-25-iris-plano-2-extrato-onboarding.md`.
+Plano 2: "Somando banco, carteira e dinheiro guardado" (rótulo do saldo inicial, decisão 26) e "Passo {n} de 3" (rótulo acessível do onboarding); demais textos na seção "Textos novos" do plano `docs/superpowers/plans/2026-09-25-iris-plano-2-extrato-onboarding.md`.
