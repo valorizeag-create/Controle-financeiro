@@ -32,6 +32,7 @@ export function OnboardingSlide({ step }: { step: 1 | 2 | 3 }) {
             <span key={i} className={`h-2 rounded-full ${i === step ? 'w-6 bg-selected' : 'w-2 bg-[#d4d4d4]'}`} />
           ))}
         </div>
+        <span className="sr-only">Passo {step} de 3</span>
         <h1 className="text-[28px] font-bold leading-tight tracking-tight text-ink">{slide.title}</h1>
         <p className="text-[17px] leading-relaxed">{slide.body}</p>
         <div className="flex-1" />

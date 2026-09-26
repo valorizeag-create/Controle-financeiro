@@ -22,6 +22,7 @@ describe('OnboardingSlide', () => {
     expect(screen.getByText('Anote o que entrou e o que saiu, em segundos. A Íris organiza o resto.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Próximo' }).getAttribute('href')).toBe('/boas-vindas?passo=2')
     expect(screen.getByRole('link', { name: 'Pular' }).getAttribute('href')).toBe('/boas-vindas/saldo')
+    expect(screen.getByText('Passo 1 de 3')).toBeTruthy()
   })
   test('segunda tela', () => {
     render(<OnboardingSlide step={2} />)
