@@ -30,6 +30,26 @@ type TxRawRow = {
   created_at: string
 }
 
+const TX_COLUMNS = 'id, kind, amount_cents, category_id, source, note, payment_method, occurred_on, status, due_on, paid_on, created_at'
+
+function toTxRow(t: TxRawRow): TxRow {
+  return {
+    id: t.id,
+    kind: t.kind as 'income' | 'expense',
+    amountCents: Number(t.amount_cents),
+    categoryId: t.category_id,
+    source: t.source,
+    note: t.note,
+    paymentMethod: t.payment_method,
+    occurredOn: t.occurred_on,
+    status: t.status as 'confirmed' | 'pending',
+    dueOn: t.due_on,
+    paidOn: t.paid_on,
+    goalFundedCents: 0,
+    createdAt: t.created_at,
+  }
+}
+
 async function fetchCategories(supabase: SupabaseClient): Promise<Category[]> {
   // O `.order('sort_order')` aqui é só para a página vir com uma ordem razoável;
   // orderCategories() abaixo é quem decide a ordem final (Outros sempre por último).
@@ -50,6 +70,14 @@ export async function loadCategories(): Promise<Category[]> {
   return fetchCategories(supabase)
 }
 
+export async function loadTransaction(id: string): Promise<TxRow | null> {
+  await requireUser()
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('transactions').select(TX_COLUMNS).eq('id', id).maybeSingle<TxRawRow>()
+  if (error) throw error
+  return data ? toTxRow(data) : null
+}
+
 export async function loadLedger(): Promise<{ profile: Profile; categories: Category[]; transactions: TxRow[] }> {
   await requireUser()
   const supabase = await createClient()
@@ -59,7 +87,7 @@ export async function loadLedger(): Promise<{ profile: Profile; categories: Cate
     fetchAllPages<TxRawRow>(async (from, to) => {
       const { data, error } = await supabase
         .from('transactions')
-        .select('id, kind, amount_cents, category_id, source, note, payment_method, occurred_on, status, due_on, paid_on, created_at')
+        .select(TX_COLUMNS)
         .order('occurred_on', { ascending: false })
         .order('created_at', { ascending: false })
         .order('id')
@@ -71,20 +99,6 @@ export async function loadLedger(): Promise<{ profile: Profile; categories: Cate
   return {
     profile: { displayName: profile.data.display_name, initialBalanceCents: Number(profile.data.initial_balance_cents) },
     categories,
-    transactions: rawTxs.map((t) => ({
-      id: t.id,
-      kind: t.kind as 'income' | 'expense',
-      amountCents: Number(t.amount_cents),
-      categoryId: t.category_id,
-      source: t.source,
-      note: t.note,
-      paymentMethod: t.payment_method,
-      occurredOn: t.occurred_on,
-      status: t.status as 'confirmed' | 'pending',
-      dueOn: t.due_on,
-      paidOn: t.paid_on,
-      goalFundedCents: 0,
-      createdAt: t.created_at,
-    })),
+    transactions: rawTxs.map(toTxRow),
   }
 }
