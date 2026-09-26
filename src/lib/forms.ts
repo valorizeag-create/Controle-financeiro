@@ -7,6 +7,7 @@ export type FormState =
       status: 'error'
       submission: number
       message?: string
+      code?: string
       fieldErrors?: Record<string, string>
       values?: Record<string, string>
     }

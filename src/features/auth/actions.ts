@@ -67,7 +67,12 @@ export async function updatePassword(_: FormState, fd: FormData): Promise<FormSt
   if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error) })
   const supabase = await createClient()
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password })
-  if (error) return errorState({ message: passwordUpdateMessage(error.code) })
+  if (error) {
+    return errorState({
+      message: passwordUpdateMessage(error.code),
+      code: error.code === 'reauthentication_needed' ? 'reauth' : undefined,
+    })
+  }
   if (fd.get('from') === 'configuracoes') {
     await setFlash('Alterações salvas.')
     redirect('/configuracoes')

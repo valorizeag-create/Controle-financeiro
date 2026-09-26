@@ -5,6 +5,7 @@ import { Button } from '@/ui/button'
 import { FormAlert } from '@/ui/form-alert'
 import { TextField } from '@/ui/text-field'
 import { idle, type FormState } from '@/lib/forms'
+import { SignOutButton } from '@/features/shell/sign-out-button'
 import { requestPasswordReset, signIn, signUp, updatePassword } from './actions'
 
 function useForm(action: (s: FormState, fd: FormData) => Promise<FormState>) {
@@ -18,6 +19,7 @@ function useForm(action: (s: FormState, fd: FormData) => Promise<FormState>) {
     values: err?.values ?? {},
     errors: err?.fieldErrors ?? {},
     message: err?.message,
+    code: err?.code,
   }
 }
 
@@ -70,6 +72,7 @@ export function NewPasswordForm({ from }: { from?: 'configuracoes' }) {
       {from && <input type="hidden" name="from" value={from} />}
       <TextField name="password" type="password" label="Crie uma senha" autoComplete="new-password" hint="Pelo menos 8 caracteres." error={f.errors.password} />
       {f.message && <FormAlert>{f.message}</FormAlert>}
+      {f.code === 'reauth' && <SignOutButton variant="row" />}
       <Button type="submit" disabled={f.pending}>Salvar nova senha</Button>
     </form>
   )
