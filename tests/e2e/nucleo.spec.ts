@@ -9,14 +9,19 @@ const signupEmail = `e2e-cadastro-${stamp}@teste.iris.dev`
 const loginEmail = `e2e-entrar-${stamp}@teste.iris.dev`
 const password = 'senha-forte-123'
 let loginUserId = ''
+// formatBRL separa "R$" do número com espaço não separável.
+const NBSP = String.fromCharCode(0xa0)
 
 // Cada projeto (celular, desktop) roda este arquivo em separado: cada um cria o seu usuário de login.
+// A usuária de login já concluiu o onboarding (o fluxo de boas-vindas é testado em plano2.spec.ts).
 test.beforeAll(async () => {
   const { data, error } = await admin.auth.admin.createUser({
     email: loginEmail, password, email_confirm: true, user_metadata: { display_name: 'Bia' },
   })
   if (error) throw error
   loginUserId = data.user.id
+  const { error: e2 } = await admin.from('profiles').update({ onboarded_at: new Date().toISOString() }).eq('id', loginUserId)
+  if (e2) throw e2
 })
 
 test.afterAll(async () => {
@@ -43,7 +48,7 @@ async function entrar(page: import('@playwright/test').Page) {
   await expect(page.getByRole('heading', { name: 'Oi, Bia.' })).toBeVisible()
 }
 
-test('criar cadastro, anotar gasto e entrada, ver o mês', async ({ page }, info) => {
+test('criar cadastro, passar pelo onboarding, anotar gasto e entrada, ver o mês', async ({ page }, info) => {
   test.skip(info.project.name !== 'celular', 'O cadastro roda uma vez; o desktop é verificado no teste seguinte.')
 
   await page.goto('/inicio')
@@ -55,6 +60,13 @@ test('criar cadastro, anotar gasto e entrada, ver o mês', async ({ page }, info
   await page.getByLabel('Crie uma senha').fill(password)
   await page.getByRole('button', { name: 'Criar meu cadastro' }).click()
 
+  await expect(page.getByRole('heading', { name: 'Aqui, tudo começa com um gasto.' })).toBeVisible()
+  await page.getByRole('link', { name: 'Pular' }).click()
+  await expect(page.getByRole('heading', { name: 'Quanto você tem hoje?' })).toBeVisible()
+  await page.getByRole('button', { name: 'Pular' }).click()
+  await expect(page.getByRole('heading', { name: 'Que tal anotar seu primeiro gasto?' })).toBeVisible()
+  await page.getByRole('link', { name: 'Depois' }).click()
+
   await expect(page.getByRole('heading', { name: 'Oi, Camila.' })).toBeVisible()
   await expect(page.getByText('Seu mês começa aqui.', { exact: false })).toBeVisible()
 
@@ -64,7 +76,7 @@ test('criar cadastro, anotar gasto e entrada, ver o mês', async ({ page }, info
   await page.getByRole('button', { name: 'Salvar gasto' }).click()
 
   await expect(page.getByRole('status')).toHaveText('Anotado. Seu mês já está atualizado.')
-  await expect(page.getByTestId('disponivel')).toHaveText('−R$ 142,30')
+  await expect(page.getByTestId('disponivel')).toHaveText(`−R$${NBSP}142,30`)
   await expect(page.getByText('Seu maior gasto foi com')).toContainText('Mercado')
 
   await page.goto('/anotar?tipo=entrada')
@@ -72,8 +84,8 @@ test('criar cadastro, anotar gasto e entrada, ver o mês', async ({ page }, info
   await page.getByRole('radio', { name: 'Salário' }).check({ force: true })
   await page.getByRole('button', { name: 'Salvar entrada' }).click()
 
-  await expect(page.getByRole('status')).toHaveText('Anotado. Mais R$ 5.000,00 no seu mês.')
-  await expect(page.getByTestId('disponivel')).toHaveText('R$ 4.857,70')
+  await expect(page.getByRole('status')).toHaveText(`Anotado. Mais R$${NBSP}5.000,00 no seu mês.`)
+  await expect(page.getByTestId('disponivel')).toHaveText(`R$${NBSP}4.857,70`)
 })
 
 test('mensagens de erro do formulário mantêm o que foi digitado', async ({ page }, info) => {
@@ -90,6 +102,8 @@ test('mensagens de erro do formulário mantêm o que foi digitado', async ({ pag
 test('desktop mostra o menu lateral', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop')
   await entrar(page)
-  await expect(page.getByRole('complementary').getByRole('link', { name: 'Seu mês' })).toHaveAttribute('aria-current', 'page')
+  const menu = page.getByRole('complementary')
+  await expect(menu.getByRole('link', { name: 'Seu mês' })).toHaveAttribute('aria-current', 'page')
+  await expect(menu.getByRole('link', { name: 'Extrato' })).toBeVisible()
   await expect(page.getByTestId('disponivel')).toBeVisible()
 })
