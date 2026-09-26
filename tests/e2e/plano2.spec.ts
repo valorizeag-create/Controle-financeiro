@@ -9,9 +9,10 @@ const password = 'senha-forte-123'
 const created: string[] = []
 // formatBRL separa "R$" do número com espaço não separável.
 const NBSP = String.fromCharCode(0xa0)
+const RUN_PREFIX = 'e2e-p2-'
 
 async function makeUser(name: string, opts: { onboarded: boolean }): Promise<{ id: string; email: string }> {
-  const email = `e2e-p2-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@teste.iris.dev`
+  const email = `${RUN_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}@teste.iris.dev`
   const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: name } })
   if (error) throw error
   created.push(data.user.id)
@@ -42,6 +43,24 @@ async function entrar(page: Page, email: string): Promise<void> {
 
 test.afterAll(async () => {
   for (const id of created) await admin.auth.admin.deleteUser(id)
+
+  // Se um worker reiniciar depois de uma falha, `created` (em memória) se perde e
+  // os usuários criados até então ficariam órfãos. Varre todas as páginas de
+  // listUsers e apaga qualquer usuário desta suíte (prefixo do e-mail) que
+  // ainda exista, mesmo que já esteja fora de `created`.
+  const known = new Set(created)
+  let page = 1
+  for (;;) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
+    if (error) throw error
+    for (const u of data.users) {
+      if (u.email?.startsWith(RUN_PREFIX) && !known.has(u.id)) {
+        await admin.auth.admin.deleteUser(u.id)
+      }
+    }
+    if (data.users.length < 1000) break
+    page += 1
+  }
 })
 
 test('onboarding: quem parou no meio volta a ele; quem concluiu não vê de novo', async ({ page }, info) => {
@@ -134,7 +153,7 @@ test('extrato: busca, filtro, editar (inclusive mudando de mês) e excluir', asy
   // Review Focus 2: a data vai para o mês anterior; o registro aparece lá e sai do mês atual.
   await page.getByRole('link', { name: /Mercado · feira/ }).click()
   await page.getByRole('radio', { name: 'Outro dia' }).check({ force: true })
-  await page.getByLabel('Dia').fill(`${prevMonth}-15`)
+  await page.getByLabel('Dia', { exact: true }).fill(`${prevMonth}-15`)
   await page.getByRole('button', { name: 'Salvar alterações' }).click()
   await expect(page).toHaveURL(new RegExp(`/extrato\\?mes=${prevMonth}$`))
   await expect(page.getByRole('link', { name: /Mercado · feira/ })).toBeVisible()

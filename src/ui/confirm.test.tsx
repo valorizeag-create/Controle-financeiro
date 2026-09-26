@@ -83,6 +83,21 @@ test('Tab e Shift+Tab prendem o foco dentro do diálogo', () => {
   expect(document.activeElement).toBe(cancelBtn)
 })
 
+test('ConfirmAction dentro de um <form> renderiza o diálogo fora dele (portal), evitando form aninhado', () => {
+  render(
+    <form aria-label="formulario-externo">
+      <ConfirmAction trigger="Sair" title="Sair da Íris?" confirmLabel="Sair" cancelLabel="Ficar" action={vi.fn()} />
+    </form>,
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Sair' }))
+  const dialog = screen.getByRole('alertdialog', { name: 'Sair da Íris?' })
+  const outerForm = screen.getByRole('form', { name: 'formulario-externo' })
+  expect(outerForm.contains(dialog)).toBe(false)
+  const innerForm = dialog.querySelector('form') as HTMLFormElement
+  expect(innerForm).toBeTruthy()
+  expect(outerForm.contains(innerForm)).toBe(false)
+})
+
 test('ConfirmPanel chama onCancel no botão de cancelar e mostra o controle de confirmar', () => {
   const onCancel = vi.fn()
   render(

@@ -71,9 +71,9 @@ export async function loadCategories(): Promise<Category[]> {
 }
 
 export async function loadTransaction(id: string): Promise<TxRow | null> {
-  await requireUser()
+  const user = await requireUser()
   const supabase = await createClient()
-  const { data, error } = await supabase.from('transactions').select(TX_COLUMNS).eq('id', id).maybeSingle<TxRawRow>()
+  const { data, error } = await supabase.from('transactions').select(TX_COLUMNS).eq('id', id).eq('user_id', user.id).maybeSingle<TxRawRow>()
   if (error) throw error
   return data ? toTxRow(data) : null
 }

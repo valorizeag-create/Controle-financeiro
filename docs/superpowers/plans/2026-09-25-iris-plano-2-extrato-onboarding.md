@@ -5479,7 +5479,7 @@ git commit -m "test(e2e): onboarding, extrato, categorias e configurações; pro
 
 1. **Protótipo do Extrato × roteiro:** o protótipo mostra o chip "Cartão" e não mostra "Período"; a copy lista "Período" e o filtro por cartão é do Plano 4 (RF-60). Aqui: sem "Cartão"; Período = seletor de mês.
 2. **Protótipo "Mais" × terminologia:** o segundo grupo usa `aria-label="Conta"` — proibido ("conta" é só conta a pagar). Não foi usado.
-3. **Texto aprovado "Somando banco, carteira e dinheiro guardado" × terminologia:** "conta" aqui é conta bancária. Mantido por ser texto já aprovado; fica para sua revisão.
+3. **Texto aprovado "Somando conta e dinheiro guardado" × terminologia:** "conta" aqui seria conta bancária, mas a regra de terminologia aprovada reserva "conta" para contas a pagar/receber. Decisão do controlador: o texto foi trocado por "Somando banco, carteira e dinheiro guardado" (ver "Textos novos"); o rótulo antigo não é mais usado.
 4. **RF-51 (editar e-mail) × escopo deste plano (e-mail só leitura):** troca de e-mail adiada para o Plano 9.
 5. **Protótipo SaldoInicial:** "Pular" e "Salvar e continuar" levam a "Instalar" (Plano 8); aqui levam direto ao primeiro gasto.
 6. **Copy só tem "Excluir este gasto?":** a exclusão de entrada precisou de texto novo.
@@ -5519,6 +5519,8 @@ Fora da copy oficial e dos textos já aprovados; precisam da sua aprovação:
 - Extrato, filtro sem resultado: "Nenhum registro com esses filtros." · "Limpar filtros"
 - Rótulos acessíveis (lidos por leitor de tela): "Buscar" (do protótipo), "Filtros", "Categoria" (grupo do filtro), "Mais opções" (do protótipo), "Voltar", "Fechar"
 - Categorias: "Nome" (rótulo do campo) · "Falta o nome." · "Você já tem uma categoria com esse nome." · "Excluir a categoria "{nome}"?" · "Categoria excluída." · "Criar categoria" (título da tela; o botão já é da copy)
+- Saldo inicial: "Somando banco, carteira e dinheiro guardado" (rótulo do campo; substitui "Somando conta e dinheiro guardado" — "conta" é reservado para contas a pagar/receber, ver "Conflitos encontrados na especificação")
+- Onboarding: "Passo {n} de 3" (rótulo acessível, lido por leitor de tela, em cada tela de boas-vindas)
 - Configurações: "Nome" (título da tela de nome) · "É o ponto de partida do seu Saldo total." (recorte do texto aprovado, na tela de saldo inicial)
 - Senha: "Por segurança, saia e entre de novo antes de mudar a senha." · "Essa já é a sua senha. Escolha uma diferente."
 - Navegação: "Extrato", "Mais", "Categorias", "Configurações", "Sair da Íris", "Seu cadastro", "Seu dinheiro", "E-mail", "Mudar senha" — já presentes no protótipo aprovado.

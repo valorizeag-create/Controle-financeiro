@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useFormStatus } from 'react-dom'
 import { Button } from './button'
 
@@ -47,7 +48,7 @@ export function ConfirmPanel({ title, body, cancelLabel, onCancel, children }: P
     }
   }, [])
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-[rgba(18,40,1,.32)] md:items-center">
       <div
         ref={dialogRef}
@@ -65,7 +66,8 @@ export function ConfirmPanel({ title, body, cancelLabel, onCancel, children }: P
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

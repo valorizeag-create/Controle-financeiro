@@ -10,29 +10,39 @@ update public.categories
   set name = btrim(regexp_replace(name, '\s+', ' ', 'g'))
   where name <> btrim(regexp_replace(name, '\s+', ' ', 'g'));
 
+-- 1b. Nome só com espaços colapsa para '' na limpeza acima, e '' violaria a
+--     restrição de nome não vazio abaixo. Dá um nome próprio, baseado no id
+--     (único por linha, então nunca colide com outro nome literal existente).
+update public.categories
+  set name = 'Categoria (' || left(id::text, 8) || ')'
+  where name = '';
+
 -- Duas categorias da mesma pessoa podem colapsar para o mesmo nome depois da
--- limpeza (ex.: "Pet" e "PET  "). Antes de criar o índice único, desempata:
--- categoria padrão sempre vence (nunca é renomeada; se colidir com o nome de
--- uma categoria própria, é essa última que cede) e, entre as demais, a mais
--- antiga mantém o nome. O sufixo usa os 8 primeiros caracteres do próprio id
--- (único por linha), não um contador — não pode colidir com um nome literal
--- que já exista (ex.: "Pet" e uma categoria já chamada "Pet (2)"). A base do
--- nome é cortada em 29 caracteres quando precisar, para caber no limite de 40
--- (com rtrim: o corte pode parar bem antes de um espaço do nome original, e
--- sem aparar isso viraria espaço duplo antes do "(", quebrando a normalização).
+-- limpeza (ex.: "Pet" e "PET  "), inclusive duas categorias padrão entre si
+-- (ex.: uma pessoa já tinha uma categoria própria "Mercado" e a padrão também
+-- se chama "Mercado"). Antes de criar o índice único, desempata: "Outros"
+-- sempre vence (nunca é renomeada — o texto de exclusão promete 'vão para
+-- "Outros"'); entre as demais (padrão ou não), a mais antiga mantém o nome e
+-- as outras recebem o sufixo, mesmo se também forem padrão. O sufixo usa os 8
+-- primeiros caracteres do próprio id (único por linha), não um contador — não
+-- pode colidir com um nome literal que já exista (ex.: "Pet" e uma categoria
+-- já chamada "Pet (2)"). A base do nome é cortada em 29 caracteres quando
+-- precisar, para caber no limite de 40 (com rtrim: o corte pode parar bem
+-- antes de um espaço do nome original, e sem aparar isso viraria espaço
+-- duplo antes do "(", quebrando a normalização).
 update public.categories c
   set name = case
       when char_length(c.name) <= 29 then c.name || ' (' || left(c.id::text, 8) || ')'
       else rtrim(left(c.name, 29)) || ' (' || left(c.id::text, 8) || ')'
     end
   from (
-    select id, default_key, row_number() over (
+    select id, row_number() over (
       partition by user_id, lower(name)
-      order by (default_key is null), created_at, id
+      order by (default_key = 'outros') desc, (default_key is null), created_at, id
     ) as rn
     from public.categories
   ) sub
-  where c.id = sub.id and sub.rn > 1 and c.default_key is null;
+  where c.id = sub.id and sub.rn > 1;
 
 alter table public.categories drop constraint categories_user_id_name_key;
 
