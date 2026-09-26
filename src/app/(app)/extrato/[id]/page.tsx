@@ -36,7 +36,7 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
           <h1 id="editar-titulo" className="flex-1 text-xl font-semibold tracking-tight text-ink">
             {isExpense ? 'Editar gasto' : 'Editar entrada'}
           </h1>
-          <SheetClose href={`/extrato?mes=${monthOf(tx.occurredOn)}`} />
+          <SheetClose href={`/extrato?mes=${monthOf(tx.paidOn ?? tx.occurredOn)}`} />
         </div>
         {erro && <FormAlert>Algo não saiu como esperado do nosso lado. Tente novamente em instantes.</FormAlert>}
         <AnotarForm kind={tx.kind} categories={categories} today={todayInSaoPaulo()} record={record} />

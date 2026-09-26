@@ -70,9 +70,19 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
   const id = parsedId.success ? parsedId.data : null
   const supabase = await createClient()
 
-  // O tipo vem do banco (a RLS só devolve registros da própria pessoa), nunca do formulário.
-  const existing = id ? (await supabase.from('transactions').select('kind').eq('id', id).maybeSingle()).data : null
-  if (!id || !existing) return errorState({ message: SAVE_FAILED, values: readFields(fd, ALL_FIELDS) })
+  // O tipo vem do banco, nunca do formulário. Só registros confirmados da própria pessoa podem ser
+  // editados aqui (contas a pagar/receber pendentes ganham tela própria no Plano 3).
+  const existing = id
+    ? (
+        await supabase
+          .from('transactions')
+          .select('kind, status, paid_on')
+          .eq('id', id)
+          .eq('user_id', user.id)
+          .maybeSingle<{ kind: string; status: string; paid_on: ISODate | null }>()
+      ).data
+    : null
+  if (!id || !existing || existing.status !== 'confirmed') return errorState({ message: SAVE_FAILED, values: readFields(fd, ALL_FIELDS) })
 
   let occurredOn: ISODate
   if (existing.kind === 'income') {
@@ -85,6 +95,7 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
       .update({ amount_cents: d.amountCents, source: d.source, occurred_on: d.occurredOn })
       .eq('id', id)
       .eq('user_id', user.id)
+      .eq('status', 'confirmed')
       .select('id')
     if (error || !data || data.length !== 1) return errorState({ message: SAVE_FAILED, values })
     occurredOn = d.occurredOn
@@ -98,6 +109,7 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
       .update({ amount_cents: d.amountCents, category_id: d.categoryId, note: d.note, payment_method: d.paymentMethod, occurred_on: d.occurredOn })
       .eq('id', id)
       .eq('user_id', user.id)
+      .eq('status', 'confirmed')
       .select('id')
     if (error || !data || data.length !== 1) return errorState({ message: SAVE_FAILED, values })
     occurredOn = d.occurredOn
@@ -105,8 +117,9 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
 
   await setFlash('Alterações salvas.')
   refreshMoneyViews()
-  // Se a data mudou de mês, a pessoa vê o registro onde ele foi parar.
-  redirect(`/extrato?mes=${monthOf(occurredOn)}`)
+  // O mês que a pessoa vê depois é o do dia efetivo: se o registro já tem uma data de pagamento
+  // própria (paid_on), é ela quem decide o mês, não a data que acabou de ser editada.
+  redirect(`/extrato?mes=${monthOf(existing.paid_on ?? occurredOn)}`)
 }
 
 export async function deleteTransaction(fd: FormData): Promise<void> {
@@ -115,11 +128,17 @@ export async function deleteTransaction(fd: FormData): Promise<void> {
   if (!parsedId.success) redirect('/extrato')
   const id = parsedId.data
   const supabase = await createClient()
-  const { data, error } = await supabase.from('transactions').delete().eq('id', id).eq('user_id', user.id).select('occurred_on')
+  const { data, error } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .eq('status', 'confirmed')
+    .select('occurred_on, paid_on')
   if (error) redirect(`/extrato/${id}?erro=1`)
-  const deleted = data?.[0]
+  const deleted = data?.[0] as { occurred_on: ISODate; paid_on: ISODate | null } | undefined
   if (!deleted) redirect('/extrato')
   await setFlash('Excluído. Seu mês já está atualizado.')
   refreshMoneyViews()
-  redirect(`/extrato?mes=${monthOf(deleted.occurred_on)}`)
+  redirect(`/extrato?mes=${monthOf(deleted.paid_on ?? deleted.occurred_on)}`)
 }
