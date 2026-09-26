@@ -24,7 +24,7 @@ export async function signUp(_: FormState, fd: FormData): Promise<FormState> {
     return errorState({ message: 'Esse e-mail já tem um cadastro. Quer entrar?', values })
   }
   if (error) return errorState({ message: UNEXPECTED, values })
-  redirect('/inicio')
+  redirect('/boas-vindas')
 }
 
 export async function signIn(_: FormState, fd: FormData): Promise<FormState> {
