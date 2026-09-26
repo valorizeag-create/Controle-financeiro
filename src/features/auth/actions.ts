@@ -3,10 +3,10 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { env } from '@/lib/env'
+import { setFlash } from '@/lib/flash'
 import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/forms'
+import { UNEXPECTED, passwordUpdateMessage } from './errors'
 import { newPasswordSchema, resetSchema, signInSchema, signUpSchema } from './schemas'
-
-const UNEXPECTED = 'Algo não saiu como esperado do nosso lado. Tente novamente em instantes.'
 
 export async function signUp(_: FormState, fd: FormData): Promise<FormState> {
   const raw = readFields(fd, ['displayName', 'email', 'password'] as const)
@@ -67,7 +67,11 @@ export async function updatePassword(_: FormState, fd: FormData): Promise<FormSt
   if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error) })
   const supabase = await createClient()
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password })
-  if (error) return errorState({ message: UNEXPECTED })
+  if (error) return errorState({ message: passwordUpdateMessage(error.code) })
+  if (fd.get('from') === 'configuracoes') {
+    await setFlash('Alterações salvas.')
+    redirect('/configuracoes')
+  }
   redirect('/inicio')
 }
 

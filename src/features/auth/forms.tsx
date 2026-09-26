@@ -63,10 +63,11 @@ export function ResetForm() {
   )
 }
 
-export function NewPasswordForm() {
+export function NewPasswordForm({ from }: { from?: 'configuracoes' }) {
   const f = useForm(updatePassword)
   return (
     <form key={f.key} action={f.formAction} noValidate className="flex flex-col gap-4">
+      {from && <input type="hidden" name="from" value={from} />}
       <TextField name="password" type="password" label="Crie uma senha" autoComplete="new-password" hint="Pelo menos 8 caracteres." error={f.errors.password} />
       {f.message && <FormAlert>{f.message}</FormAlert>}
       <Button type="submit" disabled={f.pending}>Salvar nova senha</Button>
