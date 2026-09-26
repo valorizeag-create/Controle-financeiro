@@ -25,7 +25,7 @@ vi.mock('next/navigation', () => ({
 
 const { createCategory, deleteCategory, renameCategory } = await import('./actions')
 
-type Call = { op: string; id?: unknown; payload?: unknown }
+type Call = { op: string; id?: unknown; payload?: unknown; filters?: Record<string, unknown> }
 const calls: Call[] = []
 
 function fakeSupabase(s: {
@@ -46,15 +46,21 @@ function fakeSupabase(s: {
         calls.push({ op: `insert:${table}`, payload })
         return { error: s.insertError ?? null }
       },
-      update: (payload: unknown) => ({
-        eq: (_col: string, id: unknown) => ({
-          select: async () => {
-            calls.push({ op: `update:${table}`, id, payload })
-            if (s.updateError) return { data: null, error: s.updateError }
-            return { data: Array.from({ length: s.updateRows ?? 1 }, () => ({ id })), error: null }
+      update: (payload: unknown) => {
+        const filters: Record<string, unknown> = {}
+        const builder = {
+          eq: (col: string, value: unknown) => {
+            filters[col] = value
+            return builder
           },
-        }),
-      }),
+          select: async () => {
+            calls.push({ op: `update:${table}`, id: filters.id, payload, filters })
+            if (s.updateError) return { data: null, error: s.updateError }
+            return { data: Array.from({ length: s.updateRows ?? 1 }, () => ({ id: filters.id })), error: null }
+          },
+        }
+        return builder
+      },
     }),
     rpc: async (fn: string, args: unknown) => {
       calls.push({ op: `rpc:${fn}`, payload: args })
@@ -120,11 +126,13 @@ describe('createCategory', () => {
 })
 
 describe('renameCategory', () => {
-  test('renomeia e avisa', async () => {
+  test('renomeia e avisa, filtrando por id e por user_id (defesa em profundidade sobre a RLS)', async () => {
     h.supabase = fakeSupabase({})
     const url = await redirectOf(renameCategory({ status: 'idle' }, form({ id: ID, name: 'Bichos' })))
     expect(url).toBe('/categorias')
-    expect(calls).toEqual([{ op: 'update:categories', id: ID, payload: { name: 'Bichos' } }])
+    expect(calls).toEqual([
+      { op: 'update:categories', id: ID, payload: { name: 'Bichos' }, filters: { id: ID, user_id: 'u1' } },
+    ])
     expect(h.setFlash).toHaveBeenCalledWith('Alterações salvas.')
   })
 

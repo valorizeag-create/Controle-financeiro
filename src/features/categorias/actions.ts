@@ -42,7 +42,7 @@ export async function createCategory(_: FormState, fd: FormData): Promise<FormSt
 }
 
 export async function renameCategory(_: FormState, fd: FormData): Promise<FormState> {
-  await requireUser()
+  const user = await requireUser()
   const values = readFields(fd, ['name'] as const)
   const parsedId = categoryIdSchema.safeParse(String(fd.get('id') ?? ''))
   if (!parsedId.success) return errorState({ message: SAVE_FAILED, values })
@@ -50,7 +50,14 @@ export async function renameCategory(_: FormState, fd: FormData): Promise<FormSt
   if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error), values })
 
   const supabase = await createClient()
-  const { data, error } = await supabase.from('categories').update({ name: parsed.data.name }).eq('id', parsedId.data).select('id')
+  // Defesa em profundidade: a RLS (categories_own) já limita à pessoa dona,
+  // mas filtramos por user_id aqui também, além do id.
+  const { data, error } = await supabase
+    .from('categories')
+    .update({ name: parsed.data.name })
+    .eq('id', parsedId.data)
+    .eq('user_id', user.id)
+    .select('id')
   if (isDuplicateNameError(error)) return errorState({ fieldErrors: { name: DUPLICATE_CATEGORY }, values })
   if (error || !data || data.length !== 1) return errorState({ message: SAVE_FAILED, values })
 
