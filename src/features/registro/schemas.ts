@@ -1,8 +1,14 @@
 import { z } from 'zod'
 import { parseBRL } from '@/domain/money'
 import { addDays, isValidISODate, type ISODate } from '@/domain/dates'
+import type { Frequency } from '@/domain/recurrence'
 
 export const PAYMENT_METHODS = ['pix', 'cash', 'boleto', 'debit', 'credit', 'other'] as const
+
+export function parseRepeat(repeats: string, frequency: string): Frequency | null {
+  if (repeats !== 'on') return null
+  return frequency === 'yearly' ? 'yearly' : 'monthly'
+}
 
 const MIN_DATE: ISODate = '2000-01-01'
 

@@ -4,19 +4,48 @@ import { useActionState, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Button } from '@/ui/button'
 import { FormAlert } from '@/ui/form-alert'
+import { CHIP } from '@/ui/chip'
+import { FrequencyField } from '@/ui/frequency-field'
 import { idle } from '@/lib/forms'
 import { addDays, type ISODate } from '@/domain/dates'
+import type { Frequency } from '@/domain/recurrence'
 import { createTransaction, updateTransaction } from './actions'
 import type { Category } from './queries'
-import { PAYMENT_LABELS } from './labels'
+import { INCOME_SOURCES, PAYMENT_LABELS } from './labels'
 import { recordToFormValues, type EditableRecord } from './form-values'
 
-const chip =
-  'flex min-h-11 cursor-pointer items-center justify-center rounded-control border border-control bg-card px-3 text-[15px] font-medium text-[#262626] has-[:checked]:border-[1.5px] has-[:checked]:border-selected has-[:checked]:bg-brand-wash has-[:checked]:font-semibold has-[:checked]:text-brand-ink has-[:focus-visible]:shadow-[0_0_0_3px_rgba(160,232,112,.45)]'
-
-const SOURCES = ['Salário', 'Freela', 'Presente', 'Outros']
+const chip = CHIP
 
 type Props = { kind: 'expense' | 'income'; categories: Category[]; today: ISODate; record?: EditableRecord }
+
+function RepeatOption({
+  label,
+  initialOn,
+  initialFrequency,
+}: {
+  label: string
+  initialOn: boolean
+  initialFrequency: Frequency
+}) {
+  const [on, setOn] = useState(initialOn)
+  const [frequency, setFrequency] = useState<Frequency>(initialFrequency)
+
+  return (
+    <div className="flex flex-col gap-3.5">
+      <label className="flex min-h-11 items-center justify-between gap-3 text-[15px] text-ink">
+        {label}
+        <input
+          type="checkbox"
+          name="repeats"
+          checked={on}
+          onChange={(e) => setOn(e.target.checked)}
+          className="size-[22px] accent-[#6cbf38]"
+        />
+      </label>
+      {on && <FrequencyField value={frequency} onChange={setFrequency} legend="Com que frequência?" hideLegend />}
+    </div>
+  )
+}
 
 export function AnotarForm({ kind, categories, today, record }: Props) {
   const [state, action, pending] = useActionState(record ? updateTransaction : createTransaction, idle)
@@ -27,7 +56,7 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
   // "Sujo" = há algo digitado que ainda não foi salvo; o botão Fechar pergunta antes de descartar.
   const [touched, setTouched] = useState(false)
   const isExpense = kind === 'expense'
-  const hasDetails = Boolean(v.note || v.paymentMethod)
+  const hasDetails = Boolean(v.note || v.paymentMethod || v.repeats)
 
   return (
     <form
@@ -69,7 +98,7 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
         <fieldset className="flex flex-col gap-2.5">
           <legend className="mb-2.5 text-[15px] font-medium">De onde veio?</legend>
           <div className="flex flex-wrap gap-2">
-            {SOURCES.map((s) => (
+            {INCOME_SOURCES.map((s) => (
               <label key={s} className={chip}>
                 <input type="radio" name="source" value={s} defaultChecked={v.source === s} className="sr-only" />
                 {s}
@@ -100,6 +129,16 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
         {e.date && <span id="date-error" className="text-sm text-error-ink">{e.date}</span>}
       </fieldset>
 
+      {!isExpense && !record && (
+        <div className="border-y border-line py-3.5">
+          <RepeatOption
+            label="Isso se repete"
+            initialOn={v.repeats === 'on'}
+            initialFrequency={v.frequency === 'yearly' ? 'yearly' : 'monthly'}
+          />
+        </div>
+      )}
+
       {isExpense && (
         <details open={hasDetails} className="group border-y border-line">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between text-[15px] font-medium text-ink">
@@ -120,6 +159,13 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
                 ))}
               </select>
             </div>
+            {!record && (
+              <RepeatOption
+                label="É uma conta que se repete"
+                initialOn={v.repeats === 'on'}
+                initialFrequency={v.frequency === 'yearly' ? 'yearly' : 'monthly'}
+              />
+            )}
           </div>
         </details>
       )}

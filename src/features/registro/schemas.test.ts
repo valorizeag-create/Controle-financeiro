@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { firstFieldErrors } from '@/lib/forms'
 import { addDays } from '@/domain/dates'
-import { makeExpenseSchema, makeIncomeSchema, resolveWhen } from './schemas'
+import { makeExpenseSchema, makeIncomeSchema, parseRepeat, resolveWhen } from './schemas'
 
 const today = '2026-09-30'
 const cat = '3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
@@ -115,4 +115,11 @@ describe('entrada', () => {
     })
     expect(r.occurredOn).toBe(addDays(today, 1))
   })
+})
+
+test('parseRepeat: só "on" repete; padrão todo mês', () => {
+  expect(parseRepeat('on', 'yearly')).toBe('yearly')
+  expect(parseRepeat('on', 'monthly')).toBe('monthly')
+  expect(parseRepeat('on', '')).toBe('monthly')
+  expect(parseRepeat('', 'yearly')).toBeNull()
 })

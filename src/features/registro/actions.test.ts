@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
+vi.mock('server-only', () => ({}))
+
 const h = vi.hoisted(() => {
   class RedirectSignal extends Error {
     url: string
@@ -23,7 +25,7 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-const { updateTransaction, deleteTransaction } = await import('./actions')
+const { createTransaction, updateTransaction, deleteTransaction } = await import('./actions')
 
 type Call = { op: string; filters: Record<string, unknown>; payload?: unknown }
 const calls: Call[] = []
@@ -175,6 +177,7 @@ describe('updateTransaction', () => {
     expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { amount: '150' } })
     expect(calls).toEqual([])
   })
+
 })
 
 describe('deleteTransaction', () => {
@@ -214,5 +217,63 @@ describe('deleteTransaction', () => {
     const url = await redirectOf(deleteTransaction(form({ id: ID })))
     expect(url).toBe('/extrato')
     expect(h.setFlash).not.toHaveBeenCalled()
+  })
+})
+
+function fakeCreate(s: { rpcError?: unknown } = {}) {
+  return {
+    from: (table: string) => ({
+      insert: async (payload: unknown) => {
+        calls.push({ op: `insert:${table}`, filters: {}, payload })
+        return { error: null }
+      },
+    }),
+    rpc: async (fn: string, args: unknown) => {
+      calls.push({ op: `rpc:${fn}`, filters: {}, payload: args })
+      return { data: 'novo-id', error: s.rpcError ?? null }
+    },
+  }
+}
+
+describe('createTransaction com repetição', () => {
+  test('gasto que se repete cria recorrência e primeira ocorrência de uma vez', async () => {
+    h.supabase = fakeCreate()
+    const url = await redirectOf(
+      createTransaction({ status: 'idle' }, form({ kind: 'expense', amount: '120', categoryId: CAT, when: 'today', date: '', note: 'Internet', paymentMethod: 'boleto', repeats: 'on', frequency: 'monthly' })),
+    )
+    expect(url).toBe('/inicio')
+    expect(calls).toEqual([
+      {
+        op: 'rpc:create_recurring_transaction',
+        filters: {},
+        payload: {
+          p_kind: 'expense', p_amount_cents: 12000, p_category_id: CAT, p_source: null, p_note: 'Internet',
+          p_payment_method: 'boleto', p_occurred_on: '2026-09-30', p_frequency: 'monthly',
+        },
+      },
+    ])
+    expect(h.setFlash).toHaveBeenCalledWith('Anotado. Seu mês já está atualizado.')
+    expect(h.revalidatePath).toHaveBeenCalledWith('/contas')
+  })
+
+  test('entrada que se repete todo ano', async () => {
+    h.supabase = fakeCreate()
+    await redirectOf(createTransaction({ status: 'idle' }, form({ kind: 'income', amount: '800', source: 'Freela', when: 'today', date: '', repeats: 'on', frequency: 'yearly' })))
+    expect(calls[0].payload).toEqual({
+      p_kind: 'income', p_amount_cents: 80000, p_category_id: null, p_source: 'Freela', p_note: null,
+      p_payment_method: null, p_occurred_on: '2026-09-30', p_frequency: 'yearly',
+    })
+  })
+
+  test('sem repetição continua um registro simples', async () => {
+    h.supabase = fakeCreate()
+    await redirectOf(createTransaction({ status: 'idle' }, form({ kind: 'expense', amount: '10', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '' })))
+    expect(calls.map((c) => c.op)).toEqual(['insert:transactions'])
+  })
+
+  test('falha na função mantém o que foi digitado, inclusive a repetição', async () => {
+    h.supabase = fakeCreate({ rpcError: { message: 'x' } })
+    const state = await createTransaction({ status: 'idle' }, form({ kind: 'expense', amount: '120', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '', repeats: 'on', frequency: 'yearly' }))
+    expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { repeats: 'on', frequency: 'yearly' } })
   })
 })

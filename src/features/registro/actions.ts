@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { createClient, requireUser } from '@/lib/supabase/server'
@@ -8,18 +7,15 @@ import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/
 import { setFlash } from '@/lib/flash'
 import { formatBRL } from '@/domain/money'
 import { monthOf, todayInSaoPaulo, type ISODate } from '@/domain/dates'
-import { makeExpenseSchema, makeIncomeSchema } from './schemas'
+import { refreshMoneyViews } from '@/lib/refresh'
+import { makeExpenseSchema, makeIncomeSchema, parseRepeat } from './schemas'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
 const EXPENSE_FIELDS = ['amount', 'categoryId', 'when', 'date', 'note', 'paymentMethod'] as const
 const INCOME_FIELDS = ['amount', 'source', 'when', 'date'] as const
+const REPEAT_FIELDS = ['repeats', 'frequency'] as const
 const ALL_FIELDS = ['amount', 'categoryId', 'source', 'when', 'date', 'note', 'paymentMethod'] as const
 const recordId = z.uuid()
-
-function refreshMoneyViews() {
-  revalidatePath('/inicio')
-  revalidatePath('/extrato')
-}
 
 export async function createTransaction(_: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser()
@@ -28,34 +24,64 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
   const supabase = await createClient()
 
   if (kind === 'expense') {
-    const values = readFields(fd, EXPENSE_FIELDS)
+    const values = readFields(fd, [...EXPENSE_FIELDS, ...REPEAT_FIELDS])
     const parsed = makeExpenseSchema(today).safeParse(values)
     if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error), values })
     const d = parsed.data
-    const { error } = await supabase.from('transactions').insert({
-      user_id: user.id,
-      kind,
-      amount_cents: d.amountCents,
-      category_id: d.categoryId,
-      note: d.note,
-      payment_method: d.paymentMethod,
-      occurred_on: d.occurredOn,
-    })
-    if (error) return errorState({ message: SAVE_FAILED, values })
+    const frequency = parseRepeat(values.repeats, values.frequency)
+    if (frequency) {
+      const { error } = await supabase.rpc('create_recurring_transaction', {
+        p_kind: kind,
+        p_amount_cents: d.amountCents,
+        p_category_id: d.categoryId,
+        p_source: null,
+        p_note: d.note,
+        p_payment_method: d.paymentMethod,
+        p_occurred_on: d.occurredOn,
+        p_frequency: frequency,
+      })
+      if (error) return errorState({ message: SAVE_FAILED, values })
+    } else {
+      const { error } = await supabase.from('transactions').insert({
+        user_id: user.id,
+        kind,
+        amount_cents: d.amountCents,
+        category_id: d.categoryId,
+        note: d.note,
+        payment_method: d.paymentMethod,
+        occurred_on: d.occurredOn,
+      })
+      if (error) return errorState({ message: SAVE_FAILED, values })
+    }
     await setFlash('Anotado. Seu mês já está atualizado.')
   } else {
-    const values = readFields(fd, INCOME_FIELDS)
+    const values = readFields(fd, [...INCOME_FIELDS, ...REPEAT_FIELDS])
     const parsed = makeIncomeSchema(today).safeParse(values)
     if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error), values })
     const d = parsed.data
-    const { error } = await supabase.from('transactions').insert({
-      user_id: user.id,
-      kind,
-      amount_cents: d.amountCents,
-      source: d.source,
-      occurred_on: d.occurredOn,
-    })
-    if (error) return errorState({ message: SAVE_FAILED, values })
+    const frequency = parseRepeat(values.repeats, values.frequency)
+    if (frequency) {
+      const { error } = await supabase.rpc('create_recurring_transaction', {
+        p_kind: kind,
+        p_amount_cents: d.amountCents,
+        p_category_id: null,
+        p_source: d.source,
+        p_note: null,
+        p_payment_method: null,
+        p_occurred_on: d.occurredOn,
+        p_frequency: frequency,
+      })
+      if (error) return errorState({ message: SAVE_FAILED, values })
+    } else {
+      const { error } = await supabase.from('transactions').insert({
+        user_id: user.id,
+        kind,
+        amount_cents: d.amountCents,
+        source: d.source,
+        occurred_on: d.occurredOn,
+      })
+      if (error) return errorState({ message: SAVE_FAILED, values })
+    }
     await setFlash(`Anotado. Mais ${formatBRL(d.amountCents)} no seu mês.`)
   }
 

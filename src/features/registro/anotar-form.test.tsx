@@ -120,3 +120,40 @@ describe('formulário "sujo" (para pedir confirmação ao fechar)', () => {
     expect(container.querySelector('form')!.getAttribute('data-dirty')).toBe('true')
   })
 })
+
+describe('se repete (só ao criar)', () => {
+  test('gasto: opção dentro de Mais detalhes; marcada mostra Todo mês / Todo ano', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} />)
+    const box = screen.getByLabelText('É uma conta que se repete') as HTMLInputElement
+    expect(box.closest('details')).not.toBeNull()
+    expect(box.name).toBe('repeats')
+    expect(screen.queryByRole('radio', { name: 'Todo mês' })).toBeNull()
+    fireEvent.click(box)
+    expect(screen.getByRole('radio', { name: 'Todo mês' })).toHaveProperty('checked', true)
+    expect(screen.getByRole('radio', { name: 'Todo ano' })).toHaveProperty('checked', false)
+    expect(screen.getByRole('group', { name: 'Com que frequência?' })).toBeTruthy()
+  })
+
+  test('entrada: "Isso se repete" fora de detalhes', () => {
+    render(<AnotarForm kind="income" categories={categories} today={today} />)
+    expect(screen.getByLabelText('Isso se repete').closest('details')).toBeNull()
+  })
+
+  test('depois de um erro, a repetição escolhida continua marcada e visível', () => {
+    mockUseActionState.mockReturnValueOnce([
+      { status: 'error', submission: 1, message: 'x', values: { amount: '120', repeats: 'on', frequency: 'yearly' } },
+      vi.fn(),
+      false,
+    ])
+    render(<AnotarForm kind="expense" categories={categories} today={today} />)
+    expect(screen.getByText('Mais detalhes').closest('details')?.open).toBe(true)
+    expect(screen.getByLabelText('É uma conta que se repete')).toHaveProperty('checked', true)
+    expect(screen.getByRole('radio', { name: 'Todo ano' })).toHaveProperty('checked', true)
+  })
+
+  test('na edição não existe a opção', () => {
+    const gasto = { id: 'r1', kind: 'expense' as const, amountCents: 100, categoryId: '1', source: null, note: null, paymentMethod: null, occurredOn: today }
+    render(<AnotarForm kind="expense" categories={categories} today={today} record={gasto} />)
+    expect(screen.queryByLabelText('É uma conta que se repete')).toBeNull()
+  })
+})
