@@ -119,6 +119,9 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     const parsed = makeIncomeSchema(today).safeParse(values)
     if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error), values })
     const d = parsed.data
+    // Um pagamento não pode ter acontecido no futuro: se a data editada é a de pagamento
+    // (paid_on), ela não pode passar de hoje, mesmo que a data de entrada permita.
+    if (dateColumn === 'paid_on' && d.occurredOn > today) return errorState({ fieldErrors: { date: 'Escolha o dia.' }, values })
     const { data, error } = await supabase
       .from('transactions')
       .update({ amount_cents: d.amountCents, source: d.source, [dateColumn]: d.occurredOn })
@@ -133,6 +136,9 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     const parsed = makeExpenseSchema(today).safeParse(values)
     if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error), values })
     const d = parsed.data
+    // Um pagamento não pode ter acontecido no futuro: se a data editada é a de pagamento
+    // (paid_on), ela não pode passar de hoje, mesmo que gasto permita datas futuras.
+    if (dateColumn === 'paid_on' && d.occurredOn > today) return errorState({ fieldErrors: { date: 'Escolha o dia.' }, values })
     const { data, error } = await supabase
       .from('transactions')
       .update({ amount_cents: d.amountCents, category_id: d.categoryId, note: d.note, payment_method: d.paymentMethod, [dateColumn]: d.occurredOn })

@@ -14,8 +14,6 @@ import type { Category } from './queries'
 import { INCOME_SOURCES, PAYMENT_LABELS } from './labels'
 import { recordToFormValues, type EditableRecord } from './form-values'
 
-const chip = CHIP
-
 type Props = { kind: 'expense' | 'income'; categories: Category[]; today: ISODate; record?: EditableRecord }
 
 function RepeatOption({
@@ -86,7 +84,7 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
           <legend className="mb-2.5 text-[15px] font-medium">Com o quê?</legend>
           <div className="grid grid-cols-3 gap-2">
             {categories.map((c) => (
-              <label key={c.id} className={chip}>
+              <label key={c.id} className={CHIP}>
                 <input type="radio" name="categoryId" value={c.id} defaultChecked={v.categoryId === c.id} className="sr-only" />
                 {c.name}
               </label>
@@ -99,7 +97,7 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
           <legend className="mb-2.5 text-[15px] font-medium">De onde veio?</legend>
           <div className="flex flex-wrap gap-2">
             {INCOME_SOURCES.map((s) => (
-              <label key={s} className={chip}>
+              <label key={s} className={CHIP}>
                 <input type="radio" name="source" value={s} defaultChecked={v.source === s} className="sr-only" />
                 {s}
               </label>
@@ -112,7 +110,7 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
         <legend className="mb-2.5 text-[15px] font-medium">Quando?</legend>
         <div className="flex flex-wrap gap-2">
           {[['today', 'Hoje'], ['yesterday', 'Ontem'], ['other', 'Outro dia']].map(([value, label]) => (
-            <label key={value} className={`${chip} rounded-full px-[18px]`}>
+            <label key={value} className={`${CHIP} rounded-full px-[18px]`}>
               <input type="radio" name="when" value={value} checked={when === value} onChange={() => setWhen(value)} className="sr-only" />
               {label}
             </label>
