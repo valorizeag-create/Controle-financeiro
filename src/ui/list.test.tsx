@@ -24,6 +24,13 @@ test('linha com link mostra rótulo, valor e seta; linha fixa não é link', () 
   expect(screen.getByText('ana@teste.iris.dev').closest('a')).toBeNull()
 })
 
+test('RowLink mostra o detalhe abaixo do título', () => {
+  render(<ListCard><ListRow><RowLink href="/contas/recorrencia/r1" title="Luz" detail="Todo mês · dia 25" /></ListRow></ListCard>)
+  const link = screen.getByRole('link', { name: /Luz/ })
+  const texts = Array.from(link.querySelectorAll('span span')).map((s) => s.textContent)
+  expect(texts).toEqual(['Luz', 'Todo mês · dia 25'])
+})
+
 test('cabeçalho tem título e Voltar; em páginas principais o Voltar some no desktop', () => {
   const { rerender } = render(<PageHeader title="Criar categoria" backHref="/categorias" />)
   expect(screen.getByRole('heading', { level: 1, name: 'Criar categoria' })).toBeTruthy()

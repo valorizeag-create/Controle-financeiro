@@ -24,15 +24,16 @@ export function ListRow({ children }: { children: ReactNode }) {
   return <li className="border-b border-line last:border-b-0">{children}</li>
 }
 
-type RowLinkProps = { href: string; title: string; caption?: string; value?: string; icon?: ReactNode }
+type RowLinkProps = { href: string; title: string; caption?: string; detail?: string; value?: string; icon?: ReactNode }
 
-export function RowLink({ href, title, caption, value, icon }: RowLinkProps) {
+export function RowLink({ href, title, caption, detail, value, icon }: RowLinkProps) {
   return (
     <Link href={href} className="flex min-h-14 items-center gap-3.5 text-ink">
       {icon}
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         {caption && <span className="text-[13px] text-muted">{caption}</span>}
         <span className="truncate text-[15px]">{title}</span>
+        {detail && <span className="text-[13px] text-muted">{detail}</span>}
       </span>
       {value && <span className="text-sm text-muted">{value}</span>}
       <ChevronRight className="size-[18px] shrink-0 text-muted" aria-hidden="true" />
