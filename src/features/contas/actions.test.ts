@@ -170,3 +170,103 @@ describe('confirmIncome (RF-17)', () => {
     expect(h.setFlash).not.toHaveBeenCalled()
   })
 })
+
+describe('createBill', () => {
+  test('cria a conta; a primeira vence na próxima data a partir de hoje', async () => {
+    h.supabase = fakeSupabase()
+    const url = await redirectOf(
+      actions.createBill({ status: 'idle' }, form({ name: 'Luz', amount: '180', categoryId: CAT, frequency: 'monthly', dueDay: '25', dueMonth: '' })),
+    )
+    expect(url).toBe('/contas')
+    expect(calls).toEqual([
+      {
+        op: 'insert:recurrences',
+        filters: {},
+        payload: {
+          user_id: 'u1', kind: 'expense', name: 'Luz', amount_cents: 18000, category_id: CAT,
+          frequency: 'monthly', due_day: 25, due_month: null, starts_on: '2026-10-25',
+        },
+      },
+    ])
+    expect(h.setFlash).toHaveBeenCalledWith('Conta criada.')
+    expect(h.revalidatePath).toHaveBeenCalledWith('/contas')
+  })
+
+  test('anual em 29 de fevereiro começa no último dia de fevereiro (Review Focus 2)', async () => {
+    h.supabase = fakeSupabase()
+    await redirectOf(actions.createBill({ status: 'idle' }, form({ name: 'IPVA', amount: '500', categoryId: CAT, frequency: 'yearly', dueDay: '29', dueMonth: '2' })))
+    expect(calls[0].payload).toMatchObject({ frequency: 'yearly', due_day: 29, due_month: 2, starts_on: '2027-02-28' })
+  })
+
+  test('erro de campo não grava nada e mantém o que foi digitado', async () => {
+    h.supabase = fakeSupabase()
+    const state = await actions.createBill({ status: 'idle' }, form({ name: '', amount: '180', categoryId: CAT, frequency: 'monthly', dueDay: '25', dueMonth: '' }))
+    expect(state).toMatchObject({ status: 'error', fieldErrors: { name: 'Falta o nome.' }, values: { amount: '180' } })
+    expect(calls).toEqual([])
+  })
+
+  test('falha no banco avisa sem perder nada', async () => {
+    h.supabase = fakeSupabase({ insertError: { code: '23503' } })
+    const state = await actions.createBill({ status: 'idle' }, form({ name: 'Luz', amount: '180', categoryId: CAT, frequency: 'monthly', dueDay: '25', dueMonth: '' }))
+    expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { name: 'Luz' } })
+  })
+})
+
+describe('updateRecurrence', () => {
+  test('o tipo vem do banco; altera pela função atômica', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense' })
+    const url = await redirectOf(actions.updateRecurrence({ status: 'idle' }, form({ id: ID, name: 'Energia', amount: '200', categoryId: CAT, source: 'Freela', dueDay: '10' })))
+    expect(url).toBe('/contas')
+    expect(calls).toEqual([
+      { op: 'read:recurrences', filters: { id: ID, user_id: 'u1', ended_on: null } },
+      {
+        op: 'rpc:update_recurrence',
+        filters: {},
+        payload: { p_id: ID, p_name: 'Energia', p_amount_cents: 20000, p_category_id: CAT, p_source: null, p_due_day: 10 },
+      },
+    ])
+    expect(h.setFlash).toHaveBeenCalledWith('Alterações salvas.')
+  })
+
+  test('entrada ignora categoria enviada pelo formulário', async () => {
+    h.supabase = fakeSupabase({ kind: 'income' })
+    await redirectOf(actions.updateRecurrence({ status: 'idle' }, form({ id: ID, name: 'Freela', amount: '800', categoryId: CAT, source: 'Freela', dueDay: '30' })))
+    expect(calls[1].payload).toMatchObject({ p_category_id: null, p_source: 'Freela' })
+  })
+
+  test('recorrência encerrada, de outra pessoa ou id inválido não grava', async () => {
+    h.supabase = fakeSupabase({ kind: null })
+    for (const id of [ID, 'nao-e-id']) {
+      const state = await actions.updateRecurrence({ status: 'idle' }, form({ id, name: 'Luz', amount: '10', categoryId: CAT, dueDay: '5' }))
+      expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { amount: '10' } })
+    }
+    expect(calls.filter((c) => c.op.startsWith('rpc:'))).toEqual([])
+  })
+
+  test('falha na função avisa sem perder nada', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense', rpcError: { message: 'Recorrência não encontrada.' } })
+    const state = await actions.updateRecurrence({ status: 'idle' }, form({ id: ID, name: 'Luz', amount: '10', categoryId: CAT, dueDay: '5' }))
+    expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED })
+  })
+})
+
+describe('endRecurrence', () => {
+  test('encerra e avisa que o histórico continua', async () => {
+    h.supabase = fakeSupabase()
+    expect(await redirectOf(actions.endRecurrence(form({ id: ID })))).toBe('/contas')
+    expect(calls).toEqual([{ op: 'rpc:end_recurrence', filters: {}, payload: { p_id: ID } }])
+    expect(h.setFlash).toHaveBeenCalledWith('Encerrada. O histórico continua no Extrato.')
+  })
+
+  test('falha volta para a recorrência com aviso de erro', async () => {
+    h.supabase = fakeSupabase({ rpcError: { message: 'x' } })
+    expect(await redirectOf(actions.endRecurrence(form({ id: ID })))).toBe(`/contas/recorrencia/${ID}?erro=1`)
+    expect(h.setFlash).not.toHaveBeenCalled()
+  })
+
+  test('id inválido volta para Contas sem chamar o banco', async () => {
+    h.supabase = fakeSupabase()
+    expect(await redirectOf(actions.endRecurrence(form({ id: 'x' })))).toBe('/contas')
+    expect(calls).toEqual([])
+  })
+})
