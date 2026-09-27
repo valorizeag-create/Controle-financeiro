@@ -26,7 +26,7 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
     source: tx.source,
     note: tx.note,
     paymentMethod: tx.paymentMethod,
-    occurredOn: tx.occurredOn,
+    occurredOn: tx.paidOn ?? tx.occurredOn,
   }
 
   return (

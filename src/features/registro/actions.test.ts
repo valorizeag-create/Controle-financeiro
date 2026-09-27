@@ -178,6 +178,21 @@ describe('updateTransaction', () => {
     expect(calls).toEqual([])
   })
 
+  test('conta paga: a data editada é o dia do pagamento, não o vencimento (Review Focus 5)', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense', paidOn: '2026-10-02' })
+    const url = await redirectOf(
+      updateTransaction({ status: 'idle' }, form({ id: ID, amount: '180', categoryId: CAT, when: 'other', date: '2026-09-29', note: 'Luz', paymentMethod: '' })),
+    )
+    expect(url).toBe('/extrato?mes=2026-09')
+    expect(calls[0].payload).toEqual({ amount_cents: 18000, category_id: CAT, note: 'Luz', payment_method: null, paid_on: '2026-09-29' })
+    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed' })
+  })
+
+  test('entrada recebida de uma recorrência: também muda o dia em que entrou', async () => {
+    h.supabase = fakeSupabase({ kind: 'income', paidOn: '2026-09-28' })
+    await redirectOf(updateTransaction({ status: 'idle' }, form({ id: ID, amount: '750', source: 'Freela', when: 'yesterday', date: '' })))
+    expect(calls[0].payload).toEqual({ amount_cents: 75000, source: 'Freela', paid_on: '2026-09-29' })
+  })
 })
 
 describe('deleteTransaction', () => {

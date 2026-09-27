@@ -110,6 +110,9 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     : null
   if (!id || !existing || existing.status !== 'confirmed') return errorState({ message: SAVE_FAILED, values: readFields(fd, ALL_FIELDS) })
 
+  // Se o registro já tem uma data de pagamento própria (conta paga ou entrada recebida), a data
+  // editada no formulário é o dia do pagamento, não o vencimento original.
+  const dateColumn = existing.paid_on ? 'paid_on' : 'occurred_on'
   let occurredOn: ISODate
   if (existing.kind === 'income') {
     const values = readFields(fd, INCOME_FIELDS)
@@ -118,7 +121,7 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     const d = parsed.data
     const { data, error } = await supabase
       .from('transactions')
-      .update({ amount_cents: d.amountCents, source: d.source, occurred_on: d.occurredOn })
+      .update({ amount_cents: d.amountCents, source: d.source, [dateColumn]: d.occurredOn })
       .eq('id', id)
       .eq('user_id', user.id)
       .eq('status', 'confirmed')
@@ -132,7 +135,7 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     const d = parsed.data
     const { data, error } = await supabase
       .from('transactions')
-      .update({ amount_cents: d.amountCents, category_id: d.categoryId, note: d.note, payment_method: d.paymentMethod, occurred_on: d.occurredOn })
+      .update({ amount_cents: d.amountCents, category_id: d.categoryId, note: d.note, payment_method: d.paymentMethod, [dateColumn]: d.occurredOn })
       .eq('id', id)
       .eq('user_id', user.id)
       .eq('status', 'confirmed')
@@ -143,9 +146,8 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
 
   await setFlash('Alterações salvas.')
   refreshMoneyViews()
-  // O mês que a pessoa vê depois é o do dia efetivo: se o registro já tem uma data de pagamento
-  // própria (paid_on), é ela quem decide o mês, não a data que acabou de ser editada.
-  redirect(`/extrato?mes=${monthOf(existing.paid_on ?? occurredOn)}`)
+  // A data salva agora é sempre a efetiva (paid_on quando existe, occurred_on quando não).
+  redirect(`/extrato?mes=${monthOf(occurredOn)}`)
 }
 
 export async function deleteTransaction(fd: FormData): Promise<void> {
