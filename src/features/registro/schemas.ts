@@ -19,7 +19,7 @@ export function resolveWhen(when: string, date: string, today: ISODate, maxDate:
   return resolved
 }
 
-const amount = z.string().transform((raw, ctx) => {
+export const amountField = z.string().transform((raw, ctx) => {
   if (raw.trim() === '') {
     ctx.addIssue({ code: 'custom', message: 'Falta o valor.' })
     return z.NEVER
@@ -58,7 +58,7 @@ function withDate<T extends z.ZodRawShape>(shape: T, today: ISODate, maxDate: IS
 export const makeExpenseSchema = (today: ISODate) =>
   withDate(
     {
-      amount,
+      amount: amountField,
       categoryId: z.uuid({ error: 'Escolha uma categoria para esse gasto.' }),
       note: optionalText(140),
       paymentMethod: z
@@ -72,7 +72,7 @@ export const makeExpenseSchema = (today: ISODate) =>
 export const makeIncomeSchema = (today: ISODate) =>
   // Dinheiro que ainda não chegou não conta: entrada não pode ser datada de
   // amanhã em diante (diferente de gasto, que permite datas futuras).
-  withDate({ amount, source: optionalText(40) }, today, today).transform(({ amount: amountCents, ...rest }) => ({
+  withDate({ amount: amountField, source: optionalText(40) }, today, today).transform(({ amount: amountCents, ...rest }) => ({
     amountCents,
     ...rest,
   }))
