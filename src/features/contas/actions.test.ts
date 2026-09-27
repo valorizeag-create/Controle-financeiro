@@ -11,6 +11,7 @@ const h = vi.hoisted(() => {
   return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), revalidatePath: vi.fn() }
 })
 
+vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => h.supabase,
   requireUser: async () => ({ id: 'u1', email: 'ana@teste.iris.dev' }),

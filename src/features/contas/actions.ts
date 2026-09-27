@@ -13,7 +13,7 @@ import { nextDueOnOrAfter } from '@/domain/recurrence'
 import { safeReturnPath } from './return-path'
 import { billSchema, makeRecurrenceEditSchema } from './schemas'
 
-export const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
+const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
 
 const recordId = z.uuid()
 const BILL_FIELDS = ['name', 'amount', 'categoryId', 'frequency', 'dueDay', 'dueMonth'] as const
@@ -34,7 +34,7 @@ export async function markBillPaid(fd: FormData): Promise<void> {
     .eq('user_id', user.id)
     .eq('kind', 'expense')
     .eq('status', 'pending')
-    .select()
+    .select('id')
   if (error) redirect('/contas?erro=1')
   if (!data || data.length !== 1) redirect(volta)
   await setFlash('Conta marcada como paga.')
@@ -59,7 +59,7 @@ export async function confirmIncome(_: FormState, fd: FormData): Promise<FormSta
     .eq('user_id', user.id)
     .eq('kind', 'income')
     .eq('status', 'pending')
-    .select()
+    .select('id')
   if (error || !data || data.length !== 1) return errorState({ message: SAVE_FAILED, values })
   await setFlash(`Anotado. Mais ${formatBRL(parsed.data.amount)} no seu mês.`)
   refreshMoneyViews()
