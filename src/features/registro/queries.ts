@@ -4,6 +4,7 @@ import { createClient, requireUser } from '@/lib/supabase/server'
 import type { CategorizedTx } from '@/domain/breakdown'
 import { fetchAllPages } from './paging'
 import { orderCategories } from '@/features/categorias/names'
+import { ensureOccurrences } from '@/features/contas/occurrences'
 
 export type Profile = { displayName: string; initialBalanceCents: number }
 export type Category = { id: string; name: string; defaultKey: string | null }
@@ -81,6 +82,8 @@ export async function loadTransaction(id: string): Promise<TxRow | null> {
 export async function loadLedger(): Promise<{ profile: Profile; categories: Category[]; transactions: TxRow[] }> {
   await requireUser()
   const supabase = await createClient()
+  // Contas e entradas que se repetem aparecem ao abrir qualquer tela com números (etapa-3 §5)
+  await ensureOccurrences(supabase)
   const [profile, categories, rawTxs] = await Promise.all([
     supabase.from('profiles').select('display_name, initial_balance_cents').single(),
     fetchCategories(supabase),
