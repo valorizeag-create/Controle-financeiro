@@ -82,22 +82,25 @@ export async function loadTransaction(id: string): Promise<TxRow | null> {
 export async function loadLedger(): Promise<{ profile: Profile; categories: Category[]; transactions: TxRow[] }> {
   await requireUser()
   const supabase = await createClient()
-  // Contas e entradas que se repetem aparecem ao abrir qualquer tela com números (etapa-3 §5)
-  await ensureOccurrences(supabase)
-  const [profile, categories, rawTxs] = await Promise.all([
+  // Contas e entradas que se repetem aparecem ao abrir qualquer tela com números (etapa-3 §5).
+  // Só a leitura de transactions depende da geração ter terminado; profile e categories
+  // não são afetados por ela e podem correr em paralelo.
+  const occurrencesReady = ensureOccurrences(supabase)
+  const [profile, categories] = await Promise.all([
     supabase.from('profiles').select('display_name, initial_balance_cents').single(),
     fetchCategories(supabase),
-    fetchAllPages<TxRawRow>(async (from, to) => {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select(TX_COLUMNS)
-        .order('occurred_on', { ascending: false })
-        .order('created_at', { ascending: false })
-        .order('id')
-        .range(from, to)
-      return { data, error }
-    }),
   ])
+  await occurrencesReady
+  const rawTxs = await fetchAllPages<TxRawRow>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select(TX_COLUMNS)
+      .order('occurred_on', { ascending: false })
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to)
+    return { data, error }
+  })
   if (profile.error) throw profile.error
   return {
     profile: { displayName: profile.data.display_name, initialBalanceCents: Number(profile.data.initial_balance_cents) },

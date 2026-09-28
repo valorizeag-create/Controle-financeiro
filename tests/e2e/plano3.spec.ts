@@ -9,7 +9,13 @@ const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SU
 const password = 'senha-forte-123'
 const created: string[] = []
 const NBSP = String.fromCharCode(0xa0)
-const RUN_PREFIX = 'e2e-p3-'
+// Cada worker (celular e desktop rodam em paralelo) precisa de um prefixo só
+// seu: senão a varredura de limpeza de um worker pode apagar usuários que o
+// outro ainda está usando. TEST_PARALLEL_INDEX é único entre workers
+// concorrentes; o id de execução evita colisão entre execuções.
+const RUN_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const WORKER = process.env.TEST_PARALLEL_INDEX ?? process.env.TEST_WORKER_INDEX ?? '0'
+const RUN_PREFIX = `e2e-p3-w${WORKER}-${RUN_ID}-`
 const today = todayInSaoPaulo()
 const day = Number(today.slice(8, 10))
 
@@ -50,6 +56,10 @@ async function entrar(page: Page, email: string): Promise<void> {
 
 test.afterAll(async () => {
   for (const id of created) await admin.auth.admin.deleteUser(id)
+  // Varre e apaga qualquer usuário órfão com o prefixo exato deste
+  // worker/execução (RUN_PREFIX já inclui o worker e um id de execução).
+  // Nunca um prefixo genérico: outro worker rodando em paralelo (celular e
+  // desktop) pode ter usuários seus ainda em uso.
   const known = new Set(created)
   let page = 1
   for (;;) {
@@ -71,7 +81,7 @@ test('conta que se repete: criar, aparece a pagar, marcar como paga pelo Seu mê
 
   await page.getByRole('link', { name: 'Mais' }).click()
   await page.getByRole('link', { name: 'Contas' }).click()
-  await expect(page.getByRole('heading', { name: 'Contas' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Contas' })).toBeVisible()
   await page.getByRole('link', { name: 'Nova conta' }).click()
   await page.getByLabel('Nome').fill('Luz')
   await page.getByLabel('Valor').fill('180')

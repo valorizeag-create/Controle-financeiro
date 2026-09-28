@@ -156,10 +156,14 @@ function toRow(t: TxRow, nameOf: Map<string, string>): ExtratoRow {
     return { id: t.id, kind: 'income', title: t.source ?? 'Entrada', subtitle: null, cents: t.amountCents }
   }
   const category = nameOf.get(t.categoryId ?? '') ?? 'Outros'
+  // Contas que se repetem criadas pelo Anotar sem nota guardam o nome da
+  // categoria como nota (regra de negócio da recorrência); sem esta checagem
+  // o Extrato mostraria "Mercado · Mercado".
+  const hasNote = t.note && normalizeText(t.note) !== normalizeText(category)
   return {
     id: t.id,
     kind: 'expense',
-    title: t.note ? `${category} · ${t.note}` : category,
+    title: hasNote ? `${category} · ${t.note}` : category,
     subtitle: t.paymentMethod ? (PAYMENT_LABELS[t.paymentMethod] ?? null) : null,
     cents: t.amountCents,
   }

@@ -9,7 +9,13 @@ const password = 'senha-forte-123'
 const created: string[] = []
 // formatBRL separa "R$" do número com espaço não separável.
 const NBSP = String.fromCharCode(0xa0)
-const RUN_PREFIX = 'e2e-p2-'
+// Cada worker (celular e desktop rodam em paralelo) precisa de um prefixo só
+// seu: senão a varredura de limpeza de um worker pode apagar usuários que o
+// outro ainda está usando. TEST_PARALLEL_INDEX é único entre workers
+// concorrentes; o id de execução evita colisão entre execuções.
+const RUN_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const WORKER = process.env.TEST_PARALLEL_INDEX ?? process.env.TEST_WORKER_INDEX ?? '0'
+const RUN_PREFIX = `e2e-p2-w${WORKER}-${RUN_ID}-`
 
 async function makeUser(name: string, opts: { onboarded: boolean }): Promise<{ id: string; email: string }> {
   const email = `${RUN_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}@teste.iris.dev`
@@ -44,10 +50,12 @@ async function entrar(page: Page, email: string): Promise<void> {
 test.afterAll(async () => {
   for (const id of created) await admin.auth.admin.deleteUser(id)
 
-  // Se um worker reiniciar depois de uma falha, `created` (em memória) se perde e
-  // os usuários criados até então ficariam órfãos. Varre todas as páginas de
-  // listUsers e apaga qualquer usuário desta suíte (prefixo do e-mail) que
-  // ainda exista, mesmo que já esteja fora de `created`.
+  // Se este worker reiniciar depois de uma falha, `created` (em memória) se
+  // perde e os usuários criados até então ficariam órfãos. Varre todas as
+  // páginas de listUsers e apaga qualquer usuário com o prefixo exato deste
+  // worker/execução (RUN_PREFIX já inclui o worker e um id de execução), mesmo
+  // que já esteja fora de `created`. Nunca um prefixo genérico: outro worker
+  // rodando em paralelo pode ter usuários seus ainda em uso.
   const known = new Set(created)
   let page = 1
   for (;;) {

@@ -181,6 +181,33 @@ describe('criar pelo Anotar', () => {
     const { data: rec } = await a.client.from('recurrences').select('name, kind').eq('id', tx!.recurrence_id).single()
     expect(rec).toEqual({ name: 'Salário', kind: 'income' })
   })
+
+  test('nota do Anotar vira recurrences.note; sem nota, ocorrências geradas não repetem a categoria (revisão final do Plano 3)', async () => {
+    const mercado = await categoryId(a, 'mercado')
+    const { data: txSemNota, error: e1 } = await a.client.rpc('create_recurring_transaction', {
+      p_kind: 'expense', p_amount_cents: 5000, p_category_id: mercado, p_source: null, p_note: null,
+      p_payment_method: null, p_occurred_on: today, p_frequency: 'monthly',
+    })
+    expect(e1).toBeNull()
+    const { data: txA } = await a.client.from('transactions').select('recurrence_id').eq('id', txSemNota).single()
+    const { data: recSemNota } = await a.client.from('recurrences').select('note').eq('id', txA!.recurrence_id).single()
+    expect(recSemNota).toEqual({ note: null })
+    await generate(a)
+    const [occSemNota] = await occurrences(a, txA!.recurrence_id)
+    expect(occSemNota.note).toBeNull()
+
+    const { data: txComNota, error: e2 } = await a.client.rpc('create_recurring_transaction', {
+      p_kind: 'expense', p_amount_cents: 8000, p_category_id: mercado, p_source: null, p_note: 'Academia',
+      p_payment_method: null, p_occurred_on: today, p_frequency: 'monthly',
+    })
+    expect(e2).toBeNull()
+    const { data: txB } = await a.client.from('transactions').select('recurrence_id').eq('id', txComNota).single()
+    const { data: recComNota } = await a.client.from('recurrences').select('note').eq('id', txB!.recurrence_id).single()
+    expect(recComNota).toEqual({ note: 'Academia' })
+    await generate(a)
+    const occsComNota = await occurrences(a, txB!.recurrence_id)
+    for (const occ of occsComNota) expect(occ.note).toBe('Academia')
+  })
 })
 
 describe('alterar e encerrar (RF-18)', () => {

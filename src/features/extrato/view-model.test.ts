@@ -146,4 +146,21 @@ describe('buildExtrato', () => {
     expect(v.groups).toEqual([])
     expect(v.empty).toBe('no-records')
   })
+  test('não repete o nome da categoria como nota (revisão final do Plano 3)', () => {
+    // Conta que se repete criada pelo Anotar sem nota: a nota da ocorrência
+    // cai no nome da categoria ("Mercado"). Sem essa checagem o Extrato
+    // mostraria "Mercado · Mercado".
+    const v = buildExtrato({
+      filters: f(), today, categories,
+      transactions: [
+        row({ id: 'r1', kind: 'expense', amountCents: 500, occurredOn: '2026-09-10', categoryId: MERCADO, note: 'Mercado' }),
+        row({ id: 'r2', kind: 'expense', amountCents: 700, occurredOn: '2026-09-11', categoryId: MERCADO, note: '  mercado  ' }),
+        row({ id: 'r3', kind: 'expense', amountCents: 900, occurredOn: '2026-09-12', categoryId: MERCADO, note: 'Feira' }),
+      ],
+    })
+    const rows = v.groups.flatMap((g) => g.rows)
+    expect(rows.find((r) => r.id === 'r1')?.title).toBe('Mercado')
+    expect(rows.find((r) => r.id === 'r2')?.title).toBe('Mercado')
+    expect(rows.find((r) => r.id === 'r3')?.title).toBe('Mercado · Feira')
+  })
 })
