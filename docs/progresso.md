@@ -45,8 +45,8 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 - Contas no menu lateral (desktop) e em Mais (celular).
 
 **Testes**
-- Unitários e de componentes: 302 passando (50 arquivos). Tipos, lint e build sem erros.
-- Banco (19 testes em `plano3.test.ts`) e ponta a ponta (`plano3.spec.ts`: 3 testes — celular: 2, desktop: 1 — conferidos com `npx playwright test --list`: 6 entradas listadas, correspondendo aos 2 navegadores × os testes acima, com os `test.skip` de projeto resolvidos em tempo de execução): **pendentes**, dependem do Docker para o Supabase local (mesma pendência dos Planos 1 e 2, ainda não resolvida no ambiente de desenvolvimento).
+- Unitários e de componentes: 303 passando (50 arquivos). Tipos, lint e build sem erros.
+- Banco (20 testes em `plano3.test.ts`) e ponta a ponta (`plano3.spec.ts`: 3 testes — celular: 2, desktop: 1 — conferidos com `npx playwright test --list`: 6 entradas listadas, correspondendo aos 2 navegadores × os testes acima, com os `test.skip` de projeto resolvidos em tempo de execução): **pendentes**, dependem do Docker para o Supabase local (mesma pendência dos Planos 1 e 2, ainda não resolvida no ambiente de desenvolvimento).
 
 **Pendências levadas a outros planos**
 - Tarefa diária às 00h05 para gerar ocorrências e notificar quem não abre o app, e marcar como paga pela notificação (RF-16): Plano 8.
@@ -58,3 +58,9 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 - Guarda para `starts_on` no passado além do já coberto pelos testes de banco.
 - Concessão da coluna `generated_through` a revisar junto da tarefa diária do Plano 8.
 - Convenção de nota da primeira ocorrência criada pelo Anotar (decisão 33) a documentar formalmente quando outros formulários passarem a criar recorrências.
+- "A pagar em {mês}" soma também as vencidas de meses anteriores (coerente com a decisão 1); rever o rótulo se confundir.
+- Não há como dispensar uma ocorrência indesejada sem pagá-la (ou excluí-la no Extrato depois de paga).
+- A geração de ocorrências acrescenta uma ida ao banco ao abrir Seu mês, Extrato e Contas (some com a tarefa diária do Plano 8).
+- Erro ao marcar como paga a partir do Seu mês volta para Contas, não para o Seu mês.
+
+**Revisão final do Plano 3 (corrigido):** seletores dos testes ponta a ponta exatos; limpeza de usuários de teste por navegador (sem apagar os do outro em paralelo); nota das recorrências separada do nome (migração `20260927000001`), sem "Mercado · Mercado"; leituras do Extrato em paralelo com a geração.
