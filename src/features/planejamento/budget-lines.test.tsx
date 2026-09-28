@@ -27,10 +27,20 @@ test('cada linha: nome, "{gasto} de {planejado}", barra acessível e o estado em
   expect((over.firstElementChild as HTMLElement).className).toContain('bg-amber-bar')
   const links = screen.getAllByRole('link')
   expect(links).toHaveLength(1)
-  expect(links[0].textContent).toBe(ADJUST)
+  expect(links[0].textContent).toBe(`${ADJUST} Comer fora`)
   expect(links[0].getAttribute('href')).toBe('/planejamento/editar?mes=2026-09&categoria=c4')
-  expect(document.getElementById(links[0].getAttribute('aria-describedby')!)?.textContent).toBe('Comer fora')
+  expect(links[0].getAttribute('aria-label')).toBeNull()
+  expect(screen.getByRole('link', { name: `${ADJUST} Comer fora` })).toBe(links[0])
   expect(document.body.innerHTML).not.toMatch(/text-red|bg-red/)
+})
+
+test('duas categorias que passaram: nomes acessíveis distintos, todos com o texto visível (WCAG 2.5.3)', () => {
+  const two = [lines[2], { ...lines[2], categoryId: 'c5', name: 'Transporte' }]
+  render(<BudgetLines lines={two} showAdjust />)
+  const names = screen.getAllByRole('link').map((l) => l.textContent)
+  expect(new Set(names).size).toBe(2)
+  expect(names.every((n) => n!.startsWith(ADJUST))).toBe(true)
+  expect(screen.getByRole('link', { name: `${ADJUST} Transporte` })).toBeTruthy()
 })
 
 test('sem o link de ajuste quando não pedido (Seu mês)', () => {

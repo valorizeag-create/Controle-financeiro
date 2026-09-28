@@ -19,6 +19,7 @@ test('Planejado: frase de abertura, quantas estão dentro, linhas sem link de aj
   expect(within(card).getByRole('link', { name: 'Ver planejamento' }).getAttribute('href')).toBe('/planejamento')
   expect(card.textContent).toContain('Você ainda tem R$ 150 para Lazer este mês.')
   expect(card.textContent).toContain('Você está dentro do planejado em 4 de 6 categorias.')
+  expect(card.textContent!.indexOf('Você ainda tem')).toBeLessThan(card.textContent!.indexOf('Você está dentro'))
   expect(card.textContent).toContain('Passou R$ 20 do planejado.')
   expect(within(card).getAllByRole('link')).toHaveLength(1)
 })

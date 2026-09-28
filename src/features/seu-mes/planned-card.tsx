@@ -14,7 +14,7 @@ export function PlannedCard({ card }: { card: PlannedCardView }) {
       </div>
       <div className="flex flex-col gap-1">
         <p className="m-0 text-[15px] text-ink">{card.leadText}</p>
-        <p className="m-0 text-[15px] text-[#3a3a3a]">{card.withinText}</p>
+        <p className="m-0 text-[15px] text-body">{card.withinText}</p>
       </div>
       <BudgetLines lines={card.lines} showAdjust={false} />
     </section>
