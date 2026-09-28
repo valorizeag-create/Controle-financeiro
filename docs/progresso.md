@@ -64,3 +64,20 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 - Erro ao marcar como paga a partir do Seu mês volta para Contas, não para o Seu mês.
 
 **Revisão final do Plano 3 (corrigido):** seletores dos testes ponta a ponta exatos; limpeza de usuários de teste por navegador (sem apagar os do outro em paralelo); nota das recorrências separada do nome (migração `20260927000001`), sem "Mercado · Mercado"; leituras do Extrato em paralelo com a geração.
+
+## Plano 4 — Parcelas e cartões · concluído em 2026-09-28
+
+**Entregue**
+- Cartões ilustrativos (apelido, tipo, cor; nenhum número): cadastrar, editar, excluir; "Gasto neste cartão em {mês}" com navegação entre meses e "Ver gastos".
+- Anotar: "Como pagou?" com um toque por cartão (o do último gasto já marcado) e "Outra forma"; "Foi parcelado" com o número de parcelas.
+- Compra parcelada: uma parcela por mês, a 1ª no mês da compra, centavos que sobram na 1ª; ver as parcelas, quitar antecipadamente (valor ajustável), cancelar por devolução, excluir a compra.
+- Extrato: filtro por cartão, cartão (ou "Cartão excluído") e "parcela n de N" em cada registro. Seu mês sem bloco de cartões (RF-61).
+- Cartões no menu lateral (desktop) e em Mais (celular).
+
+**Testes**
+- Unitários e de componentes: 387 passando (65 arquivos). Tipos, lint e build sem erros.
+- Banco (21 testes em `plano4.test.ts`) e ponta a ponta (`plano4.spec.ts`: 3 testes — celular: 2, desktop: 1; 6 entradas em `--list`): pendentes, dependem do Docker para o Supabase local (mesma pendência dos Planos 1, 2 e 3, ainda não resolvida no ambiente de desenvolvimento).
+
+**Pendências levadas a outros planos**
+- Parcelado da família e cartão em gasto da família (RN-31): Plano 7.
+- Exportar o cartão e a compra parcelada no CSV: Plano 9.
