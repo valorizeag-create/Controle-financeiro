@@ -22,8 +22,8 @@ test('isActive reconhece a página e as subpáginas, sem confundir prefixos', ()
 })
 
 test('Contas: menu lateral depois de Extrato; no celular fica dentro de Mais', () => {
-  expect(SIDEBAR_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/contas', '/cartoes', '/categorias', '/configuracoes'])
-  expect(BOTTOM_NAV_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/mais'])
+  expect(SIDEBAR_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/contas', '/metas', '/cartoes', '/categorias', '/configuracoes'])
+  expect(BOTTOM_NAV_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/metas', '/mais'])
   const mais = BOTTOM_NAV_ITEMS.find((i) => i.href === '/mais')!
   expect(isActive('/contas', mais)).toBe(true)
   expect(isActive('/contas/recorrencia/abc', mais)).toBe(true)
@@ -38,10 +38,20 @@ test('painel "Recebi" cobre a tela; a lista de contas não', () => {
 
 test('Cartões: menu lateral depois de Contas; no celular dentro de Mais; nada disso é painel', () => {
   const mais = BOTTOM_NAV_ITEMS.find((i) => i.href === '/mais')!
-  expect(BOTTOM_NAV_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/mais'])
+  expect(BOTTOM_NAV_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/metas', '/mais'])
   expect(isActive('/cartoes', mais)).toBe(true)
   expect(isActive('/cartoes/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90', mais)).toBe(true)
   for (const p of ['/cartoes', '/cartoes/novo', '/extrato/parcelas/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90']) expect(isSheetRoute(p)).toBe(false)
   const extrato = SIDEBAR_ITEMS.find((i) => i.href === '/extrato')!
   expect(isActive('/extrato/parcelas/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90', extrato)).toBe(true)
+})
+
+test('Metas: barra inferior entre Anotar e Mais; menu lateral depois de Contas; guardar, tirar, usar e sobra são painéis', () => {
+  const metas = BOTTOM_NAV_ITEMS.find((i) => i.href === '/metas')!
+  const mais = BOTTOM_NAV_ITEMS.find((i) => i.href === '/mais')!
+  const ID = '3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
+  expect(isActive(`/metas/${ID}/guardar`, metas)).toBe(true)
+  expect(isActive('/metas', mais)).toBe(false)
+  for (const p of ['guardar', 'tirar', 'usar', 'sobra']) expect(isSheetRoute(`/metas/${ID}/${p}`)).toBe(true)
+  for (const p of ['/metas', '/metas/nova', `/metas/${ID}`, `/metas/${ID}/editar`, `/metas/${ID}/guardar/x`]) expect(isSheetRoute(p)).toBe(false)
 })

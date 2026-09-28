@@ -14,10 +14,10 @@ afterEach(() => {
   pathname = '/inicio'
 })
 
-test('barra inferior: Seu mês, Extrato, Anotar e Mais, nesta ordem', () => {
+test('barra inferior: Seu mês, Extrato, Anotar, Metas e Mais, nesta ordem', () => {
   render(<BottomNav />)
   const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
-  expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Seu mês', 'Extrato', 'Anotar', 'Mais'])
+  expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Seu mês', 'Extrato', 'Anotar', 'Metas', 'Mais'])
   expect(screen.getByRole('link', { name: 'Anotar' }).getAttribute('href')).toBe('/anotar')
 })
 
@@ -38,7 +38,7 @@ test('Categorias e Configurações ficam dentro de Mais', () => {
 })
 
 test('barra inferior fica escondida nos painéis de Anotar e Editar', () => {
-  for (const p of ['/anotar', '/anotar/gasto', '/extrato/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90', '/contas/receber/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90']) {
+  for (const p of ['/anotar', '/anotar/gasto', '/extrato/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90', '/contas/receber/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90', '/metas/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90/usar']) {
     pathname = p
     const { unmount } = render(<BottomNav />)
     expect(screen.queryByRole('navigation', { name: 'Navegação principal' })).toBeNull()

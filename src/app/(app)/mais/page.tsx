@@ -3,8 +3,9 @@ import { loadProfile } from '@/features/perfil/queries'
 import { SignOutButton } from '@/features/shell/sign-out-button'
 import { ListCard, ListRow, RowLink } from '@/ui/list'
 
+// Metas está na barra inferior e no menu lateral (Plano 5), não aqui.
 // Itens que ainda não existem (Planejamento, Relatórios, Família)
-// entram aqui nos planos 5 a 7; nada de link para tela que não existe.
+// entram aqui nos planos 6 e 7; nada de link para tela que não existe.
 export default async function MaisPage() {
   const profile = await loadProfile()
   const initial = profile.displayName.trim().charAt(0).toUpperCase()

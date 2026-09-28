@@ -19,7 +19,7 @@ test('menu lateral lista as áreas que já existem e marca a atual', () => {
   pathname = '/categorias/nova'
   render(<Sidebar displayName="Ana" />)
   const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
-  expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Seu mês', 'Extrato', 'Contas', 'Cartões', 'Categorias', 'Configurações'])
+  expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Seu mês', 'Extrato', 'Contas', 'Metas', 'Cartões', 'Categorias', 'Configurações'])
   expect(screen.getByRole('link', { name: 'Categorias' }).getAttribute('aria-current')).toBe('page')
   expect(screen.getByRole('link', { name: 'Seu mês' }).getAttribute('aria-current')).toBeNull()
 })
