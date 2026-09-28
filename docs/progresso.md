@@ -88,3 +88,22 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 **Pendências levadas a outros planos**
 - Parcelado da família e cartão em gasto da família (RN-31): Plano 7.
 - Exportar o cartão e a compra parcelada no CSV: Plano 9.
+
+## Plano 5 — Metas · concluído em 2026-09-28
+
+**Entregue**
+- Metas individuais: criar (nome, valor, prazo opcional), editar e excluir (o guardado volta ao Disponível de hoje; o histórico continua).
+- Guardar e tirar (nunca mais do que a meta tem), com "Guardado este mês" / "Tirado das metas" no Seu mês e o Guardado no Saldo total.
+- Usar o dinheiro da meta: gasto com categoria; a parte paga pela meta fica fora do "Saiu"; a diferença sai do mês; pergunta da sobra com "Devolver" e "Deixar guardado"; o uso pode ser desfeito na meta.
+- Progresso: quanto falta, percentual e quanto guardar por mês até o prazo; comemoração na metade e na meta completa.
+- Seu mês com "Meta em destaque"; Extrato com "Guardado na meta", "Tirado da meta" e "pago com a meta {meta}".
+- Metas na barra inferior (Seu mês · Extrato · Anotar · Metas · Mais) e no menu lateral.
+
+**Testes**
+- Unitários e de componentes: 465 passando (79 arquivos). Tipos, lint e build sem erros.
+- Banco (27 testes em `plano5.test.ts`) e ponta a ponta (`plano5.spec.ts`: 3 testes — celular: 2, desktop: 1; 6 entradas em `--list`): pendentes, dependem do Docker para o Supabase local (mesma pendência dos Planos 1 a 4, ainda não resolvida no ambiente de desenvolvimento). Confirmar, no lançamento, que o Postgres hospedado é ≥ 17 (a guarda de exclusão de meta depende disso durante a exclusão de conta).
+
+**Pendências levadas a outros planos**
+- Metas da família (RN-22 a RN-22e, "Sua parte", saída da família com `return_on_exit`): Plano 7.
+- Aviso "Faltam só {valor} para {meta}." (notificação "Meta perto"): Plano 8.
+- Exportar metas e movimentos no CSV: Plano 9.
