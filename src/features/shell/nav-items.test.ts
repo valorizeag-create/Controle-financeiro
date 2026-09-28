@@ -20,3 +20,18 @@ test('isActive reconhece a página e as subpáginas, sem confundir prefixos', ()
   expect(isActive('/configuracoes', mais)).toBe(true)
   expect(isActive('/inicio', mais)).toBe(false)
 })
+
+test('Contas: menu lateral depois de Extrato; no celular fica dentro de Mais', () => {
+  expect(SIDEBAR_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/contas', '/categorias', '/configuracoes'])
+  expect(BOTTOM_NAV_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/mais'])
+  const mais = BOTTOM_NAV_ITEMS.find((i) => i.href === '/mais')!
+  expect(isActive('/contas', mais)).toBe(true)
+  expect(isActive('/contas/recorrencia/abc', mais)).toBe(true)
+})
+
+test('painel "Recebi" cobre a tela; a lista de contas não', () => {
+  expect(isSheetRoute('/contas/receber/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90')).toBe(true)
+  expect(isSheetRoute('/contas')).toBe(false)
+  expect(isSheetRoute('/contas/receber')).toBe(false)
+  expect(isSheetRoute('/contas/nova')).toBe(false)
+})

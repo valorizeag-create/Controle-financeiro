@@ -1,10 +1,10 @@
-import { SlidersHorizontal, Tag } from 'lucide-react'
+import { CalendarDays, SlidersHorizontal, Tag } from 'lucide-react'
 import { loadProfile } from '@/features/perfil/queries'
 import { SignOutButton } from '@/features/shell/sign-out-button'
 import { ListCard, ListRow, RowLink } from '@/ui/list'
 
-// Itens que ainda não existem (Contas, Cartões, Planejamento, Relatórios, Família)
-// entram aqui nos planos 3 a 7; nada de link para tela que não existe.
+// Itens que ainda não existem (Cartões, Planejamento, Relatórios, Família)
+// entram aqui nos planos 4 a 7; nada de link para tela que não existe.
 export default async function MaisPage() {
   const profile = await loadProfile()
   const initial = profile.displayName.trim().charAt(0).toUpperCase()
@@ -16,6 +16,7 @@ export default async function MaisPage() {
       </header>
       <nav aria-label="Mais opções">
         <ListCard>
+          <ListRow><RowLink href="/contas" title="Contas" icon={<CalendarDays className="size-5" strokeWidth={1.8} aria-hidden="true" />} /></ListRow>
           <ListRow><RowLink href="/categorias" title="Categorias" icon={<Tag className="size-5" strokeWidth={1.8} aria-hidden="true" />} /></ListRow>
         </ListCard>
       </nav>

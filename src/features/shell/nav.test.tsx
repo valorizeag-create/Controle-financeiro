@@ -29,7 +29,7 @@ test('barra inferior marca a página atual', () => {
 })
 
 test('Categorias e Configurações ficam dentro de Mais', () => {
-  for (const p of ['/mais', '/categorias', '/categorias/nova', '/configuracoes/nome']) {
+  for (const p of ['/mais', '/contas', '/contas/nova', '/categorias', '/categorias/nova', '/configuracoes/nome']) {
     pathname = p
     const { unmount } = render(<BottomNav />)
     expect(screen.getByRole('link', { name: 'Mais' }).getAttribute('aria-current')).toBe('page')
@@ -38,7 +38,7 @@ test('Categorias e Configurações ficam dentro de Mais', () => {
 })
 
 test('barra inferior fica escondida nos painéis de Anotar e Editar', () => {
-  for (const p of ['/anotar', '/anotar/gasto', '/extrato/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90']) {
+  for (const p of ['/anotar', '/anotar/gasto', '/extrato/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90', '/contas/receber/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90']) {
     pathname = p
     const { unmount } = render(<BottomNav />)
     expect(screen.queryByRole('navigation', { name: 'Navegação principal' })).toBeNull()
