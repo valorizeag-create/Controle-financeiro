@@ -29,7 +29,7 @@ test('barra inferior marca a página atual', () => {
 })
 
 test('Categorias e Configurações ficam dentro de Mais', () => {
-  for (const p of ['/mais', '/contas', '/contas/nova', '/categorias', '/categorias/nova', '/configuracoes/nome']) {
+  for (const p of ['/mais', '/contas', '/contas/nova', '/cartoes', '/cartoes/novo', '/categorias', '/categorias/nova', '/configuracoes/nome']) {
     pathname = p
     const { unmount } = render(<BottomNav />)
     expect(screen.getByRole('link', { name: 'Mais' }).getAttribute('aria-current')).toBe('page')

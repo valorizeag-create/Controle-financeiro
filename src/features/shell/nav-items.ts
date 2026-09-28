@@ -1,4 +1,4 @@
-import { CalendarDays, Ellipsis, House, ReceiptText, SlidersHorizontal, Tag, type LucideIcon } from 'lucide-react'
+import { CalendarDays, CreditCard, Ellipsis, House, ReceiptText, SlidersHorizontal, Tag, type LucideIcon } from 'lucide-react'
 
 // `match`: caminhos que marcam o item como atual (a página e as subpáginas).
 export type NavItem = { href: string; label: string; icon: LucideIcon; match: string[] }
@@ -6,13 +6,14 @@ export type NavItem = { href: string; label: string; icon: LucideIcon; match: st
 const SEU_MES: NavItem = { href: '/inicio', label: 'Seu mês', icon: House, match: ['/inicio'] }
 const EXTRATO: NavItem = { href: '/extrato', label: 'Extrato', icon: ReceiptText, match: ['/extrato'] }
 const CONTAS: NavItem = { href: '/contas', label: 'Contas', icon: CalendarDays, match: ['/contas'] }
+const CARTOES: NavItem = { href: '/cartoes', label: 'Cartões', icon: CreditCard, match: ['/cartoes'] }
 
 // Barra inferior (celular). O botão Anotar entra na 3ª posição (bottom-nav.tsx).
 // Metas entra antes de Mais no Plano 5 (A5: Seu mês · Extrato · Anotar · Metas · Mais).
 export const BOTTOM_NAV_ITEMS: NavItem[] = [
   SEU_MES,
   EXTRATO,
-  { href: '/mais', label: 'Mais', icon: Ellipsis, match: ['/mais', '/contas', '/categorias', '/configuracoes'] },
+  { href: '/mais', label: 'Mais', icon: Ellipsis, match: ['/mais', '/contas', '/cartoes', '/categorias', '/configuracoes'] },
 ]
 
 // Menu lateral (desktop): todas as áreas que já existem, sem a página "Mais".
@@ -20,6 +21,7 @@ export const SIDEBAR_ITEMS: NavItem[] = [
   SEU_MES,
   EXTRATO,
   CONTAS,
+  CARTOES,
   { href: '/categorias', label: 'Categorias', icon: Tag, match: ['/categorias'] },
   { href: '/configuracoes', label: 'Configurações', icon: SlidersHorizontal, match: ['/configuracoes'] },
 ]
