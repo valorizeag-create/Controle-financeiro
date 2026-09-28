@@ -1,4 +1,4 @@
-import { CalendarDays, CreditCard, Ellipsis, House, ReceiptText, SlidersHorizontal, Tag, Target, type LucideIcon } from 'lucide-react'
+import { CalendarDays, ChartColumn, CreditCard, Ellipsis, House, ReceiptText, SlidersHorizontal, Tag, Target, Wallet, type LucideIcon } from 'lucide-react'
 
 // `match`: caminhos que marcam o item como atual (a página e as subpáginas).
 export type NavItem = { href: string; label: string; icon: LucideIcon; match: string[] }
@@ -8,6 +8,8 @@ const EXTRATO: NavItem = { href: '/extrato', label: 'Extrato', icon: ReceiptText
 const CONTAS: NavItem = { href: '/contas', label: 'Contas', icon: CalendarDays, match: ['/contas'] }
 const CARTOES: NavItem = { href: '/cartoes', label: 'Cartões', icon: CreditCard, match: ['/cartoes'] }
 const METAS: NavItem = { href: '/metas', label: 'Metas', icon: Target, match: ['/metas'] }
+const PLANEJAMENTO: NavItem = { href: '/planejamento', label: 'Planejamento', icon: Wallet, match: ['/planejamento'] }
+const RELATORIOS: NavItem = { href: '/relatorios', label: 'Relatórios', icon: ChartColumn, match: ['/relatorios'] }
 
 // Barra inferior (celular). O botão Anotar entra na 3ª posição (bottom-nav.tsx).
 // Metas entra antes de Mais no Plano 5 (A5: Seu mês · Extrato · Anotar · Metas · Mais).
@@ -15,17 +17,19 @@ export const BOTTOM_NAV_ITEMS: NavItem[] = [
   SEU_MES,
   EXTRATO,
   METAS,
-  { href: '/mais', label: 'Mais', icon: Ellipsis, match: ['/mais', '/contas', '/cartoes', '/categorias', '/configuracoes'] },
+  { href: '/mais', label: 'Mais', icon: Ellipsis, match: ['/mais', '/contas', '/planejamento', '/cartoes', '/relatorios', '/categorias', '/configuracoes'] },
 ]
 
 // Menu lateral (desktop): todas as áreas que já existem, sem a página "Mais".
-// Metas entra depois de Contas (ordem do protótipo Desktop).
+// Ordem do protótipo Desktop (Família entra no Plano 7).
 export const SIDEBAR_ITEMS: NavItem[] = [
   SEU_MES,
   EXTRATO,
   CONTAS,
+  PLANEJAMENTO,
   METAS,
   CARTOES,
+  RELATORIOS,
   { href: '/categorias', label: 'Categorias', icon: Tag, match: ['/categorias'] },
   { href: '/configuracoes', label: 'Configurações', icon: SlidersHorizontal, match: ['/configuracoes'] },
 ]
