@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { formatBRL, formatWholeBRL, MAX_CENTS, parseBRL } from './money'
+import { formatBRL, formatCompactBRL, formatWholeBRL, MAX_CENTS, parseBRL } from './money'
 
 describe('parseBRL', () => {
   test.each([
@@ -47,4 +47,13 @@ test('formatWholeBRL mostra reais inteiros, arredondando para cima', () => {
   expect(formatWholeBRL(25400)).toBe(`R$${NBSP}254`)
   expect(formatWholeBRL(125401)).toBe(`R$${NBSP}1.255`)
   expect(formatWholeBRL(0)).toBe(`R$${NBSP}0`)
+})
+
+test('formatCompactBRL tira ",00" só de valores inteiros (protótipo "R$ 890 de R$ 1.000")', () => {
+  const NBSP = String.fromCharCode(0xa0)
+  expect(formatCompactBRL(89000)).toBe(`R$${NBSP}890`)
+  expect(formatCompactBRL(100000)).toBe(`R$${NBSP}1.000`)
+  expect(formatCompactBRL(89050)).toBe(`R$${NBSP}890,50`)
+  expect(formatCompactBRL(5)).toBe(`R$${NBSP}0,05`)
+  expect(formatCompactBRL(0)).toBe(`R$${NBSP}0`)
 })

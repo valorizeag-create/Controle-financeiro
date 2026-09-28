@@ -54,3 +54,9 @@ export function parseBRL(input: string): Cents | null {
   if (!Number.isSafeInteger(cents) || cents > MAX_CENTS) return null
   return cents
 }
+
+/** Como `formatBRL`, mas sem ",00" quando o valor é de reais inteiros ("R$ 890"). */
+export function formatCompactBRL(cents: Cents): string {
+  const text = formatBRL(cents)
+  return Math.abs(cents) % 100 === 0 ? text.replace(/,00$/, '') : text
+}
