@@ -15,8 +15,8 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
   const month = parseMonthKey(mes) ?? monthOf(today)
   const tab = parseContasTab(aba)
   // loadLedger gera as ocorrências do mês antes de ler (Task 3).
-  const [{ profile, categories, transactions }, recurrences] = await Promise.all([loadLedger(), loadRecurrences()])
-  const v = buildContas({ month, today, tab, profile, categories, transactions, recurrences })
+  const [{ profile, categories, transactions, goalMovements }, recurrences] = await Promise.all([loadLedger(), loadRecurrences()])
+  const v = buildContas({ month, today, tab, profile, categories, transactions, recurrences, goalMovements })
   const back = contasHref(month, tab)
   return (
     <main className="mx-auto flex max-w-[720px] flex-col gap-4 px-4 pt-4 md:px-9 md:pt-7">

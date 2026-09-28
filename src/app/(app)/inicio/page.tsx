@@ -1,10 +1,12 @@
 import { ShoppingCart } from 'lucide-react'
 import { monthOf, parseMonthKey, todayInSaoPaulo } from '@/domain/dates'
 import { loadLedger } from '@/features/registro/queries'
+import { loadGoals } from '@/features/metas/queries'
 import { buildSeuMes } from '@/features/seu-mes/view-model'
 import { Hero } from '@/features/seu-mes/hero'
 import { MonthNav } from '@/features/seu-mes/month-nav'
 import { CategoriesCard } from '@/features/seu-mes/categories-card'
+import { FeaturedGoal } from '@/features/seu-mes/featured-goal'
 import { RecentCard } from '@/features/seu-mes/recent-card'
 import { UpcomingBills } from '@/features/seu-mes/upcoming-bills'
 import { Button } from '@/ui/button'
@@ -15,8 +17,8 @@ export default async function InicioPage({ searchParams }: { searchParams: Promi
   const today = todayInSaoPaulo()
   const { mes } = await searchParams
   const month = parseMonthKey(mes) ?? monthOf(today)
-  const { profile, categories, transactions } = await loadLedger()
-  const v = buildSeuMes({ month, today, profile, categories, transactions })
+  const [{ profile, categories, transactions, goalMovements }, goals] = await Promise.all([loadLedger(), loadGoals()])
+  const v = buildSeuMes({ month, today, profile, categories, transactions, goals, goalMovements })
 
   return (
     <main className="mx-auto flex max-w-[1180px] flex-col gap-4 px-4 pt-5 md:px-9 md:pt-7">
@@ -53,6 +55,7 @@ export default async function InicioPage({ searchParams }: { searchParams: Promi
 
         {v.upcoming.length > 0 && <UpcomingBills items={v.upcoming} />}
         {v.categories.length > 0 && <CategoriesCard categories={v.categories} />}
+        {v.featured && <FeaturedGoal goal={v.featured} />}
         {v.recent.length > 0 && <RecentCard recent={v.recent} />}
       </div>
     </main>

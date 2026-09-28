@@ -1,8 +1,11 @@
 import { spendingByCategory } from '@/domain/breakdown'
 import { dayLabel, isInMonth, monthLabel, monthOf, type ISODate, type MonthKey } from '@/domain/dates'
+import { formatBRL } from '@/domain/money'
 import { dueText } from '@/domain/recurrence'
 import { effectiveDate, summarizeMonth, type MonthSummary } from '@/domain/summary'
 import { txName } from '@/features/contas/view-model'
+import { pickFeatured, summarizeGoal } from '@/features/metas/view-model'
+import type { GoalMovementRow, GoalRow } from '@/features/metas/types'
 import type { Category, Profile, TxRow } from '@/features/registro/queries'
 
 export interface SeuMesView {
@@ -14,6 +17,7 @@ export interface SeuMesView {
   categories: { name: string; cents: number; share: number }[]
   recent: { id: string; title: string; subtitle: string; cents: number; kind: 'income' | 'expense' }[]
   upcoming: { id: string; name: string; amountCents: number; dueText: string }[]
+  featured: { id: string; name: string; percent: number; remainingText: string; caption: string; guardarHref: string } | null
 }
 
 export function buildSeuMes(input: {
@@ -22,8 +26,10 @@ export function buildSeuMes(input: {
   profile: Profile
   categories: Category[]
   transactions: TxRow[]
+  goals: GoalRow[]
+  goalMovements: GoalMovementRow[]
 }): SeuMesView {
-  const { month, today, profile, categories, transactions } = input
+  const { month, today, profile, categories, transactions, goals, goalMovements } = input
   const nameOf = new Map(categories.map((c) => [c.id, c.name]))
 
   const summary = summarizeMonth({
@@ -31,7 +37,7 @@ export function buildSeuMes(input: {
     today,
     initialBalanceCents: profile.initialBalanceCents,
     transactions,
-    goalMovements: [],
+    goalMovements,
   })
 
   const totals = spendingByCategory(transactions, month)
@@ -74,6 +80,25 @@ export function buildSeuMes(input: {
         .map((t) => ({ id: t.id, name: txName(t, categories), amountCents: t.amountCents, dueText: dueText(t.dueOn, today) }))
     : []
 
+  const featured = isCurrentMonth
+    ? (() => {
+        const summaries = goals.filter((g) => g.deletedOn === null).map((g) => summarizeGoal(g, goalMovements, today))
+        const pick = pickFeatured(summaries)
+        if (!pick) return null
+        const caption =
+          `${formatBRL(pick.balanceCents)} de ${formatBRL(pick.goal.targetCents)}` +
+          (pick.goal.deadline ? ` · até ${monthLabel(pick.goal.deadline)}` : '')
+        return {
+          id: pick.goal.id,
+          name: pick.goal.name,
+          percent: pick.percent,
+          remainingText: pick.remainingText!,
+          caption,
+          guardarHref: `/metas/${pick.goal.id}/guardar`,
+        }
+      })()
+    : null
+
   return {
     month,
     label: monthLabel(month),
@@ -83,5 +108,6 @@ export function buildSeuMes(input: {
     categories: cats,
     recent,
     upcoming,
+    featured,
   }
 }

@@ -30,7 +30,7 @@ const transactions: TxRow[] = [
   bill('tv', 'TV', 5000, '2026-08-28', { status: 'confirmed', paidOn: '2026-09-02' }),
   row({ id: 'fre', kind: 'income', amountCents: 80000, occurredOn: '2026-09-30', dueOn: '2026-09-30', status: 'pending', note: 'Freela mensal' }),
 ]
-const base = { month: '2026-09', today: '2026-09-22', profile, categories, transactions, recurrences: [] }
+const base = { month: '2026-09', today: '2026-09-22', profile, categories, transactions, recurrences: [], goalMovements: [] }
 
 describe('buildContas', () => {
   test('a pagar: ainda não vencidas, por data, com o prazo do protótipo', () => {
@@ -109,6 +109,15 @@ describe('buildContas', () => {
     ])
     expect(v.recurringIncomes.map((r) => [r.name, r.caption])).toEqual([['Freela', 'Todo mês · dia 30']])
   })
+})
+
+test('"Disponível depois" considera o que foi guardado no mês', () => {
+  const v = buildContas({
+    ...base, tab: 'a-pagar',
+    goalMovements: [{ id: 'm1', goalId: 'g1', kind: 'deposit', amountCents: 1000, occurredOn: `${base.month}-02`, transactionId: null, createdAt: `${base.month}-02T12:00:00Z` }],
+  })
+  const without = buildContas({ ...base, tab: 'a-pagar' })
+  expect(v.disponivelDepoisCents).toBe(without.disponivelDepoisCents - 1000)
 })
 
 test('parseContasTab aceita só as três abas', () => {

@@ -2,6 +2,7 @@ import { dayMonthLabel, isInMonth, monthLabel, monthOf, type ISODate, type Month
 import { monthName, recurrenceLabel, relativeDue } from '@/domain/recurrence'
 import { formatBRL } from '@/domain/money'
 import { summarizeMonth } from '@/domain/summary'
+import type { GoalMovementRow } from '@/features/metas/types'
 import type { Category, Profile, TxRow } from '@/features/registro/queries'
 import type { RecurrenceRow } from './types'
 
@@ -81,8 +82,9 @@ export function buildContas(input: {
   categories: Category[]
   transactions: TxRow[]
   recurrences: RecurrenceRow[]
+  goalMovements: GoalMovementRow[]
 }): ContasView {
-  const { month, today, tab, profile, categories, transactions, recurrences } = input
+  const { month, today, tab, profile, categories, transactions, recurrences, goalMovements } = input
   const isCurrentMonth = monthOf(today) === month
 
   const pendingBills = transactions.filter(
@@ -124,7 +126,7 @@ export function buildContas(input: {
   const recurringBills = activeRecurrences.filter((r) => r.kind === 'expense').map(toRecurringItem).sort(byName)
   const recurringIncomes = activeRecurrences.filter((r) => r.kind === 'income').map(toRecurringItem).sort(byName)
 
-  const summary = summarizeMonth({ month, today, initialBalanceCents: profile.initialBalanceCents, transactions, goalMovements: [] })
+  const summary = summarizeMonth({ month, today, initialBalanceCents: profile.initialBalanceCents, transactions, goalMovements })
 
   return {
     month,
