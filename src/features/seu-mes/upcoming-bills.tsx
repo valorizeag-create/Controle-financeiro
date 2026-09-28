@@ -8,7 +8,7 @@ export function UpcomingBills({ items }: { items: SeuMesView['upcoming'] }) {
     <section aria-labelledby="proximas-contas" className="flex flex-col gap-3.5 rounded-card border border-line bg-card p-5 shadow-card">
       <div className="flex items-center justify-between">
         <h2 id="proximas-contas" className="text-[17px] font-semibold text-ink">Próximas contas</h2>
-        <Link href="/contas" className="text-sm font-medium text-brand-text">Ver todas</Link>
+        <Link href="/contas" className="-my-2 inline-flex min-h-11 items-center text-sm font-medium text-brand-text">Ver todas</Link>
       </div>
       <ul className="flex flex-col gap-3">
         {items.map((item) => (

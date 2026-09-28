@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
-import { dayMonthLabel } from '@/domain/dates'
+import { dayMonthLabel, monthOf } from '@/domain/dates'
 import { loadTransaction } from '@/features/registro/queries'
 import { txName } from '@/features/contas/view-model'
 import { ReceiveForm } from '@/features/contas/receive-form'
@@ -24,7 +24,7 @@ export default async function ReceberPage({ params }: Props) {
             <h1 id="receber-titulo" className="text-xl font-semibold tracking-tight text-ink">{title}</h1>
             <p className="text-sm text-muted">previsto para {dayMonthLabel(tx.dueOn)}</p>
           </div>
-          <SheetClose href="/contas" />
+          <SheetClose href={`/contas?mes=${monthOf(tx.dueOn)}`} />
         </div>
         <ReceiveForm id={tx.id} amountCents={tx.amountCents} />
       </section>

@@ -60,8 +60,17 @@ function inScope(dueOn: ISODate, month: MonthKey, isCurrentMonth: boolean): bool
   return isCurrentMonth && dueOn < `${month}-01`
 }
 
-function byDueOnAsc(a: { dueOn: ISODate | null }, b: { dueOn: ISODate | null }): number {
-  return (a.dueOn ?? '') < (b.dueOn ?? '') ? -1 : 1
+// Mesmo dia de vencimento: ordem estável por nome e, por fim, por id (nunca por ordem de leitura do banco).
+function makeByDueOnAsc(categories: Category[]) {
+  return (a: TxRow & { dueOn: ISODate | null }, b: TxRow & { dueOn: ISODate | null }): number => {
+    const dueOnA = a.dueOn ?? ''
+    const dueOnB = b.dueOn ?? ''
+    if (dueOnA !== dueOnB) return dueOnA < dueOnB ? -1 : 1
+    const nameA = txName(a, categories)
+    const nameB = txName(b, categories)
+    if (nameA !== nameB) return nameA < nameB ? -1 : 1
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  }
 }
 
 export function buildContas(input: {
@@ -79,6 +88,7 @@ export function buildContas(input: {
   const pendingBills = transactions.filter(
     (t): t is TxRow & { dueOn: ISODate } => t.kind === 'expense' && t.status === 'pending' && t.dueOn !== null && inScope(t.dueOn, month, isCurrentMonth),
   )
+  const byDueOnAsc = makeByDueOnAsc(categories)
   const aPagarList = pendingBills.filter((t) => t.dueOn >= today).sort(byDueOnAsc)
   const vencidasList = pendingBills.filter((t) => t.dueOn < today).sort(byDueOnAsc)
   const pagasList = transactions

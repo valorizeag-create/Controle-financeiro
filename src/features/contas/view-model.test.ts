@@ -71,6 +71,19 @@ describe('buildContas', () => {
     expect(v.incomes.map((i) => [i.id, i.name, i.caption])).toEqual([['fre', 'Freela mensal', `${brl('800,00')} · previsto para dia 30`]])
   })
 
+  test('mesmo dia de vencimento: ordem estável por nome, depois por id', () => {
+    const tied = [
+      ...transactions,
+      bill('z-id', 'Mesmo nome', 4000, '2026-09-25'),
+      bill('a-id', 'Mesmo nome', 4000, '2026-09-25'),
+    ]
+    const v = buildContas({ ...base, transactions: tied, tab: 'a-pagar' })
+    const sameDayNames = v.bills.filter((b) => b.name === 'Mesmo nome').map((b) => b.id)
+    expect(sameDayNames).toEqual(['a-id', 'z-id'])
+    // "Luz" também vence dia 25: entra antes de "Mesmo nome" por ordem alfabética.
+    expect(v.bills.map((b) => b.name).indexOf('Luz')).toBeLessThan(v.bills.map((b) => b.name).indexOf('Mesmo nome'))
+  })
+
   test('mês passado: o que ficou sem pagar aparece como vencida, nada a pagar', () => {
     const v = buildContas({ ...base, month: '2026-08', tab: 'vencidas' })
     expect(v.isCurrentMonth).toBe(false)

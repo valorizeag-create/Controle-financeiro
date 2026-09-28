@@ -62,7 +62,14 @@ export function buildSeuMes(input: {
   const upcoming = isCurrentMonth
     ? transactions
         .filter((t): t is TxRow & { dueOn: ISODate } => t.kind === 'expense' && t.status === 'pending' && t.dueOn !== null && monthOf(t.dueOn) <= month)
-        .sort((a, b) => (a.dueOn < b.dueOn ? -1 : 1))
+        // Mesmo dia de vencimento: ordem estável por nome e, por fim, por id.
+        .sort((a, b) => {
+          if (a.dueOn !== b.dueOn) return a.dueOn < b.dueOn ? -1 : 1
+          const nameA = txName(a, categories)
+          const nameB = txName(b, categories)
+          if (nameA !== nameB) return nameA < nameB ? -1 : 1
+          return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+        })
         .slice(0, 3)
         .map((t) => ({ id: t.id, name: txName(t, categories), amountCents: t.amountCents, dueText: dueText(t.dueOn, today) }))
     : []

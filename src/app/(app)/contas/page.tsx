@@ -27,7 +27,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
       <MonthNav month={month} label={v.label} basePath="/contas" query={tab === 'a-pagar' ? {} : { aba: tab }} />
       {erro && <FormAlert>Algo não saiu como esperado do nosso lado. Tente novamente em instantes.</FormAlert>}
       <ContasTabs month={month} tab={tab} counts={v.counts} />
-      <section data-testid="contas-resumo" className="flex flex-col gap-2 rounded-card border border-brand-wash-border bg-brand-wash p-4">
+      <section data-testid="contas-resumo" aria-label="Resumo do mês" className="flex flex-col gap-2 rounded-card border border-brand-wash-border bg-brand-wash p-4">
         <div className="flex justify-between"><span>{v.aPagarLabel}</span><Money cents={v.aPagarCents} className="font-semibold text-ink" /></div>
         <div className="flex justify-between"><span>Disponível depois</span><Money cents={v.disponivelDepoisCents} className="font-semibold text-brand-ink" /></div>
       </section>

@@ -15,4 +15,5 @@ test('bloco do protótipo: nome, prazo, valor, "Marcar como paga" e "Ver todas"'
   const pay = within(region).getByRole('button', { name: 'Marcar Luz como paga' })
   expect(pay.textContent).toBe('Marcar como paga')
   expect(within(region).getByRole('link', { name: 'Ver todas' }).getAttribute('href')).toBe('/contas')
+  expect(within(region).getByRole('link', { name: 'Ver todas' }).className).toMatch(/min-h-11/)
 })

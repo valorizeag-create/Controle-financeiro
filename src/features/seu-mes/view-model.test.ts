@@ -73,3 +73,12 @@ test('Próximas contas: vencidas primeiro, até 3, só no mês atual', () => {
   ])
   expect(buildSeuMes({ month: '2026-08', today: '2026-09-22', profile, categories, transactions }).upcoming).toEqual([])
 })
+
+test('Próximas contas: mesmo dia de vencimento tem ordem estável por nome, depois por id', () => {
+  const bill = (id: string, note: string, dueOn: string) =>
+    row({ id, kind: 'expense', amountCents: 1000, occurredOn: dueOn, dueOn, status: 'pending', note, categoryId: 'c1' })
+  const transactions = [bill('z-id', 'Mesmo nome', '2026-09-25'), bill('a-id', 'Mesmo nome', '2026-09-25')]
+  const profile = { displayName: 'C', initialBalanceCents: 0 }
+  const v = buildSeuMes({ month: '2026-09', today: '2026-09-22', profile, categories, transactions })
+  expect(v.upcoming.map((u) => u.id)).toEqual(['a-id', 'z-id'])
+})
