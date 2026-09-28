@@ -8,7 +8,7 @@ type Props = {
   error?: string
   defaultValue?: string
   autoComplete?: string
-  inputMode?: 'text' | 'decimal' | 'email'
+  inputMode?: 'text' | 'decimal' | 'email' | 'numeric'
 }
 
 export function TextField({ name, label, type = 'text', hint, error, defaultValue, autoComplete, inputMode }: Props) {
