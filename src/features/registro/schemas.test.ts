@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { firstFieldErrors } from '@/lib/forms'
 import { addDays } from '@/domain/dates'
-import { makeExpenseSchema, makeIncomeSchema, parseRepeat, resolveWhen } from './schemas'
+import { makeExpenseSchema, makeIncomeSchema, parseRepeat, readInstallments, resolveWhen } from './schemas'
 
 const today = '2026-09-30'
 const cat = '3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
@@ -130,4 +130,13 @@ test('parseRepeat: só "on" repete; padrão todo mês', () => {
   expect(parseRepeat('on', 'monthly')).toBe('monthly')
   expect(parseRepeat('on', '')).toBe('monthly')
   expect(parseRepeat('', 'yearly')).toBeNull()
+})
+
+test('readInstallments: só vale com "Foi parcelado" marcado, de 2 a 48', () => {
+  expect(readInstallments({ parcelado: '', installments: '3' })).toEqual({ count: null, error: null })
+  expect(readInstallments({ parcelado: 'on', installments: '3' })).toEqual({ count: 3, error: null })
+  expect(readInstallments({ parcelado: 'on', installments: '48' })).toEqual({ count: 48, error: null })
+  for (const bad of ['', '1', '49', 'dez', '2.5', '-3', '003']) {
+    expect(readInstallments({ parcelado: 'on', installments: bad })).toEqual({ count: null, error: 'Escolha de 2 a 48 parcelas.' })
+  }
 })

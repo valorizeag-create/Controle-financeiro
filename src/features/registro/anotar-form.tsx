@@ -27,14 +27,15 @@ type Props = {
 
 function RepeatOption({
   label,
-  initialOn,
+  on,
+  onToggle,
   initialFrequency,
 }: {
   label: string
-  initialOn: boolean
+  on: boolean
+  onToggle: (on: boolean) => void
   initialFrequency: Frequency
 }) {
-  const [on, setOn] = useState(initialOn)
   const [frequency, setFrequency] = useState<Frequency>(initialFrequency)
 
   return (
@@ -45,11 +46,56 @@ function RepeatOption({
           type="checkbox"
           name="repeats"
           checked={on}
-          onChange={(e) => setOn(e.target.checked)}
+          onChange={(e) => onToggle(e.target.checked)}
           className="size-[22px] accent-[#6cbf38]"
         />
       </label>
       {on && <FrequencyField value={frequency} onChange={setFrequency} legend="Com que frequência?" hideLegend />}
+    </div>
+  )
+}
+
+function InstallmentOption({
+  on,
+  onToggle,
+  initialCount,
+  error,
+}: {
+  on: boolean
+  onToggle: (on: boolean) => void
+  initialCount?: string
+  error?: string
+}) {
+  return (
+    <div className="flex flex-col gap-3.5">
+      <label className="flex min-h-11 items-center justify-between gap-3 text-[15px] text-ink">
+        Foi parcelado
+        <input
+          type="checkbox"
+          name="parcelado"
+          value="on"
+          checked={on}
+          onChange={(e) => onToggle(e.target.checked)}
+          className="size-[22px] accent-[#6cbf38]"
+        />
+      </label>
+      {on && (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="installments" className="text-sm text-inactive">Em quantas parcelas?</label>
+          <input
+            id="installments"
+            name="installments"
+            inputMode="numeric"
+            maxLength={2}
+            defaultValue={initialCount}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? 'installments-hint installments-error' : 'installments-hint'}
+            className="h-11 w-28 rounded-control border border-control px-3 text-base"
+          />
+          <span id="installments-hint" className="text-sm text-inactive">O valor em &quot;Quanto foi?&quot; é o total da compra.</span>
+          {error && <span id="installments-error" className="text-sm text-error-ink">{error}</span>}
+        </div>
+      )}
     </div>
   )
 }
@@ -63,8 +109,13 @@ export function AnotarForm({ kind, categories, today, record, cards = [], lastCa
   // "Sujo" = há algo digitado que ainda não foi salvo; o botão Fechar pergunta antes de descartar.
   const [touched, setTouched] = useState(false)
   const isExpense = kind === 'expense'
-  const hasDetails = Boolean(v.note || v.paymentMethod || v.repeats)
+  const hasDetails = Boolean(v.note || v.paymentMethod || v.repeats || v.parcelado)
   const hasCards = isExpense && cards.length > 0
+  // "Isso se repete"/"É uma conta que se repete" e "Foi parcelado" nunca ficam marcados juntos.
+  const [extra, setExtra] = useState<'repeat' | 'installments' | null>(
+    v.parcelado === 'on' ? 'installments' : v.repeats === 'on' ? 'repeat' : null,
+  )
+  const [incomeRepeatOn, setIncomeRepeatOn] = useState(v.repeats === 'on')
   // Erro ou edição trazem o cartão do próprio registro; ao criar do zero, o último cartão usado já
   // vem marcado (se ainda existir); sem nenhum dos dois, "Outra forma" (decisão K6 A / Review Focus 4).
   const initialCardId = v.cardId !== undefined ? v.cardId : cards.some((c) => c.id === lastCardId) ? (lastCardId as string) : ''
@@ -178,7 +229,8 @@ export function AnotarForm({ kind, categories, today, record, cards = [], lastCa
         <div className="border-y border-line py-3.5">
           <RepeatOption
             label="Isso se repete"
-            initialOn={v.repeats === 'on'}
+            on={incomeRepeatOn}
+            onToggle={setIncomeRepeatOn}
             initialFrequency={v.frequency === 'yearly' ? 'yearly' : 'monthly'}
           />
         </div>
@@ -209,8 +261,17 @@ export function AnotarForm({ kind, categories, today, record, cards = [], lastCa
             {!record && (
               <RepeatOption
                 label="É uma conta que se repete"
-                initialOn={v.repeats === 'on'}
+                on={extra === 'repeat'}
+                onToggle={(on) => setExtra(on ? 'repeat' : null)}
                 initialFrequency={v.frequency === 'yearly' ? 'yearly' : 'monthly'}
+              />
+            )}
+            {!record && (
+              <InstallmentOption
+                on={extra === 'installments'}
+                onToggle={(on) => setExtra(on ? 'installments' : null)}
+                initialCount={v.installments}
+                error={e.installments}
               />
             )}
           </div>

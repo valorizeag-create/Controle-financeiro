@@ -2,12 +2,27 @@ import { z } from 'zod'
 import { parseBRL } from '@/domain/money'
 import { addDays, isValidISODate, type ISODate } from '@/domain/dates'
 import type { Frequency } from '@/domain/recurrence'
+import { MAX_INSTALLMENTS, MIN_INSTALLMENTS } from '@/domain/installments'
 
 export const PAYMENT_METHODS = ['pix', 'cash', 'boleto', 'debit', 'credit', 'other'] as const
+
+export const INSTALLMENT_MESSAGES = {
+  range: 'Escolha de 2 a 48 parcelas.',
+  tooSmall: 'Valor pequeno demais para tantas parcelas.',
+  oneOption: 'Escolha só uma opção: se repete ou parcelado.',
+} as const
 
 export function parseRepeat(repeats: string, frequency: string): Frequency | null {
   if (repeats !== 'on') return null
   return frequency === 'yearly' ? 'yearly' : 'monthly'
+}
+
+export function readInstallments(values: { parcelado: string; installments: string }): { count: number | null; error: string | null } {
+  if (values.parcelado !== 'on') return { count: null, error: null }
+  if (!/^\d{1,2}$/.test(values.installments)) return { count: null, error: INSTALLMENT_MESSAGES.range }
+  const n = Number(values.installments)
+  if (n < MIN_INSTALLMENTS || n > MAX_INSTALLMENTS) return { count: null, error: INSTALLMENT_MESSAGES.range }
+  return { count: n, error: null }
 }
 
 const MIN_DATE: ISODate = '2000-01-01'

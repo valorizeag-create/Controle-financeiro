@@ -204,3 +204,51 @@ describe('Como pagou? (K6 A)', () => {
     expect(screen.queryByRole('group', { name: 'Como pagou?' })).toBeNull()
   })
 })
+
+describe('Foi parcelado (só gasto, só ao criar)', () => {
+  test('dentro de Mais detalhes; marcado pede o nº de parcelas e explica o total', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} />)
+    const box = screen.getByLabelText('Foi parcelado') as HTMLInputElement
+    expect(box.closest('details')).not.toBeNull()
+    expect(box.name).toBe('parcelado')
+    expect(screen.queryByLabelText('Em quantas parcelas?')).toBeNull()
+    fireEvent.click(box)
+    const count = screen.getByLabelText('Em quantas parcelas?') as HTMLInputElement
+    expect(count.name).toBe('installments')
+    expect(count.getAttribute('inputmode')).toBe('numeric')
+    expect(screen.getByText('O valor em "Quanto foi?" é o total da compra.')).toBeTruthy()
+  })
+
+  test('parcelado e se repete nunca ficam marcados juntos (decisão 50)', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} />)
+    fireEvent.click(screen.getByLabelText('É uma conta que se repete'))
+    expect(screen.getByRole('radio', { name: 'Todo mês' })).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('Foi parcelado'))
+    expect(screen.getByLabelText('É uma conta que se repete')).toHaveProperty('checked', false)
+    expect(screen.queryByRole('radio', { name: 'Todo mês' })).toBeNull()
+    fireEvent.click(screen.getByLabelText('É uma conta que se repete'))
+    expect(screen.getByLabelText('Foi parcelado')).toHaveProperty('checked', false)
+    expect(screen.queryByLabelText('Em quantas parcelas?')).toBeNull()
+  })
+
+  test('depois de um erro, continua marcado, com o número e a mensagem', () => {
+    mockUseActionState.mockReturnValueOnce([
+      { status: 'error', submission: 1, fieldErrors: { installments: 'Escolha de 2 a 48 parcelas.' }, values: { amount: '300', parcelado: 'on', installments: '60' } },
+      vi.fn(),
+      false,
+    ])
+    render(<AnotarForm kind="expense" categories={categories} today={today} />)
+    expect(screen.getByText('Mais detalhes').closest('details')?.open).toBe(true)
+    expect((screen.getByLabelText('Em quantas parcelas?') as HTMLInputElement).value).toBe('60')
+    expect(screen.getByText('Escolha de 2 a 48 parcelas.')).toBeTruthy()
+  })
+
+  test('não existe na edição nem na entrada', () => {
+    const gasto = { id: 'r1', kind: 'expense' as const, amountCents: 100, categoryId: '1', source: null, note: null, paymentMethod: null, occurredOn: today }
+    render(<AnotarForm kind="expense" categories={categories} today={today} record={gasto} />)
+    expect(screen.queryByLabelText('Foi parcelado')).toBeNull()
+    cleanup()
+    render(<AnotarForm kind="income" categories={categories} today={today} />)
+    expect(screen.queryByLabelText('Foi parcelado')).toBeNull()
+  })
+})

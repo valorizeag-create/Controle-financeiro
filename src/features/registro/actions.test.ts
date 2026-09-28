@@ -40,6 +40,10 @@ function makeBuilder(op: 'update' | 'delete', table: string, payload: unknown, r
       filters[col] = val
       return builder
     },
+    is(col: string, val: unknown) {
+      filters[col] = val
+      return builder
+    },
     select: async () => {
       calls.push({ op: `${op}:${table}`, filters, payload })
       return resolve(filters)
@@ -55,6 +59,7 @@ function fakeSupabase(s: {
   changedRows?: number
   deleted?: { occurred_on: string; paid_on?: string | null }[]
   deleteFails?: boolean
+  installment?: boolean
 }) {
   return {
     from: (table: string) => ({
@@ -75,13 +80,19 @@ function fakeSupabase(s: {
         return builder
       },
       update: (payload: unknown) =>
-        makeBuilder('update', table, payload, (filters) => ({
-          data: Array.from({ length: s.changedRows ?? 1 }, () => ({ id: filters.id })),
-          error: null,
-        })),
+        makeBuilder('update', table, payload, (filters) => {
+          // Simula o filtro `.is('installment_plan_id', null)` do banco: uma parcela nunca
+          // atende a esse filtro, então nenhuma linha volta.
+          if (s.installment && filters.installment_plan_id === null) return { data: [], error: null }
+          return {
+            data: Array.from({ length: s.changedRows ?? 1 }, () => ({ id: filters.id })),
+            error: null,
+          }
+        }),
       delete: () =>
         makeBuilder('delete', table, undefined, (filters) => {
           if (s.deleteFails) return { data: null, error: { message: 'falhou' } }
+          if (s.installment && filters.installment_plan_id === null) return { data: [], error: null }
           // Simula o filtro `.eq('status', 'confirmed')` do banco: um registro pendente não é
           // afetado pelo delete, então nenhuma linha volta.
           if (filters.status && filters.status !== (s.status ?? 'confirmed')) return { data: [], error: null }
@@ -131,7 +142,7 @@ describe('updateTransaction', () => {
     expect(calls).toEqual([
       {
         op: 'update:transactions',
-        filters: { id: ID, user_id: 'u1', status: 'confirmed' },
+        filters: { id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null },
         payload: { amount_cents: 15000, category_id: CAT, note: 'feira', payment_method: 'pix', card_id: null, card_deleted: false, occurred_on: '2026-08-15' },
       },
     ])
@@ -151,7 +162,7 @@ describe('updateTransaction', () => {
     h.supabase = fakeSupabase({ kind: 'income' })
     await redirectOf(updateTransaction({ status: 'idle' }, form({ id: ID, kind: 'expense', amount: '10', source: 'Freela', when: 'today', date: '' })))
     expect(calls[0].payload).toEqual({ amount_cents: 1000, source: 'Freela', occurred_on: '2026-09-30' })
-    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed' })
+    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null })
   })
 
   test('id inválido ou de registro que a pessoa não vê não grava nada', async () => {
@@ -168,7 +179,7 @@ describe('updateTransaction', () => {
     const state = await updateTransaction({ status: 'idle' }, form({ id: ID, amount: '150', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '' }))
     expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { amount: '150' } })
     expect(h.setFlash).not.toHaveBeenCalled()
-    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed' })
+    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null })
   })
 
   test('registro pendente não pode ser editado por aqui', async () => {
@@ -185,7 +196,7 @@ describe('updateTransaction', () => {
     )
     expect(url).toBe('/extrato?mes=2026-09')
     expect(calls[0].payload).toEqual({ amount_cents: 18000, category_id: CAT, note: 'Luz', payment_method: null, card_id: null, paid_on: '2026-09-29' })
-    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed' })
+    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null })
   })
 
   test('entrada recebida de uma recorrência: também muda o dia em que entrou', async () => {
@@ -222,7 +233,7 @@ describe('deleteTransaction', () => {
     h.supabase = fakeSupabase({ kind: 'expense', deleted: [{ occurred_on: '2026-08-12' }] })
     const url = await redirectOf(deleteTransaction(form({ id: ID })))
     expect(url).toBe('/extrato?mes=2026-08')
-    expect(calls).toEqual([{ op: 'delete:transactions', filters: { id: ID, user_id: 'u1', status: 'confirmed' }, payload: undefined }])
+    expect(calls).toEqual([{ op: 'delete:transactions', filters: { id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null }, payload: undefined }])
     expect(h.setFlash).toHaveBeenCalledWith('Excluído. Seu mês já está atualizado.')
   })
 
@@ -237,7 +248,7 @@ describe('deleteTransaction', () => {
     const url = await redirectOf(deleteTransaction(form({ id: ID })))
     expect(url).toBe(`/extrato/${ID}?erro=1`)
     expect(h.setFlash).not.toHaveBeenCalled()
-    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed' })
+    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null })
   })
 
   test('id inválido ou registro que já não existe volta ao Extrato sem aviso', async () => {
@@ -246,7 +257,7 @@ describe('deleteTransaction', () => {
     expect(calls).toEqual([])
     expect(await redirectOf(deleteTransaction(form({ id: ID })))).toBe('/extrato')
     expect(h.setFlash).not.toHaveBeenCalled()
-    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed' })
+    expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null })
   })
 
   test('registro pendente não pode ser excluído por aqui', async () => {
@@ -351,5 +362,81 @@ describe('gasto com cartão (K6 A)', () => {
     await redirectOf(updateTransaction({ status: 'idle' }, form({ id: ID, amount: '120', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '', cardId: '' })))
     expect(calls[0].payload).not.toHaveProperty('card_deleted')
     expect(calls[0].payload).toMatchObject({ card_id: null, payment_method: null })
+  })
+})
+
+describe('createTransaction parcelado (RN-07)', () => {
+  const base = { kind: 'expense', amount: '300', categoryId: CAT, when: 'today', date: '', note: 'Tênis', paymentMethod: '', cardId: CARD, parcelado: 'on', installments: '3' }
+
+  test('cria a compra e todas as parcelas de uma vez, com o total e o nº de parcelas', async () => {
+    h.supabase = fakeCreate()
+    const url = await redirectOf(createTransaction({ status: 'idle' }, form(base)))
+    expect(url).toBe('/inicio')
+    expect(calls).toEqual([
+      {
+        op: 'rpc:create_installment_purchase',
+        filters: {},
+        payload: { p_amount_cents: 30000, p_count: 3, p_category_id: CAT, p_note: 'Tênis', p_card_id: CARD, p_payment_method: null, p_purchased_on: '2026-09-30' },
+      },
+    ])
+    expect(h.setFlash).toHaveBeenCalledWith('Anotado. Seu mês já está atualizado.')
+    expect(h.revalidatePath).toHaveBeenCalledWith('/cartoes')
+  })
+
+  test('nº de parcelas fora de 2 a 48 pede de novo e mantém o que foi digitado', async () => {
+    h.supabase = fakeCreate()
+    for (const bad of ['', '1', '49', 'dez']) {
+      const state = await createTransaction({ status: 'idle' }, form({ ...base, installments: bad }))
+      expect(state).toMatchObject({ status: 'error', fieldErrors: { installments: 'Escolha de 2 a 48 parcelas.' }, values: { parcelado: 'on', installments: bad, amount: '300' } })
+    }
+    expect(calls).toEqual([])
+  })
+
+  test('valor menor que o nº de parcelas', async () => {
+    h.supabase = fakeCreate()
+    const state = await createTransaction({ status: 'idle' }, form({ ...base, amount: '0,05', installments: '10' }))
+    expect(state).toMatchObject({ status: 'error', fieldErrors: { installments: 'Valor pequeno demais para tantas parcelas.' } })
+    expect(calls).toEqual([])
+  })
+
+  test('parcelado e se repete juntos (formulário adulterado) não gravam nada (decisão 50)', async () => {
+    h.supabase = fakeCreate()
+    const state = await createTransaction({ status: 'idle' }, form({ ...base, repeats: 'on', frequency: 'monthly' }))
+    expect(state).toMatchObject({ status: 'error', fieldErrors: { installments: 'Escolha só uma opção: se repete ou parcelado.' } })
+    expect(calls).toEqual([])
+  })
+
+  test('compra parcelada não tem data futura', async () => {
+    h.supabase = fakeCreate()
+    const state = await createTransaction({ status: 'idle' }, form({ ...base, when: 'other', date: '2026-10-05' }))
+    expect(state).toMatchObject({ status: 'error', fieldErrors: { date: 'Escolha o dia.' } })
+    expect(calls).toEqual([])
+  })
+
+  test('falha na função mantém tudo o que foi digitado', async () => {
+    h.supabase = fakeCreate({ rpcError: { message: 'x' } })
+    const state = await createTransaction({ status: 'idle' }, form(base))
+    expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { parcelado: 'on', installments: '3', cardId: CARD } })
+  })
+
+  test('"Foi parcelado" desmarcado ignora o número', async () => {
+    h.supabase = fakeCreate()
+    await redirectOf(createTransaction({ status: 'idle' }, form({ ...base, parcelado: '', installments: '3' })))
+    expect(calls.map((c) => c.op)).toEqual(['insert:transactions'])
+  })
+})
+
+describe('parcela não é editada nem excluída sozinha (Review Focus 5, decisão 54)', () => {
+  test('editar uma parcela pelo endereço não grava', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense', installment: true })
+    const state = await updateTransaction({ status: 'idle' }, form({ id: ID, amount: '1', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '' }))
+    expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED })
+    expect(calls[0].filters).toMatchObject({ id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null })
+  })
+
+  test('excluir uma parcela pelo endereço não apaga nada', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense', installment: true, deleted: [{ occurred_on: '2026-09-30' }] })
+    expect(await redirectOf(deleteTransaction(form({ id: ID })))).toBe('/extrato')
+    expect(h.setFlash).not.toHaveBeenCalled()
   })
 })
