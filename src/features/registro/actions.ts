@@ -149,6 +149,7 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
       .eq('user_id', user.id)
       .eq('status', 'confirmed')
       .is('installment_plan_id', null)
+      .is('goal_id', null)
       .select('id')
     if (error || !data || data.length !== 1) return errorState({ message: SAVE_FAILED, values })
     occurredOn = d.occurredOn
@@ -175,6 +176,7 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
       .eq('user_id', user.id)
       .eq('status', 'confirmed')
       .is('installment_plan_id', null)
+      .is('goal_id', null)
       .select('id')
     if (error || !data || data.length !== 1) return errorState({ message: SAVE_FAILED, values })
     occurredOn = d.occurredOn
@@ -199,6 +201,7 @@ export async function deleteTransaction(fd: FormData): Promise<void> {
     .eq('user_id', user.id)
     .eq('status', 'confirmed')
     .is('installment_plan_id', null)
+    .is('goal_id', null)
     .select('occurred_on, paid_on')
   if (error) redirect(`/extrato/${id}?erro=1`)
   const deleted = data?.[0] as { occurred_on: ISODate; paid_on: ISODate | null } | undefined

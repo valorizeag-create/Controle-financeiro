@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { TxRow } from '@/features/registro/queries'
+import type { GoalMovementRow, GoalRow } from '@/features/metas/types'
 import {
   buildExtrato, extratoHref, matchesQuery, normalizeText, parseExtratoFilters, type ExtratoFilters,
 } from './view-model'
@@ -27,7 +28,7 @@ const transactions: TxRow[] = [
   row({ id: 't6', kind: 'expense', amountCents: 20000, occurredOn: '2026-08-25', paidOn: '2026-09-19', categoryId: SAUDE }),
 ]
 const f = (p: Partial<ExtratoFilters> = {}): ExtratoFilters => ({ month: '2026-09', kind: null, categoryId: null, cardId: null, q: '', ...p })
-const build = (filters: ExtratoFilters) => buildExtrato({ filters, today, categories, transactions, cards: [] })
+const build = (filters: ExtratoFilters) => buildExtrato({ filters, today, categories, transactions, cards: [], goals: [], movements: [] })
 const ids = (filters: ExtratoFilters) => build(filters).groups.flatMap((g) => g.rows.map((r) => r.id))
 
 describe('parseExtratoFilters', () => {
@@ -206,5 +207,44 @@ describe('cartões e parcelas no Extrato (RF-60, RF-14)', () => {
   test('busca acha pelo apelido do cartão e por "Cartão excluído"', () => {
     expect(buildWith({ q: 'nubank' }).groups.flatMap((g) => g.rows.map((r) => r.id))).toEqual(['c1', 'c2'])
     expect(buildWith({ q: 'excluido' }).groups.flatMap((g) => g.rows.map((r) => r.id))).toEqual(['c3'])
+  })
+})
+
+describe('metas no Extrato (protótipo, RN-01a)', () => {
+  const goals: GoalRow[] = [
+    { id: 'g1', name: 'Viagem para Salvador', targetCents: 400000, deadline: null, status: 'used', usedOn: '2026-09-21', deletedOn: null, createdAt: '2026-07-01T12:00:00Z' },
+    { id: 'g2', name: 'Reserva', targetCents: 100000, deadline: null, status: 'active', usedOn: null, deletedOn: '2026-09-20', createdAt: '2026-07-01T12:00:00Z' },
+  ]
+  const mv = (p: Pick<GoalMovementRow, 'id' | 'goalId' | 'kind' | 'amountCents' | 'occurredOn'> & Partial<GoalMovementRow>): GoalMovementRow => ({
+    transactionId: null, createdAt: `${p.occurredOn}T12:00:00Z`, ...p,
+  })
+  const movements = [
+    mv({ id: 'm1', goalId: 'g1', kind: 'deposit', amountCents: 30000, occurredOn: '2026-09-19' }),
+    mv({ id: 'm2', goalId: 'g2', kind: 'withdraw', amountCents: 5000, occurredOn: '2026-09-20' }),
+    mv({ id: 'm3', goalId: 'g1', kind: 'use', amountCents: 20000, occurredOn: '2026-09-21', transactionId: 'tg' }),
+    mv({ id: 'm4', goalId: 'g1', kind: 'deposit', amountCents: 100, occurredOn: '2026-08-31' }),
+  ]
+  const withGoal = [row({ id: 'tg', kind: 'expense', amountCents: 23000, occurredOn: '2026-09-21', categoryId: MERCADO, goalId: 'g1', goalFundedCents: 20000 })]
+  const buildGoals = (filters: ExtratoFilters) => buildExtrato({ filters, today, categories, transactions: withGoal, cards: [], goals, movements })
+
+  test('guardar e tirar aparecem; o gasto pago com meta leva a etiqueta e abre a meta', () => {
+    const rows = buildGoals(f()).groups.flatMap((g) => g.rows)
+    expect(rows.map((r) => [r.kind, r.title, r.subtitle, r.cents, r.href, r.badge])).toEqual([
+      ['expense', 'Mercado', null, 23000, '/metas/g1', 'pago com a meta Viagem para Salvador'],
+      ['goal', 'Tirado da meta', 'Reserva', 5000, '/metas', null],
+      ['goal', 'Guardado na meta', 'Viagem para Salvador', 30000, '/metas/g1', null],
+    ])
+  })
+
+  test('com filtro de tipo, categoria ou cartão, os movimentos saem; a busca acha pelo nome da meta', () => {
+    for (const filters of [f({ kind: 'expense' }), f({ kind: 'income' }), f({ categoryId: MERCADO, kind: 'expense' })]) {
+      expect(buildGoals(filters).groups.flatMap((g) => g.rows).some((r) => r.kind === 'goal')).toBe(false)
+    }
+    expect(buildGoals(f({ q: 'reserva' })).groups.flatMap((g) => g.rows.map((r) => r.title))).toEqual(['Tirado da meta'])
+  })
+
+  test('mês só com movimentos de meta não é "nenhum registro"', () => {
+    const v = buildExtrato({ filters: f(), today, categories, transactions: [], cards: [], goals, movements })
+    expect(v.empty).toBeNull()
   })
 })

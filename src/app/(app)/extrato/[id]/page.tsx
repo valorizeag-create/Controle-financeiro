@@ -19,6 +19,8 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
   if (!tx || tx.status !== 'confirmed') notFound()
   // Uma parcela ou o restante quitado não têm formulário próprio: a tela é a da compra inteira.
   if (tx.installmentPlanId) redirect(`/extrato/parcelas/${tx.installmentPlanId}`)
+  // Gasto pago com uma meta não é editado nem excluído por aqui (RN-01a): a tela é a da meta.
+  if (tx.goalId) redirect(`/metas/${tx.goalId}`)
 
   const isExpense = tx.kind === 'expense'
   const record = {

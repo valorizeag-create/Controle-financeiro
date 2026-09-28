@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowDownLeft, Receipt } from 'lucide-react'
+import { ArrowDownLeft, Receipt, Target } from 'lucide-react'
 import { Button } from '@/ui/button'
 import { Card } from '@/ui/card'
 import { Money } from '@/ui/money'
@@ -44,8 +44,18 @@ export function ExtratoList({ view }: { view: ExtratoView }) {
             {g.rows.map((r) => (
               <li key={r.id} className="border-b border-line last:border-b-0">
                 <Link href={r.href} className="flex min-h-[68px] items-center gap-3 px-4 py-3.5 hover:bg-canvas">
-                  <span className={`flex size-10 shrink-0 items-center justify-center rounded-panel ${r.kind === 'income' ? 'bg-brand-wash text-brand-text-hover' : 'bg-sunken text-[#262626]'}`}>
-                    {r.kind === 'income' ? <ArrowDownLeft className="size-5" aria-hidden="true" /> : <Receipt className="size-5" aria-hidden="true" />}
+                  <span
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-panel ${
+                      r.kind === 'income' || r.kind === 'goal' ? 'bg-brand-wash text-brand-text-hover' : 'bg-sunken text-[#262626]'
+                    }`}
+                  >
+                    {r.kind === 'income' ? (
+                      <ArrowDownLeft className="size-5" aria-hidden="true" />
+                    ) : r.kind === 'goal' ? (
+                      <Target className="size-5" aria-hidden="true" />
+                    ) : (
+                      <Receipt className="size-5" aria-hidden="true" />
+                    )}
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-[15px] text-ink">{r.title}</span>
@@ -56,8 +66,13 @@ export function ExtratoList({ view }: { view: ExtratoView }) {
                       </span>
                     )}
                   </span>
-                  <span className={`num shrink-0 text-[15px] ${r.kind === 'income' ? 'font-semibold text-brand-text-hover' : 'font-medium text-ink'}`}>
-                    {r.kind === 'income' ? '+ ' : '− '}<Money cents={r.cents} />
+                  <span
+                    className={`num shrink-0 text-[15px] ${
+                      r.kind === 'income' ? 'font-semibold text-brand-text-hover' : r.kind === 'goal' ? 'font-semibold text-brand-text' : 'font-medium text-ink'
+                    }`}
+                  >
+                    {r.kind === 'income' ? '+ ' : r.kind === 'expense' ? '− ' : ''}
+                    <Money cents={r.cents} />
                   </span>
                 </Link>
               </li>

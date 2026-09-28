@@ -63,6 +63,24 @@ test('sem entradas no mês com filtro Entradas: convite específico para registr
   expect(screen.queryByText('Nenhum registro com esses filtros.')).toBeNull()
 })
 
+test('linha de meta: ícone de meta, nome da meta e valor sem sinal', () => {
+  const NBSP = String.fromCharCode(0xa0)
+  render(
+    <ExtratoList
+      view={{
+        filters: { month: '2026-09', kind: null, categoryId: null, cardId: null, q: '' }, monthLabel: 'setembro de 2026', empty: null,
+        categoryName: null, cardName: null,
+        groups: [{ date: '2026-09-19', label: '19 de setembro', rows: [{ id: 'm1', kind: 'goal', title: 'Guardado na meta', subtitle: 'Viagem para Salvador', cents: 30000, href: '/metas/g1', badge: null }] }],
+      }}
+    />,
+  )
+  const link = screen.getByRole('link', { name: /^Guardado na meta/ })
+  expect(link.getAttribute('href')).toBe('/metas/g1')
+  expect(link.textContent).toContain('Viagem para Salvador')
+  expect(link.textContent).toContain(`R$${NBSP}300,00`)
+  expect(link.textContent).not.toMatch(/[+−]/)
+})
+
 test('parcela: selo do protótipo e link para a compra', () => {
   render(
     <ExtratoList
