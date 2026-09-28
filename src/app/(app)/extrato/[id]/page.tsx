@@ -7,13 +7,14 @@ import { loadCategories, loadTransaction } from '@/features/registro/queries'
 import { SheetClose } from '@/features/registro/sheet-close'
 import { ConfirmAction } from '@/ui/confirm'
 import { FormAlert } from '@/ui/form-alert'
+import { loadCards } from '@/features/cartoes/queries'
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ erro?: string }> }
 
 export default async function EditarRegistroPage({ params, searchParams }: Props) {
   const [{ id }, { erro }] = await Promise.all([params, searchParams])
   if (!z.uuid().safeParse(id).success) notFound()
-  const [tx, categories] = await Promise.all([loadTransaction(id), loadCategories()])
+  const [tx, categories, cards] = await Promise.all([loadTransaction(id), loadCategories(), loadCards()])
   // Contas a pagar/receber (pendentes) ganham tela própria no Plano 3.
   if (!tx || tx.status !== 'confirmed') notFound()
 
@@ -27,6 +28,7 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
     note: tx.note,
     paymentMethod: tx.paymentMethod,
     occurredOn: tx.paidOn ?? tx.occurredOn,
+    cardId: tx.cardId,
   }
 
   return (
@@ -39,7 +41,7 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
           <SheetClose href={`/extrato?mes=${monthOf(tx.paidOn ?? tx.occurredOn)}`} />
         </div>
         {erro && <FormAlert>Algo não saiu como esperado do nosso lado. Tente novamente em instantes.</FormAlert>}
-        <AnotarForm kind={tx.kind} categories={categories} today={todayInSaoPaulo()} record={record} />
+        <AnotarForm kind={tx.kind} categories={categories} today={todayInSaoPaulo()} record={record} cards={cards} />
         <ConfirmAction
           trigger="Excluir"
           triggerClassName="flex min-h-12 items-center justify-center rounded-panel border border-control bg-card px-5 text-base font-semibold text-ink hover:bg-canvas"

@@ -13,8 +13,17 @@ import { createTransaction, updateTransaction } from './actions'
 import type { Category } from './queries'
 import { INCOME_SOURCES, PAYMENT_LABELS } from './labels'
 import { recordToFormValues, type EditableRecord } from './form-values'
+import type { CardRow } from '@/features/cartoes/types'
+import { cardColor } from '@/features/cartoes/palette'
 
-type Props = { kind: 'expense' | 'income'; categories: Category[]; today: ISODate; record?: EditableRecord }
+type Props = {
+  kind: 'expense' | 'income'
+  categories: Category[]
+  today: ISODate
+  record?: EditableRecord
+  cards?: CardRow[]
+  lastCardId?: string | null
+}
 
 function RepeatOption({
   label,
@@ -45,7 +54,7 @@ function RepeatOption({
   )
 }
 
-export function AnotarForm({ kind, categories, today, record }: Props) {
+export function AnotarForm({ kind, categories, today, record, cards = [], lastCardId = null }: Props) {
   const [state, action, pending] = useActionState(record ? updateTransaction : createTransaction, idle)
   const err = state.status === 'error' ? state : null
   const v = err?.values ?? (record ? recordToFormValues(record, today) : {})
@@ -55,6 +64,11 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
   const [touched, setTouched] = useState(false)
   const isExpense = kind === 'expense'
   const hasDetails = Boolean(v.note || v.paymentMethod || v.repeats)
+  const hasCards = isExpense && cards.length > 0
+  // Erro ou edição trazem o cartão do próprio registro; ao criar do zero, o último cartão usado já
+  // vem marcado (se ainda existir); sem nenhum dos dois, "Outra forma" (decisão K6 A / Review Focus 4).
+  const initialCardId = v.cardId !== undefined ? v.cardId : cards.some((c) => c.id === lastCardId) ? (lastCardId as string) : ''
+  const [cardId, setCardId] = useState(initialCardId)
 
   return (
     <form
@@ -106,6 +120,39 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
         </fieldset>
       )}
 
+      {hasCards && (
+        <fieldset className="flex flex-col gap-2.5">
+          <legend className="mb-2.5 text-[15px] font-medium">Como pagou?</legend>
+          <div className="flex flex-wrap gap-2">
+            {cards.map((c) => (
+              <label key={c.id} className={`${CHIP} gap-2`}>
+                <input
+                  type="radio"
+                  name="cardId"
+                  value={c.id}
+                  checked={cardId === c.id}
+                  onChange={() => setCardId(c.id)}
+                  className="sr-only"
+                />
+                <span aria-hidden="true" className="h-3.5 w-5 rounded-full" style={{ background: cardColor(c.color).swatch }} />
+                {c.nickname}
+              </label>
+            ))}
+            <label className={`${CHIP} border-dashed`}>
+              <input
+                type="radio"
+                name="cardId"
+                value=""
+                checked={cardId === ''}
+                onChange={() => setCardId('')}
+                className="sr-only"
+              />
+              Outra forma
+            </label>
+          </div>
+        </fieldset>
+      )}
+
       <fieldset className="flex flex-col gap-2.5" aria-describedby={e.date ? 'date-error' : undefined}>
         <legend className="mb-2.5 text-[15px] font-medium">Quando?</legend>
         <div className="flex flex-wrap gap-2">
@@ -148,15 +195,17 @@ export function AnotarForm({ kind, categories, today, record }: Props) {
               <label htmlFor="note" className="text-sm text-inactive">Uma nota, se quiser</label>
               <input id="note" name="note" maxLength={140} defaultValue={v.note} className="h-11 rounded-control border border-control px-3 text-base" />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="paymentMethod" className="text-sm text-inactive">Forma de pagamento</label>
-              <select id="paymentMethod" name="paymentMethod" defaultValue={v.paymentMethod ?? ''} className="h-11 rounded-control border border-control bg-card px-3 text-base">
-                <option value="">Não informar</option>
-                {Object.entries(PAYMENT_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
+            {cardId === '' && (
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="paymentMethod" className="text-sm text-inactive">Forma de pagamento</label>
+                <select id="paymentMethod" name="paymentMethod" defaultValue={v.paymentMethod ?? ''} className="h-11 rounded-control border border-control bg-card px-3 text-base">
+                  <option value="">Não informar</option>
+                  {Object.entries(PAYMENT_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             {!record && (
               <RepeatOption
                 label="É uma conta que se repete"

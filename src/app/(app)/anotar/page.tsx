@@ -3,11 +3,12 @@ import { todayInSaoPaulo } from '@/domain/dates'
 import { loadCategories } from '@/features/registro/queries'
 import { AnotarForm } from '@/features/registro/anotar-form'
 import { SheetClose } from '@/features/registro/sheet-close'
+import { loadCards, loadLastCardId } from '@/features/cartoes/queries'
 
 export default async function AnotarPage({ searchParams }: { searchParams: Promise<{ tipo?: string }> }) {
   const { tipo } = await searchParams
   const kind = tipo === 'entrada' ? 'income' : 'expense'
-  const categories = await loadCategories()
+  const [categories, cards, lastCardId] = await Promise.all([loadCategories(), loadCards(), loadLastCardId()])
   const tab = (active: boolean) =>
     `flex h-11 items-center justify-center rounded-control text-[15px] ${active ? 'bg-card font-semibold text-ink shadow-[0_1px_2px_rgba(18,40,1,.08)]' : 'font-medium text-inactive'}`
 
@@ -21,7 +22,7 @@ export default async function AnotarPage({ searchParams }: { searchParams: Promi
           </nav>
           <SheetClose href="/inicio" />
         </div>
-        <AnotarForm key={kind} kind={kind} categories={categories} today={todayInSaoPaulo()} />
+        <AnotarForm key={kind} kind={kind} categories={categories} today={todayInSaoPaulo()} cards={cards} lastCardId={lastCardId} />
       </section>
     </div>
   )

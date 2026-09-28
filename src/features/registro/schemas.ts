@@ -71,9 +71,10 @@ export const makeExpenseSchema = (today: ISODate) =>
         .string()
         .transform((s) => ((PAYMENT_METHODS as readonly string[]).includes(s) ? s : null))
         .pipe(z.enum(PAYMENT_METHODS).nullable()),
+      cardId: z.string().optional().transform((s) => (s && z.uuid().safeParse(s).success ? s : null)),
     },
     today,
-  ).transform(({ amount: amountCents, ...rest }) => ({ amountCents, ...rest }))
+  ).transform(({ amount: amountCents, ...rest }) => ({ amountCents, ...rest, paymentMethod: rest.cardId ? null : rest.paymentMethod }))
 
 export const makeIncomeSchema = (today: ISODate) =>
   // Dinheiro que ainda não chegou não conta: entrada não pode ser datada de

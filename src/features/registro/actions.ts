@@ -11,10 +11,10 @@ import { refreshMoneyViews } from '@/lib/refresh'
 import { makeExpenseSchema, makeIncomeSchema, parseRepeat } from './schemas'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
-const EXPENSE_FIELDS = ['amount', 'categoryId', 'when', 'date', 'note', 'paymentMethod'] as const
+const EXPENSE_FIELDS = ['amount', 'categoryId', 'when', 'date', 'note', 'paymentMethod', 'cardId'] as const
 const INCOME_FIELDS = ['amount', 'source', 'when', 'date'] as const
 const REPEAT_FIELDS = ['repeats', 'frequency'] as const
-const ALL_FIELDS = ['amount', 'categoryId', 'source', 'when', 'date', 'note', 'paymentMethod'] as const
+const ALL_FIELDS = ['amount', 'categoryId', 'source', 'when', 'date', 'note', 'paymentMethod', 'cardId'] as const
 const recordId = z.uuid()
 
 export async function createTransaction(_: FormState, fd: FormData): Promise<FormState> {
@@ -39,6 +39,7 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
         p_payment_method: d.paymentMethod,
         p_occurred_on: d.occurredOn,
         p_frequency: frequency,
+        p_card_id: d.cardId,
       })
       if (error) return errorState({ message: SAVE_FAILED, values })
     } else {
@@ -49,6 +50,7 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
         category_id: d.categoryId,
         note: d.note,
         payment_method: d.paymentMethod,
+        card_id: d.cardId,
         occurred_on: d.occurredOn,
       })
       if (error) return errorState({ message: SAVE_FAILED, values })
@@ -70,6 +72,7 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
         p_payment_method: null,
         p_occurred_on: d.occurredOn,
         p_frequency: frequency,
+        p_card_id: null,
       })
       if (error) return errorState({ message: SAVE_FAILED, values })
     } else {
@@ -141,7 +144,15 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     if (dateColumn === 'paid_on' && d.occurredOn > today) return errorState({ fieldErrors: { date: 'Escolha o dia.' }, values })
     const { data, error } = await supabase
       .from('transactions')
-      .update({ amount_cents: d.amountCents, category_id: d.categoryId, note: d.note, payment_method: d.paymentMethod, [dateColumn]: d.occurredOn })
+      .update({
+        amount_cents: d.amountCents,
+        category_id: d.categoryId,
+        note: d.note,
+        payment_method: d.paymentMethod,
+        card_id: d.cardId,
+        ...(d.cardId || d.paymentMethod ? { card_deleted: false } : {}),
+        [dateColumn]: d.occurredOn,
+      })
       .eq('id', id)
       .eq('user_id', user.id)
       .eq('status', 'confirmed')

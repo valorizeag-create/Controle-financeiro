@@ -132,7 +132,7 @@ describe('updateTransaction', () => {
       {
         op: 'update:transactions',
         filters: { id: ID, user_id: 'u1', status: 'confirmed' },
-        payload: { amount_cents: 15000, category_id: CAT, note: 'feira', payment_method: 'pix', occurred_on: '2026-08-15' },
+        payload: { amount_cents: 15000, category_id: CAT, note: 'feira', payment_method: 'pix', card_id: null, card_deleted: false, occurred_on: '2026-08-15' },
       },
     ])
     expect(h.setFlash).toHaveBeenCalledWith('Alterações salvas.')
@@ -184,7 +184,7 @@ describe('updateTransaction', () => {
       updateTransaction({ status: 'idle' }, form({ id: ID, amount: '180', categoryId: CAT, when: 'other', date: '2026-09-29', note: 'Luz', paymentMethod: '' })),
     )
     expect(url).toBe('/extrato?mes=2026-09')
-    expect(calls[0].payload).toEqual({ amount_cents: 18000, category_id: CAT, note: 'Luz', payment_method: null, paid_on: '2026-09-29' })
+    expect(calls[0].payload).toEqual({ amount_cents: 18000, category_id: CAT, note: 'Luz', payment_method: null, card_id: null, paid_on: '2026-09-29' })
     expect(calls[0].filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed' })
   })
 
@@ -213,7 +213,7 @@ describe('updateTransaction', () => {
       ),
     )
     expect(url).toBe('/extrato?mes=2026-09')
-    expect(calls[0].payload).toEqual({ amount_cents: 18000, category_id: CAT, note: 'Luz', payment_method: null, paid_on: '2026-09-30' })
+    expect(calls[0].payload).toEqual({ amount_cents: 18000, category_id: CAT, note: 'Luz', payment_method: null, card_id: null, paid_on: '2026-09-30' })
   })
 })
 
@@ -285,7 +285,7 @@ describe('createTransaction com repetição', () => {
         filters: {},
         payload: {
           p_kind: 'expense', p_amount_cents: 12000, p_category_id: CAT, p_source: null, p_note: 'Internet',
-          p_payment_method: 'boleto', p_occurred_on: '2026-09-30', p_frequency: 'monthly',
+          p_payment_method: 'boleto', p_occurred_on: '2026-09-30', p_frequency: 'monthly', p_card_id: null,
         },
       },
     ])
@@ -298,7 +298,7 @@ describe('createTransaction com repetição', () => {
     await redirectOf(createTransaction({ status: 'idle' }, form({ kind: 'income', amount: '800', source: 'Freela', when: 'today', date: '', repeats: 'on', frequency: 'yearly' })))
     expect(calls[0].payload).toEqual({
       p_kind: 'income', p_amount_cents: 80000, p_category_id: null, p_source: 'Freela', p_note: null,
-      p_payment_method: null, p_occurred_on: '2026-09-30', p_frequency: 'yearly',
+      p_payment_method: null, p_occurred_on: '2026-09-30', p_frequency: 'yearly', p_card_id: null,
     })
   })
 
@@ -312,5 +312,44 @@ describe('createTransaction com repetição', () => {
     h.supabase = fakeCreate({ rpcError: { message: 'x' } })
     const state = await createTransaction({ status: 'idle' }, form({ kind: 'expense', amount: '120', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '', repeats: 'on', frequency: 'yearly' }))
     expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { repeats: 'on', frequency: 'yearly' } })
+  })
+})
+
+const CARD = '9c1e3f2a-5b7d-4e8a-9c21-7d4e5f6a8b91'
+
+describe('gasto com cartão (K6 A)', () => {
+  test('grava o cartão e deixa a forma de pagamento vazia', async () => {
+    h.supabase = fakeCreate()
+    await redirectOf(createTransaction({ status: 'idle' }, form({ kind: 'expense', amount: '120', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: 'pix', cardId: CARD })))
+    expect(calls).toEqual([
+      {
+        op: 'insert:transactions',
+        filters: {},
+        payload: { user_id: 'u1', kind: 'expense', amount_cents: 12000, category_id: CAT, note: null, payment_method: null, card_id: CARD, occurred_on: '2026-09-30' },
+      },
+    ])
+    expect(h.revalidatePath).toHaveBeenCalledWith('/cartoes')
+  })
+
+  test('"Outra forma": sem cartão, vale a forma escolhida', async () => {
+    h.supabase = fakeCreate()
+    await redirectOf(createTransaction({ status: 'idle' }, form({ kind: 'expense', amount: '120', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: 'pix', cardId: '' })))
+    expect(calls[0].payload).toMatchObject({ card_id: null, payment_method: 'pix' })
+  })
+
+  test('conta que se repete com cartão leva o cartão para a função', async () => {
+    h.supabase = fakeCreate()
+    await redirectOf(createTransaction({ status: 'idle' }, form({ kind: 'expense', amount: '39,90', categoryId: CAT, when: 'today', date: '', note: 'Streaming', paymentMethod: '', cardId: CARD, repeats: 'on', frequency: 'monthly' })))
+    expect(calls[0]).toMatchObject({ op: 'rpc:create_recurring_transaction', payload: { p_card_id: CARD, p_payment_method: null } })
+  })
+
+  test('editar: trocar para um cartão tira a marca "Cartão excluído"; não escolher nada a mantém', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense' })
+    await redirectOf(updateTransaction({ status: 'idle' }, form({ id: ID, amount: '120', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '', cardId: CARD })))
+    expect(calls[0].payload).toMatchObject({ card_id: CARD, payment_method: null, card_deleted: false })
+    calls.length = 0
+    await redirectOf(updateTransaction({ status: 'idle' }, form({ id: ID, amount: '120', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '', cardId: '' })))
+    expect(calls[0].payload).not.toHaveProperty('card_deleted')
+    expect(calls[0].payload).toMatchObject({ card_id: null, payment_method: null })
   })
 })

@@ -27,7 +27,7 @@ describe('gasto', () => {
   const schema = makeExpenseSchema(today)
   test('válido vira centavos e data', () => {
     const r = schema.parse({ amount: '142,30', categoryId: cat, when: 'today', date: '', note: ' café ', paymentMethod: '' })
-    expect(r).toEqual({ amountCents: 14230, categoryId: cat, occurredOn: today, note: 'café', paymentMethod: null })
+    expect(r).toEqual({ amountCents: 14230, categoryId: cat, occurredOn: today, note: 'café', paymentMethod: null, cardId: null })
   })
   test('mensagens da copy', () => {
     const r = schema.safeParse({ amount: '', categoryId: '', when: 'today', date: '', note: '', paymentMethod: '' })
@@ -79,6 +79,14 @@ describe('gasto', () => {
   test('when yesterday usa o dia anterior', () => {
     const r = schema.parse({ amount: '10', categoryId: cat, when: 'yesterday', date: '', note: '', paymentMethod: '' })
     expect(r.occurredOn).toBe(addDays(today, -1))
+  })
+  test('gasto com cartão: a forma de pagamento fica vazia; id que não é de cartão é ignorado (decisão 47)', () => {
+    const CARD = '9c1e3f2a-5b7d-4e8a-9c21-7d4e5f6a8b91'
+    const s = makeExpenseSchema(today)
+    const base = { amount: '10', categoryId: cat, when: 'today', date: '', note: '', paymentMethod: 'pix' }
+    expect(s.parse({ ...base, cardId: CARD })).toMatchObject({ cardId: CARD, paymentMethod: null })
+    expect(s.parse({ ...base, cardId: '' })).toMatchObject({ cardId: null, paymentMethod: 'pix' })
+    expect(s.parse({ ...base, cardId: 'nao-e-id' })).toMatchObject({ cardId: null, paymentMethod: 'pix' })
   })
 })
 

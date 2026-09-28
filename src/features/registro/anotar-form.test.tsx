@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useActionState } from 'react'
 
 vi.mock('./actions', () => ({ createTransaction: vi.fn(), updateTransaction: vi.fn() }))
@@ -155,5 +155,52 @@ describe('se repete (só ao criar)', () => {
     const gasto = { id: 'r1', kind: 'expense' as const, amountCents: 100, categoryId: '1', source: null, note: null, paymentMethod: null, occurredOn: today }
     render(<AnotarForm kind="expense" categories={categories} today={today} record={gasto} />)
     expect(screen.queryByLabelText('É uma conta que se repete')).toBeNull()
+  })
+})
+
+const cards = [
+  { id: 'k1', nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const },
+  { id: 'k2', nickname: 'Inter', kind: 'debit' as const, color: 'orange' as const },
+]
+
+describe('Como pagou? (K6 A)', () => {
+  test('sem cartões, não aparece e a forma de pagamento continua em Mais detalhes', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} />)
+    expect(screen.queryByRole('group', { name: 'Como pagou?' })).toBeNull()
+    expect(screen.getByLabelText('Forma de pagamento')).toBeTruthy()
+  })
+
+  test('um toque por cartão, o último usado já marcado, e "Outra forma" que desmarca', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} cards={cards} lastCardId="k2" />)
+    const group = screen.getByRole('group', { name: 'Como pagou?' })
+    expect(within(group).getAllByRole('radio').map((r) => (r as HTMLInputElement).value)).toEqual(['k1', 'k2', ''])
+    expect(within(group).getByRole('radio', { name: 'Inter' })).toHaveProperty('checked', true)
+    expect((within(group).getByRole('radio', { name: 'Inter' }) as HTMLInputElement).name).toBe('cardId')
+    expect(screen.queryByLabelText('Forma de pagamento')).toBeNull()
+    fireEvent.click(within(group).getByRole('radio', { name: 'Outra forma' }))
+    expect(within(group).getByRole('radio', { name: 'Inter' })).toHaveProperty('checked', false)
+    expect(screen.getByLabelText('Forma de pagamento')).toBeTruthy()
+  })
+
+  test('último usado que não existe mais: "Outra forma" marcada (Review Focus 4)', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} cards={cards} lastCardId="excluido" />)
+    expect(screen.getByRole('radio', { name: 'Outra forma' })).toHaveProperty('checked', true)
+  })
+
+  test('na edição vem o cartão do registro, não o último usado', () => {
+    const gasto = { id: 'r1', kind: 'expense' as const, amountCents: 100, categoryId: '1', source: null, note: null, paymentMethod: null, occurredOn: today, cardId: 'k1' }
+    render(<AnotarForm kind="expense" categories={categories} today={today} cards={cards} lastCardId="k2" record={gasto} />)
+    expect(screen.getByRole('radio', { name: 'Nubank pessoal' })).toHaveProperty('checked', true)
+  })
+
+  test('depois de um erro, o cartão escolhido continua marcado', () => {
+    mockUseActionState.mockReturnValueOnce([{ status: 'error', submission: 1, message: 'x', values: { amount: '10', cardId: 'k1' } }, vi.fn(), false])
+    render(<AnotarForm kind="expense" categories={categories} today={today} cards={cards} lastCardId="k2" />)
+    expect(screen.getByRole('radio', { name: 'Nubank pessoal' })).toHaveProperty('checked', true)
+  })
+
+  test('entrada não mostra cartões', () => {
+    render(<AnotarForm kind="income" categories={categories} today={today} cards={cards} lastCardId="k1" />)
+    expect(screen.queryByRole('group', { name: 'Como pagou?' })).toBeNull()
   })
 })

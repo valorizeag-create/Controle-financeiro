@@ -17,12 +17,15 @@ describe('recordToFormValues', () => {
   }
   test('registro de hoje e de ontem usam os atalhos', () => {
     expect(recordToFormValues(base, '2026-09-30')).toEqual({
-      amount: '142,30', categoryId: 'c1', source: '', note: 'feira', paymentMethod: 'pix', when: 'today', date: '',
+      amount: '142,30', categoryId: 'c1', source: '', note: 'feira', paymentMethod: 'pix', cardId: '', when: 'today', date: '',
     })
     expect(recordToFormValues(base, '2026-10-01')).toMatchObject({ when: 'yesterday', date: '' })
   })
   test('outro dia leva a data', () => {
     expect(recordToFormValues({ ...base, occurredOn: '2026-08-15' }, '2026-09-30')).toMatchObject({ when: 'other', date: '2026-08-15' })
+  })
+  test('registro com cartão leva o cartão para o formulário', () => {
+    expect(recordToFormValues({ ...base, cardId: 'k1' }, '2026-09-30').cardId).toBe('k1')
   })
   test('entrada leva a origem e deixa categoria vazia', () => {
     const r = recordToFormValues({ ...base, kind: 'income', categoryId: null, source: 'Salário', note: null, paymentMethod: null }, '2026-09-30')
