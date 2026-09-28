@@ -7,6 +7,8 @@ import { txName } from '@/features/contas/view-model'
 import { pickFeatured, summarizeGoal } from '@/features/metas/view-model'
 import type { GoalMovementRow, GoalRow } from '@/features/metas/types'
 import type { Category, Profile, TxRow } from '@/features/registro/queries'
+import { buildPlannedCard, type PlannedCardView } from '@/features/planejamento/view-model'
+import type { BudgetRow } from '@/features/planejamento/types'
 
 export interface SeuMesView {
   month: MonthKey
@@ -17,6 +19,7 @@ export interface SeuMesView {
   categories: { name: string; cents: number; share: number }[]
   recent: { id: string; title: string; subtitle: string; cents: number; kind: 'income' | 'expense' }[]
   upcoming: { id: string; name: string; amountCents: number; dueText: string }[]
+  planned: PlannedCardView | null
   featured: { id: string; name: string; percent: number; remainingText: string; caption: string; guardarHref: string } | null
 }
 
@@ -28,8 +31,9 @@ export function buildSeuMes(input: {
   transactions: TxRow[]
   goals: GoalRow[]
   goalMovements: GoalMovementRow[]
+  budgets: BudgetRow[]
 }): SeuMesView {
-  const { month, today, profile, categories, transactions, goals, goalMovements } = input
+  const { month, today, profile, categories, transactions, goals, goalMovements, budgets } = input
   const nameOf = new Map(categories.map((c) => [c.id, c.name]))
 
   const summary = summarizeMonth({
@@ -108,6 +112,7 @@ export function buildSeuMes(input: {
     categories: cats,
     recent,
     upcoming,
+    planned: buildPlannedCard({ month, today, categories, transactions, budgets }),
     featured,
   }
 }
