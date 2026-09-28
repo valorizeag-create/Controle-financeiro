@@ -115,3 +115,23 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 - Metas da família (RN-22 a RN-22e, "Sua parte", saída da família com `return_on_exit`): Plano 7.
 - Aviso "Faltam só {valor} para {meta}." (notificação "Meta perto"): Plano 8.
 - Exportar metas e movimentos no CSV: Plano 9.
+
+## Plano 6 — Planejamento e relatórios · concluído em 2026-09-28
+
+**Entregue**
+- Planejamento individual por categoria e mês: "{gasto} de {planejado}", "Ainda tem {valor} disponível.", "Falta pouco para chegar ao que você planejou." e "Passou {valor} do planejado." (âmbar, sem vermelho) com o link "Quer ajustar o valor deste mês?" em toda categoria que passou, total planejado e "Você está dentro do planejado em {n} de {total} categorias."; ajustar valor, planejar outra categoria, repetir o planejamento do mês anterior.
+- O gasto do planejado é o mesmo de "Para onde seu dinheiro vai" (parte paga com meta fora; conta paga com atraso no mês em que foi paga).
+- Excluir uma categoria leva o planejado dela para "Outros", somado.
+- Seu mês com o bloco "Planejado" (mês atual, até 3 categorias), aberto por "Você ainda tem {valor} para {categoria} este mês."
+- Relatórios: Este mês, Mês passado, Últimos 3 meses e Personalizado (até 12 meses); "O que mudou" em frases, gráfico "Entrou e saiu" com alternativa em texto, "Mês a mês" (entrou, saiu, guardado) e gastos por categoria no período — números iguais aos do Seu mês.
+- Planejamento e Relatórios no menu lateral e em Mais.
+
+**Testes**
+- Unitários e de componentes: 527 passando (93 arquivos). Tipos, lint e build sem erros.
+- Banco (11 testes em `plano6.test.ts`) e ponta a ponta (`plano6.spec.ts`: 3 testes — celular: 2, desktop: 1; 6 entradas em `--list`): pendentes, dependem do Docker para o Supabase local (mesma pendência dos Planos 1 a 5, ainda não resolvida no ambiente de desenvolvimento).
+- O seed do e2e grava gastos e planejado direto nas tabelas `transactions` e `budgets` pelo administrador (sem gatilho de guarda por data; o mês do planejado vai no 1º dia).
+
+**Pendências levadas a outros planos**
+- Aviso "Você já usou boa parte do que planejou para {categoria}." (notificação "Planejado quase no limite") e resumo do mês fechado: Plano 8.
+- Exportar o planejado no CSV: Plano 9.
+- Relatórios e planejamento no desktop com layout de duas colunas: Plano 10.
