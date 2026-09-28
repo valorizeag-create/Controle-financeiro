@@ -6,6 +6,7 @@ import { Hero } from '@/features/seu-mes/hero'
 import { MonthNav } from '@/features/seu-mes/month-nav'
 import { CategoriesCard } from '@/features/seu-mes/categories-card'
 import { RecentCard } from '@/features/seu-mes/recent-card'
+import { UpcomingBills } from '@/features/seu-mes/upcoming-bills'
 import { Button } from '@/ui/button'
 import { Card } from '@/ui/card'
 import { Money } from '@/ui/money'
@@ -50,6 +51,7 @@ export default async function InicioPage({ searchParams }: { searchParams: Promi
           </section>
         </div>
 
+        {v.upcoming.length > 0 && <UpcomingBills items={v.upcoming} />}
         {v.categories.length > 0 && <CategoriesCard categories={v.categories} />}
         {v.recent.length > 0 && <RecentCard recent={v.recent} />}
       </div>

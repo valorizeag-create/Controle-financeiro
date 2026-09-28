@@ -51,3 +51,25 @@ test('últimos registros ordenados pela data efetiva, não pela data do lançame
   })
   expect(v.recent[0]).toMatchObject({ title: 'Mercado', subtitle: '21 de setembro' })
 })
+
+test('Próximas contas: vencidas primeiro, até 3, só no mês atual', () => {
+  const bill = (id: string, note: string, dueOn: string, extra: Partial<TxRow> = {}) =>
+    row({ id, kind: 'expense', amountCents: 1000, occurredOn: dueOn, dueOn, status: 'pending', note, categoryId: 'c1', ...extra })
+  const transactions = [
+    bill('luz', 'Luz', '2026-09-25'),
+    bill('agua', 'Água', '2026-09-10'),
+    bill('gas', 'Gás', '2026-08-20'),
+    bill('net', 'Internet', '2026-09-28'),
+    bill('out', 'Outubro', '2026-10-05'),
+    bill('paga', 'Paga', '2026-09-23', { status: 'confirmed', paidOn: '2026-09-21' }),
+    row({ id: 'fre', kind: 'income', amountCents: 80000, occurredOn: '2026-09-24', dueOn: '2026-09-24', status: 'pending' }),
+  ]
+  const profile = { displayName: 'C', initialBalanceCents: 0 }
+  const v = buildSeuMes({ month: '2026-09', today: '2026-09-22', profile, categories, transactions })
+  expect(v.upcoming.map((u) => [u.name, u.dueText])).toEqual([
+    ['Gás', 'venceu em 20 de agosto'],
+    ['Água', 'venceu em 10 de setembro'],
+    ['Luz', 'vence em 3 dias'],
+  ])
+  expect(buildSeuMes({ month: '2026-08', today: '2026-09-22', profile, categories, transactions }).upcoming).toEqual([])
+})
