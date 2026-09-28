@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { z } from 'zod'
 import { monthOf, todayInSaoPaulo } from '@/domain/dates'
 import { deleteTransaction } from '@/features/registro/actions'
@@ -17,6 +17,8 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
   const [tx, categories, cards] = await Promise.all([loadTransaction(id), loadCategories(), loadCards()])
   // Contas a pagar/receber (pendentes) ganham tela própria no Plano 3.
   if (!tx || tx.status !== 'confirmed') notFound()
+  // Uma parcela ou o restante quitado não têm formulário próprio: a tela é a da compra inteira.
+  if (tx.installmentPlanId) redirect(`/extrato/parcelas/${tx.installmentPlanId}`)
 
   const isExpense = tx.kind === 'expense'
   const record = {
