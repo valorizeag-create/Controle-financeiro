@@ -276,6 +276,76 @@ describe('usar o dinheiro da meta (RN-15)', () => {
   })
 })
 
+describe('integridade do vínculo gasto-uso (fix round 1)', () => {
+  test('apagar um "use" direto na tabela não cria dinheiro', async () => {
+    const id = await newGoal(a)
+    await deposit(a, id, 1000)
+    const r = await useGoal(a, id, 400)
+    const [use] = (await movements(a, id)).filter((m) => m.kind === 'use')
+    const del = await a.client.from('goal_movements').delete().eq('id', use.id)
+    expect(del.error).not.toBeNull()
+    expect(del.error?.message).toContain('Movimento inválido.')
+    const { data: tx } = await a.client.from('transactions').select('id').eq('id', r.tx_id)
+    expect(tx).toHaveLength(1)
+    expect(await balance(a, id)).toBe(600)
+    expect(await goal(a, id)).toMatchObject({ status: 'used' })
+  })
+
+  test('gravar goal_id direto numa transação nova, sem o movimento "use" correspondente, é recusado', async () => {
+    const id = await newGoal(a)
+    await deposit(a, id, 1000)
+    const { error } = await a.client.from('transactions').insert({
+      user_id: a.id, kind: 'expense', amount_cents: 500, category_id: await categoryId(a, 'lazer'),
+      occurred_on: today, goal_id: id, goal_funded_cents: 500,
+    })
+    expect(error).not.toBeNull()
+    expect(error?.message).toContain('Movimento inválido.')
+    expect(await balance(a, id)).toBe(1000)
+  })
+
+  test('apontar uma transação comum já existente para uma meta, direto, é recusado', async () => {
+    const id = await newGoal(a)
+    await deposit(a, id, 1000)
+    const { data: tx, error: insErr } = await a.client
+      .from('transactions')
+      .insert({ user_id: a.id, kind: 'expense', amount_cents: 300, category_id: await categoryId(a, 'lazer'), occurred_on: today })
+      .select('id')
+      .single()
+    if (insErr) throw insErr
+    const { error } = await a.client.from('transactions').update({ goal_id: id, goal_funded_cents: 300 }).eq('id', tx.id)
+    expect(error).not.toBeNull()
+    expect(error?.message).toContain('Movimento inválido.')
+    expect(await balance(a, id)).toBe(1000)
+  })
+
+  test('gravar um "use" direto sem a transação combinando (mesma meta e valor) é recusado', async () => {
+    const id = await newGoal(a)
+    await deposit(a, id, 1000)
+    const { data: tx, error: insErr } = await a.client
+      .from('transactions')
+      .insert({ user_id: a.id, kind: 'expense', amount_cents: 300, category_id: await categoryId(a, 'lazer'), occurred_on: today })
+      .select('id')
+      .single()
+    if (insErr) throw insErr
+    const { error } = await a.client.from('goal_movements').insert({
+      user_id: a.id, goal_id: id, kind: 'use', amount_cents: 300, occurred_on: today, transaction_id: tx.id,
+    })
+    expect(error).not.toBeNull()
+    expect(error?.message).toContain('Movimento inválido.')
+    expect(await balance(a, id)).toBe(1000)
+  })
+
+  test('movimento gravado direto com data diferente de hoje é recusado', async () => {
+    const id = await newGoal(a)
+    const { error } = await a.client.from('goal_movements').insert({
+      user_id: a.id, goal_id: id, kind: 'deposit', amount_cents: 100, occurred_on: '2020-01-01',
+    })
+    expect(error).not.toBeNull()
+    expect(error?.message).toContain('Movimento inválido.')
+    expect(await balance(a, id)).toBe(0)
+  })
+})
+
 describe('excluir meta (RN-16, A6 A, Review Focus 3)', () => {
   test('excluir: o guardado volta hoje, o histórico fica e a meta não aceita mais nada', async () => {
     const id = await newGoal(a)

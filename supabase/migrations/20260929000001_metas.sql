@@ -89,13 +89,22 @@ create policy goal_movements_delete_use on public.goal_movements
 
 -- 4. Guarda do guardado: vale também para gravação direta na tabela.
 --    Trava a meta: dois pedidos ao mesmo tempo esperam um pelo outro.
+--    Movimento é sempre de hoje (nunca aceitar data vinda do navegador); um
+--    "use" direto só entra se apontar para o gasto que ele mesmo financiou
+--    (mesma meta, mesmo valor) — a outra metade do vínculo é conferida por
+--    transactions_goal_link_guard, abaixo.
 create function public.goal_movements_guard() returns trigger
 language plpgsql security invoker set search_path = '' as $$
 declare
   v_status text;
   v_deleted date;
   v_balance bigint;
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
 begin
+  if new.occurred_on <> v_today then
+    raise exception 'Movimento inválido.';
+  end if;
+
   select g.status, g.deleted_on into v_status, v_deleted
     from public.goals g
     where g.id = new.goal_id and g.user_id = new.user_id
@@ -105,6 +114,14 @@ begin
   end if;
   if new.kind = 'deposit' and v_status <> 'active' then
     raise exception 'Meta não encontrada.';
+  end if;
+
+  if new.kind = 'use' and not exists (
+    select 1 from public.transactions t
+    where t.id = new.transaction_id and t.user_id = new.user_id
+      and t.goal_id = new.goal_id and t.goal_funded_cents = new.amount_cents
+  ) then
+    raise exception 'Movimento inválido.';
   end if;
 
   select coalesce(sum(case when m.kind = 'deposit' then m.amount_cents else -m.amount_cents end), 0)
@@ -125,6 +142,58 @@ $$;
 
 create trigger goal_movements_guard before insert on public.goal_movements
   for each row execute function public.goal_movements_guard();
+
+-- 4b. Vínculo gasto-uso, nos dois sentidos (RNF-11): toda transação com
+--     goal_id tem exatamente um movimento "use" da mesma meta e do mesmo
+--     valor, e nenhum movimento "use" fica sem o gasto que ele financiou.
+--     Só use_goal (insere os dois) e delete_goal_use (apaga os dois) fazem
+--     as duas pontas juntas na mesma transação; por isso os gatilhos são
+--     "constraint" adiáveis: conferem no fim da transação, depois que as
+--     duas gravações (ou as duas exclusões) já aconteceram. Uma gravação ou
+--     exclusão avulsa pela API — sem a outra ponta — nunca fecha a conta e
+--     é recusada ao encerrar.
+create function public.transactions_goal_link_guard() returns trigger
+language plpgsql security invoker set search_path = '' as $$
+begin
+  if new.goal_id is null then
+    return null;
+  end if;
+  if not exists (
+    select 1 from public.goal_movements m
+    where m.transaction_id = new.id and m.user_id = new.user_id
+      and m.goal_id = new.goal_id and m.amount_cents = new.goal_funded_cents and m.kind = 'use'
+  ) then
+    raise exception 'Movimento inválido.';
+  end if;
+  return null;
+end;
+$$;
+
+create constraint trigger transactions_goal_link_guard
+  after insert or update on public.transactions
+  deferrable initially deferred
+  for each row execute function public.transactions_goal_link_guard();
+
+create function public.goal_movements_use_delete_guard() returns trigger
+language plpgsql security invoker set search_path = '' as $$
+begin
+  if old.kind <> 'use' then
+    return null;
+  end if;
+  if exists (
+    select 1 from public.transactions t
+    where t.id = old.transaction_id and t.user_id = old.user_id and t.goal_id is not null
+  ) then
+    raise exception 'Movimento inválido.';
+  end if;
+  return null;
+end;
+$$;
+
+create constraint trigger goal_movements_use_delete_guard
+  after delete on public.goal_movements
+  deferrable initially deferred
+  for each row execute function public.goal_movements_use_delete_guard();
 
 -- 5. Guardado de uma meta da própria pessoa (0 para meta de outra pessoa).
 create function public.goal_balance(p_goal_id uuid) returns bigint
@@ -300,7 +369,11 @@ begin
 end;
 $$;
 
-revoke execute on function public.goal_movements_guard() from public, anon, authenticated;
+revoke execute on function
+  public.goal_movements_guard(),
+  public.transactions_goal_link_guard(),
+  public.goal_movements_use_delete_guard()
+from public, anon, authenticated;
 
 revoke execute on function
   public.goal_balance(uuid),
