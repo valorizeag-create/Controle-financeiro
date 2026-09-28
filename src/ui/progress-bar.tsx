@@ -1,11 +1,18 @@
-type Size = 'md' | 'lg'
+type Size = 'sm' | 'md' | 'lg'
+type Tone = 'brand' | 'over'
 
 const track: Record<Size, string> = {
+  sm: 'h-2 bg-sunken',
   md: 'h-2.5 bg-brand-wash',
   lg: 'h-3 bg-card',
 }
 
-export function ProgressBar({ percent, label, size = 'md' }: { percent: number; label: string; size?: Size }) {
+const fill: Record<Tone, string> = {
+  brand: 'bg-brand',
+  over: 'bg-amber-bar',
+}
+
+export function ProgressBar({ percent, label, size = 'md', tone = 'brand' }: { percent: number; label: string; size?: Size; tone?: Tone }) {
   return (
     <div
       role="progressbar"
@@ -15,7 +22,7 @@ export function ProgressBar({ percent, label, size = 'md' }: { percent: number; 
       aria-valuenow={percent}
       className={`w-full overflow-hidden rounded-full ${track[size]}`}
     >
-      <div className="h-full rounded-full bg-brand" style={{ width: `${percent}%` }} />
+      <div className={`h-full rounded-full ${fill[tone]}`} style={{ width: `${percent}%` }} />
     </div>
   )
 }
