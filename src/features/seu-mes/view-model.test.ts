@@ -5,7 +5,7 @@ import type { TxRow } from '@/features/registro/queries'
 const row = (p: Partial<TxRow> & Pick<TxRow, 'id' | 'kind' | 'amountCents' | 'occurredOn'>): TxRow => ({
   categoryId: null, source: null, note: null, paymentMethod: null, status: 'confirmed', dueOn: null, paidOn: null,
   goalFundedCents: 0, createdAt: `${p.occurredOn}T12:00:00Z`,
-  cardId: null, cardDeleted: false, installmentPlanId: null, installmentNumber: null, installmentCount: null, ...p,
+  cardId: null, cardDeleted: false, installmentPlanId: null, installmentNumber: null, installmentCount: null, goalId: null, ...p,
 })
 const categories = [
   { id: 'c1', name: 'Mercado', defaultKey: 'mercado' },

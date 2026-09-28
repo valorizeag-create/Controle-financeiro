@@ -4,6 +4,8 @@ import { createClient, requireUser } from '@/lib/supabase/server'
 import { fetchAllPages } from './paging'
 import { orderCategories } from '@/features/categorias/names'
 import { ensureOccurrences } from '@/features/contas/occurrences'
+import { fetchGoalMovements } from '@/features/metas/queries'
+import type { GoalMovementRow } from '@/features/metas/types'
 import { TX_COLUMNS, toTxRow, type TxRawRow, type TxRow } from './tx-row'
 
 export type { TxRow } from './tx-row'
@@ -39,16 +41,22 @@ export async function loadTransaction(id: string): Promise<TxRow | null> {
   return data ? toTxRow(data) : null
 }
 
-export async function loadLedger(): Promise<{ profile: Profile; categories: Category[]; transactions: TxRow[] }> {
-  await requireUser()
+export async function loadLedger(): Promise<{
+  profile: Profile
+  categories: Category[]
+  transactions: TxRow[]
+  goalMovements: GoalMovementRow[]
+}> {
+  const user = await requireUser()
   const supabase = await createClient()
   // Contas e entradas que se repetem aparecem ao abrir qualquer tela com números (etapa-3 §5).
-  // Só a leitura de transactions depende da geração ter terminado; profile e categories
-  // não são afetados por ela e podem correr em paralelo.
+  // Só a leitura de transactions depende da geração ter terminado; profile, categories e os
+  // movimentos da meta não são afetados por ela e podem correr em paralelo.
   const occurrencesReady = ensureOccurrences(supabase)
-  const [profile, categories] = await Promise.all([
+  const [profile, categories, goalMovements] = await Promise.all([
     supabase.from('profiles').select('display_name, initial_balance_cents').single(),
     fetchCategories(supabase),
+    fetchGoalMovements(supabase, user.id),
   ])
   await occurrencesReady
   const rawTxs = await fetchAllPages<TxRawRow>(async (from, to) => {
@@ -66,5 +74,6 @@ export async function loadLedger(): Promise<{ profile: Profile; categories: Cate
     profile: { displayName: profile.data.display_name, initialBalanceCents: Number(profile.data.initial_balance_cents) },
     categories,
     transactions: rawTxs.map(toTxRow),
+    goalMovements,
   }
 }

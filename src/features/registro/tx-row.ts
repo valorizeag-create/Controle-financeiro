@@ -11,6 +11,7 @@ export interface TxRow extends CategorizedTx {
   installmentPlanId: string | null
   installmentNumber: number | null
   installmentCount: number | null
+  goalId: string | null
 }
 
 export type TxRawRow = {
@@ -31,10 +32,12 @@ export type TxRawRow = {
   installment_plan_id: string | null
   installment_number: number | null
   installment_count: number | null
+  goal_id: string | null
+  goal_funded_cents: number | string
 }
 
 export const TX_COLUMNS =
-  'id, kind, amount_cents, category_id, source, note, payment_method, occurred_on, status, due_on, paid_on, created_at, card_id, card_deleted, installment_plan_id, installment_number, installment_count'
+  'id, kind, amount_cents, category_id, source, note, payment_method, occurred_on, status, due_on, paid_on, created_at, card_id, card_deleted, installment_plan_id, installment_number, installment_count, goal_id, goal_funded_cents'
 
 export function toTxRow(t: TxRawRow): TxRow {
   return {
@@ -49,12 +52,13 @@ export function toTxRow(t: TxRawRow): TxRow {
     status: t.status as 'confirmed' | 'pending',
     dueOn: t.due_on,
     paidOn: t.paid_on,
-    goalFundedCents: 0,
+    goalFundedCents: Number(t.goal_funded_cents),
     createdAt: t.created_at,
     cardId: t.card_id,
     cardDeleted: t.card_deleted,
     installmentPlanId: t.installment_plan_id,
     installmentNumber: t.installment_number === null ? null : Number(t.installment_number),
     installmentCount: t.installment_count === null ? null : Number(t.installment_count),
+    goalId: t.goal_id,
   }
 }

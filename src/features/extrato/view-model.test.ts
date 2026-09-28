@@ -7,7 +7,7 @@ import {
 const row = (p: Partial<TxRow> & Pick<TxRow, 'id' | 'kind' | 'amountCents' | 'occurredOn'>): TxRow => ({
   categoryId: null, source: null, note: null, paymentMethod: null, status: 'confirmed', dueOn: null, paidOn: null,
   goalFundedCents: 0, createdAt: `${p.occurredOn}T12:00:00Z`,
-  cardId: null, cardDeleted: false, installmentPlanId: null, installmentNumber: null, installmentCount: null, ...p,
+  cardId: null, cardDeleted: false, installmentPlanId: null, installmentNumber: null, installmentCount: null, goalId: null, ...p,
 })
 
 const MERCADO = '11111111-1111-4111-8111-111111111111'
