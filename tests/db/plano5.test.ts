@@ -344,6 +344,35 @@ describe('integridade do vínculo gasto-uso (fix round 1)', () => {
     expect(error?.message).toContain('Movimento inválido.')
     expect(await balance(a, id)).toBe(0)
   })
+
+  test('limpar goal_id/goal_funded_cents direto num gasto pago com a meta é recusado (fix round 2)', async () => {
+    const id = await newGoal(a)
+    await deposit(a, id, 1000)
+    const r = await useGoal(a, id, 400)
+    const { error } = await a.client.from('transactions').update({ goal_id: null, goal_funded_cents: 0 }).eq('id', r.tx_id)
+    expect(error).not.toBeNull()
+    expect(error?.message).toContain('Movimento inválido.')
+    const { data: tx } = await a.client.from('transactions').select('goal_id, goal_funded_cents').eq('id', r.tx_id).single()
+    expect(tx).toMatchObject({ goal_id: id, goal_funded_cents: 400 })
+    expect(await balance(a, id)).toBe(600)
+  })
+
+  test('depois de limpar a meta do gasto (se conseguisse), apagar o "use" órfão também seria recusado (fix round 2)', async () => {
+    const id = await newGoal(a)
+    await deposit(a, id, 1000)
+    const r = await useGoal(a, id, 400)
+    const [use] = (await movements(a, id)).filter((m) => m.kind === 'use')
+    // A limpeza direta acima já é recusada; ainda assim, mesmo que a transação
+    // ficasse com goal_id nulo por algum outro caminho, o "use" não pode ser
+    // apagado enquanto a transação (financiada ou não) ainda existir — só
+    // delete_goal_use apaga os dois juntos.
+    const del = await a.client.from('goal_movements').delete().eq('id', use.id)
+    expect(del.error).not.toBeNull()
+    expect(del.error?.message).toContain('Movimento inválido.')
+    const { data: tx } = await a.client.from('transactions').select('id').eq('id', r.tx_id)
+    expect(tx).toHaveLength(1)
+    expect(await balance(a, id)).toBe(600)
+  })
 })
 
 describe('excluir meta (RN-16, A6 A, Review Focus 3)', () => {

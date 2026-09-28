@@ -145,23 +145,37 @@ create trigger goal_movements_guard before insert on public.goal_movements
 
 -- 4b. Vínculo gasto-uso, nos dois sentidos (RNF-11): toda transação com
 --     goal_id tem exatamente um movimento "use" da mesma meta e do mesmo
---     valor, e nenhum movimento "use" fica sem o gasto que ele financiou.
---     Só use_goal (insere os dois) e delete_goal_use (apaga os dois) fazem
---     as duas pontas juntas na mesma transação; por isso os gatilhos são
---     "constraint" adiáveis: conferem no fim da transação, depois que as
---     duas gravações (ou as duas exclusões) já aconteceram. Uma gravação ou
---     exclusão avulsa pela API — sem a outra ponta — nunca fecha a conta e
---     é recusada ao encerrar.
+--     valor, e nenhum movimento "use" existe sem uma transação com goal_id
+--     — nem enquanto ela existe com goal_id limpo (o gasto contaria duas
+--     vezes) nem depois de apagada avulsa. Só use_goal (insere os dois) e
+--     delete_goal_use (apaga os dois) fazem as duas pontas juntas na mesma
+--     transação; por isso os gatilhos são "constraint" adiáveis: conferem
+--     no fim da transação, depois que as duas gravações (ou as duas
+--     exclusões) já aconteceram. Uma gravação ou exclusão avulsa pela API —
+--     sem a outra ponta — nunca fecha a conta e é recusada ao encerrar.
+--     Sem cláusula WHEN (não existe para "constraint trigger"): o retorno
+--     antecipado dentro da função evita a consulta para toda gravação sem
+--     ligação nenhuma com metas (goal_id nulo antes e depois).
 create function public.transactions_goal_link_guard() returns trigger
 language plpgsql security invoker set search_path = '' as $$
 begin
-  if new.goal_id is null then
+  if tg_op = 'INSERT' and new.goal_id is null then
     return null;
   end if;
-  if not exists (
+  if tg_op = 'UPDATE' and old.goal_id is null and new.goal_id is null then
+    return null;
+  end if;
+  if new.goal_id is not null then
+    if not exists (
+      select 1 from public.goal_movements m
+      where m.transaction_id = new.id and m.user_id = new.user_id
+        and m.goal_id = new.goal_id and m.amount_cents = new.goal_funded_cents and m.kind = 'use'
+    ) then
+      raise exception 'Movimento inválido.';
+    end if;
+  elsif exists (
     select 1 from public.goal_movements m
-    where m.transaction_id = new.id and m.user_id = new.user_id
-      and m.goal_id = new.goal_id and m.amount_cents = new.goal_funded_cents and m.kind = 'use'
+    where m.transaction_id = new.id and m.user_id = new.user_id and m.kind = 'use'
   ) then
     raise exception 'Movimento inválido.';
   end if;
@@ -174,6 +188,9 @@ create constraint trigger transactions_goal_link_guard
   deferrable initially deferred
   for each row execute function public.transactions_goal_link_guard();
 
+-- Apagar um "use" só vale quando a transação que ele financiou já não
+-- existe mais (apagada junto, por delete_goal_use) — não basta ela ter
+-- ficado com goal_id limpo, senão o gasto voltaria a contar sozinho.
 create function public.goal_movements_use_delete_guard() returns trigger
 language plpgsql security invoker set search_path = '' as $$
 begin
@@ -182,7 +199,7 @@ begin
   end if;
   if exists (
     select 1 from public.transactions t
-    where t.id = old.transaction_id and t.user_id = old.user_id and t.goal_id is not null
+    where t.id = old.transaction_id and t.user_id = old.user_id
   ) then
     raise exception 'Movimento inválido.';
   end if;
