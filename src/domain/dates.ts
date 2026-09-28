@@ -53,6 +53,19 @@ export function monthLabel(m: MonthKey): string {
   return monthFmt.format(toUTC(`${m}-01`))
 }
 
+export function monthsBetween(from: MonthKey, to: MonthKey): number {
+  const [fy, fm] = from.split('-').map(Number)
+  const [ty, tm] = to.split('-').map(Number)
+  return (ty - fy) * 12 + (tm - fm)
+}
+
+const SHORT_MONTHS = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.']
+
+export function shortMonthLabel(m: MonthKey): string {
+  const [y, mo] = m.split('-').map(Number)
+  return `${SHORT_MONTHS[mo - 1]} ${y}`
+}
+
 export function dayMonthLabel(d: ISODate): string {
   return dayMonthFmt.format(toUTC(d))
 }

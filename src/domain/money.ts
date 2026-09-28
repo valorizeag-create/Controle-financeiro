@@ -9,6 +9,17 @@ export function formatBRL(cents: Cents): string {
   return cents < 0 ? `\u2212${text}` : text
 }
 
+const brlWhole = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+})
+
+export function formatWholeBRL(cents: Cents): string {
+  return brlWhole.format(Math.ceil(cents / 100)).replace(/\s/g, ' ')
+}
+
 export function parseBRL(input: string): Cents | null {
   const s = input.trim().replace(/^R\$[\s\u00a0]*/i, '').trim()
   if (s === '' || /[\s\u00a0]/.test(s) || !/\d/.test(s) || !/^[\d.,]+$/.test(s)) return null
