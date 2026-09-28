@@ -195,7 +195,14 @@ test('desktop: Cartões no menu lateral, gastos do cartão no Extrato e devoluç
     })),
   )
   if (e2) throw e2
+  const { data: parcela, error: e3 } = await admin
+    .from('transactions').select('id').eq('installment_plan_id', plan.id).eq('installment_number', 1).single()
+  if (e3) throw e3
   await entrar(page, u.email)
+
+  // Endereço digitado de uma parcela redireciona para a compra (Review Focus 5).
+  await page.goto(`/extrato/${parcela.id}`)
+  await expect(page).toHaveURL(new RegExp(`/extrato/parcelas/${plan.id}$`))
 
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Cartões', exact: true }).click()
   await expect(page).toHaveURL(/\/cartoes$/)

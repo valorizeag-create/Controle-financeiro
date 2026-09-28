@@ -88,6 +88,8 @@ alter table public.recurrences
   add constraint recurrences_card_fk foreign key (card_id, user_id)
     references public.cards (id, user_id) on delete no action;
 
+create index recurrences_card_idx on public.recurrences (card_id) where card_id is not null;
+
 -- 5. Calendário das parcelas. Mesma regra de splitInstallments
 --    (src/domain/installments.ts): 1ª no mês da compra, mesmo dia ajustado ao
 --    tamanho do mês, centavos que sobram na 1ª (etapa-3 §3.1).
@@ -102,6 +104,7 @@ language sql immutable set search_path = '' as $$
       extract(day from p_purchased_on)::int
     )
   from generate_series(1, p_count) as n
+  where p_count between 2 and 48 and p_total_cents >= p_count
 $$;
 
 -- 6. "Foi parcelado" no Anotar: a compra e todas as parcelas nascem juntas.

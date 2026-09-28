@@ -161,6 +161,15 @@ describe('calendário das parcelas', () => {
       expect(got).toEqual(splitInstallments(total, count, on))
     }
   })
+
+  test('p_count fora de 2..48 não gera linhas (Important 1)', async () => {
+    const zero = await a.client.rpc('installment_schedule', { p_total_cents: 100, p_count: 0, p_purchased_on: today })
+    expect(zero.error).toBeNull()
+    expect(zero.data).toEqual([])
+    const tooMany = await a.client.rpc('installment_schedule', { p_total_cents: 100, p_count: 49, p_purchased_on: today })
+    expect(tooMany.error).toBeNull()
+    expect(tooMany.data).toEqual([])
+  })
 })
 
 describe('criar compra parcelada (RN-07)', () => {

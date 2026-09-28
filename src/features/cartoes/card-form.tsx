@@ -32,7 +32,7 @@ export function CardForm({ action, card }: Props) {
     <form key={err ? err.submission : 'idle'} action={formAction} noValidate className="flex flex-col gap-5">
       {card && <input type="hidden" name="id" value={card.id} />}
 
-      <CardFace nickname={nickname || 'Meu cartão'} kind={kind} color={color} />
+      <CardFace nickname={nickname} kind={kind} color={color} />
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="nickname" className="text-sm font-medium text-[#262626]">Como você chama esse cartão?</label>

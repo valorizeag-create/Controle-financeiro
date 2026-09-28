@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
-import { todayInSaoPaulo } from '@/domain/dates'
+import { monthOf, todayInSaoPaulo } from '@/domain/dates'
 import { loadCards } from '@/features/cartoes/queries'
 import { deletePurchase, refundPurchase } from '@/features/parcelas/actions'
 import { loadPurchase } from '@/features/parcelas/queries'
@@ -25,7 +25,7 @@ export default async function CompraParceladaPage({ params, searchParams }: Prop
   const secondary = 'flex min-h-12 items-center justify-center rounded-panel border border-control bg-card px-5 text-base font-semibold text-ink hover:bg-canvas'
   return (
     <main className="mx-auto flex max-w-[560px] flex-col gap-5 px-4 pt-4 md:px-9 md:pt-7">
-      <PageHeader title={v.title} backHref="/extrato" />
+      <PageHeader title={v.title} backHref={`/extrato?mes=${monthOf(purchase.plan.purchasedOn)}`} />
       {erro && <FormAlert>Algo não saiu como esperado do nosso lado. Tente novamente em instantes.</FormAlert>}
       <section data-testid="compra-resumo" className="flex flex-col gap-1.5 rounded-card border border-line bg-card p-4 text-[15px] shadow-card">
         <p className="text-[17px] font-semibold text-ink">{v.totalText}</p>

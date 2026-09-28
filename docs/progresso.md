@@ -78,6 +78,13 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 - Unitários e de componentes: 387 passando (65 arquivos). Tipos, lint e build sem erros.
 - Banco (21 testes em `plano4.test.ts`) e ponta a ponta (`plano4.spec.ts`: 3 testes — celular: 2, desktop: 1; 6 entradas em `--list`): pendentes, dependem do Docker para o Supabase local (mesma pendência dos Planos 1, 2 e 3, ainda não resolvida no ambiente de desenvolvimento).
 
+**Pendências**
+- Retentativa sem saída: uma quitação ou devolução já feita (segunda aba) mostra "tente de novo", que nunca funciona; melhor redirecionar para `/extrato/parcelas/{id}` nesses casos.
+- Excluir um cartão ou uma compra já excluída (segunda aba) termina em 404; melhor redirecionar para `/cartoes` ou `/extrato`.
+- "Último cartão usado" pode vir de uma conta que se repete paga em Contas, não só do que foi digitado no Anotar (decisão 48).
+- Anotar mostra os erros de "Foi parcelado" só depois dos campos básicos, em duas rodadas.
+- Contas já geradas com um cartão depois excluído aparecem como "Cartão excluído".
+
 **Pendências levadas a outros planos**
 - Parcelado da família e cartão em gasto da família (RN-31): Plano 7.
 - Exportar o cartão e a compra parcelada no CSV: Plano 9.
