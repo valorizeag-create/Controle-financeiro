@@ -1,0 +1,40 @@
+// @vitest-environment jsdom
+import { afterEach, expect, test } from 'vitest'
+import { cleanup, render, screen, within } from '@testing-library/react'
+import type { GoalSummary, MetasView } from './view-model'
+import { MetasList } from './metas-list'
+
+afterEach(() => cleanup())
+
+const NBSP = String.fromCharCode(0xa0)
+const summary = (p: Partial<GoalSummary> & { id: string; name: string }): GoalSummary => ({
+  goal: { id: p.id, name: p.name, targetCents: 400000, deadline: '2027-03', status: 'active', usedOn: null, deletedOn: null, createdAt: '2026-07-01T12:00:00Z' },
+  balanceCents: 248000, percent: 62, remainingCents: 152000, complete: false, remainingText: null,
+  shortRemaining: `Faltam R$${NBSP}1.520,00`, deadlineShort: 'até mar. 2027', suggestion: null, ...p,
+})
+
+test('lista do protótipo: guardado em metas, "Só suas" e "Concluídas"', () => {
+  const view: MetasView = {
+    totalCents: 428000, empty: false,
+    active: [summary({ id: 'g1', name: 'Viagem para Salvador' })],
+    concluded: [{ id: 'g3', name: 'Computador novo', caption: 'Computador novo · usada em julho' }],
+  }
+  render(<MetasList view={view} />)
+  expect(screen.getByText('Guardado em metas').parentElement?.textContent).toContain(`R$${NBSP}4.280,00`)
+  expect(screen.getByRole('heading', { name: 'Só suas' })).toBeTruthy()
+  const link = screen.getByRole('link', { name: /^Viagem para Salvador/ })
+  expect(link.getAttribute('href')).toBe('/metas/g1')
+  expect(link.textContent).toContain('62%')
+  expect(link.textContent).toContain(`Faltam R$${NBSP}1.520,00`)
+  expect(link.textContent).toContain('até mar. 2027')
+  expect(within(link).getByRole('progressbar', { name: 'Progresso de Viagem para Salvador' })).toBeTruthy()
+  const done = screen.getByRole('region', { name: 'Concluídas' })
+  expect(within(done).getByRole('link', { name: 'Computador novo · usada em julho' }).getAttribute('href')).toBe('/metas/g3')
+})
+
+test('sem metas: convite da copy para criar a primeira', () => {
+  render(<MetasList view={{ totalCents: 0, empty: true, active: [], concluded: [] }} />)
+  expect(screen.getByText('Nenhuma meta por enquanto. Uma viagem, uma reserva, um presente: o que você quer tornar possível?')).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Criar meta' }).getAttribute('href')).toBe('/metas/nova')
+  expect(screen.queryByText('Guardado em metas')).toBeNull()
+})
