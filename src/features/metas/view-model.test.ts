@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { GoalMovementRow, GoalRow } from './types'
-import { buildGoalDetail, buildMetas, pickFeatured, summarizeGoal } from './view-model'
+import { buildGoalDetail, buildGoalFundedExpense, buildMetas, pickFeatured, summarizeGoal } from './view-model'
 
 const NBSP = String.fromCharCode(0xa0)
 const brl = (s: string) => `R$${NBSP}${s}`
@@ -111,6 +111,24 @@ describe('tela da meta', () => {
     expect([v.canDeposit, v.canWithdraw, v.canUse]).toEqual([false, true, false])
     expect(v.history[0]).toMatchObject({ label: 'Usou', amountText: `− ${brl('320,00')}`, transactionId: 't1' })
     expect(v.history[1].dateLabel).toBe('30 de dezembro de 2025')
+  })
+})
+
+describe('gasto pago com meta excluída, no Extrato (M-3)', () => {
+  test('sem nota extra, sem forma de pagamento: título é só a categoria', () => {
+    const v = buildGoalFundedExpense({ categoryName: 'Lazer', note: null, amountCents: 230000, payment: null, goalName: 'Viagem para Salvador' })
+    expect(v).toEqual({
+      title: 'Lazer',
+      amountCents: 230000,
+      payment: null,
+      badge: 'pago com a meta Viagem para Salvador',
+      notice: 'A meta Viagem para Salvador foi excluída. Este gasto continua no seu histórico, mas não pode ser editado nem excluído.',
+    })
+  })
+
+  test('nota diferente da categoria aparece junto; nota igual (recorrência) não duplica', () => {
+    expect(buildGoalFundedExpense({ categoryName: 'Lazer', note: 'passeio', amountCents: 100, payment: 'Pix', goalName: 'X' }).title).toBe('Lazer · passeio')
+    expect(buildGoalFundedExpense({ categoryName: 'Lazer', note: 'Lazer', amountCents: 100, payment: null, goalName: 'X' }).title).toBe('Lazer')
   })
 })
 

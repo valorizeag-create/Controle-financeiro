@@ -102,6 +102,14 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 **Testes**
 - Unitários e de componentes: 465 passando (79 arquivos). Tipos, lint e build sem erros.
 - Banco (27 testes em `plano5.test.ts`) e ponta a ponta (`plano5.spec.ts`: 3 testes — celular: 2, desktop: 1; 6 entradas em `--list`): pendentes, dependem do Docker para o Supabase local (mesma pendência dos Planos 1 a 4, ainda não resolvida no ambiente de desenvolvimento). Confirmar, no lançamento, que o Postgres hospedado é ≥ 17 (a guarda de exclusão de meta depende disso durante a exclusão de conta).
+- O seed do e2e (`seedGoal`) grava o depósito com a data de hoje e depois volta a data ao mês passado com uma atualização administrativa (`goal_movements` não tem gatilho nem política de UPDATE; a `service_role` não passa pelo RLS) — a guarda do banco só aceita movimento datado de hoje quando gravado pela própria pessoa.
+
+**Revisão final (2026-09-28): pendências aceitas, não corrigidas agora**
+- M-5: guardar numa meta que virou "usada" ou foi excluída em outra aba mostra "Não conseguimos salvar agora… é só tentar de novo.", que engana (a nova tentativa nunca funciona). Redirecionar para a meta (ou para Metas, se ela sumiu) em vez desse aviso.
+- M-6: erro de "tirar" com saldo zerado (outra aba já tirou tudo) deveria redirecionar para a meta em vez de mostrar "Esta meta tem R$ 0,00…"; o prazo do formulário de editar aceita qualquer mês a partir de 2000-01 (deveria ser só a partir do mês atual ou igual ao prazo já salvo, decisão 61).
+- M-7: a lista "recente" do Seu mês mostra um gasto pago com meta pelo valor cheio, sem a etiqueta "pago com a meta {meta}" (só o Extrato tem a etiqueta hoje).
+- M-8: no detalhe da meta, uma meta usada com sobra mostra um grid de 2 colunas com um só botão de meia largura ("Tirar dinheiro"); devia ser `grid-cols-1`. A busca do Extrato não encontra pelo nome da meta na etiqueta "pago com a meta".
+- M-9: falta um teste de banco para `delete_category` num gasto pago com meta (o vínculo adiado com um "use" que não muda) — é o único caminho do Plano 1–4 que atualiza uma linha financiada; hoje só coberto no nível de domínio.
 
 **Pendências levadas a outros planos**
 - Metas da família (RN-22 a RN-22e, "Sua parte", saída da família com `return_on_exit`): Plano 7.

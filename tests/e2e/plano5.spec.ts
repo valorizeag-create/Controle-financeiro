@@ -30,13 +30,22 @@ async function makeUser(name: string): Promise<{ id: string; email: string }> {
 }
 
 // Meta com um guardar no mês passado (o gatilho do banco confere o guardado).
+// O gatilho `goal_movements_guard` recusa qualquer movimento que não seja de
+// hoje (nunca aceita data vinda de fora), então o depósito nasce hoje e só
+// depois é levado para o mês passado por uma atualização administrativa:
+// `goal_movements` não tem gatilho nem política de UPDATE, e a `service_role`
+// não passa pelo RLS, então essa atualização não é vista por gente comum.
 async function seedGoal(userId: string, name: string, targetCents: number, depositCents: number): Promise<string> {
   const { data, error } = await admin.from('goals').insert({ user_id: userId, name, target_cents: targetCents }).select('id').single()
   if (error) throw error
-  const { error: e2 } = await admin.from('goal_movements').insert({
-    user_id: userId, goal_id: data.id, kind: 'deposit', amount_cents: depositCents, occurred_on: dueDateIn(previous, 10),
-  })
+  const { data: mov, error: e2 } = await admin
+    .from('goal_movements')
+    .insert({ user_id: userId, goal_id: data.id, kind: 'deposit', amount_cents: depositCents, occurred_on: today })
+    .select('id')
+    .single()
   if (e2) throw e2
+  const { error: e3 } = await admin.from('goal_movements').update({ occurred_on: dueDateIn(previous, 10) }).eq('id', mov.id)
+  if (e3) throw e3
   return data.id
 }
 

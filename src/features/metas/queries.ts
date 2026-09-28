@@ -2,6 +2,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import { fetchAllPages } from '@/features/registro/paging'
+import type { ISODate } from '@/domain/dates'
 import {
   GOAL_COLUMNS,
   MOVEMENT_COLUMNS,
@@ -64,4 +65,20 @@ export async function loadGoal(id: string): Promise<{ goal: GoalRow; movements: 
   if (movements.error) throw movements.error
   if (!goal.data) return null
   return { goal: toGoalRow(goal.data), movements: (movements.data as GoalMovementRawRow[]).map(toMovementRow) }
+}
+
+// Só o nome e se está excluída, mesmo para uma meta excluída (M-3): usado
+// para rotular no Extrato um gasto pago com uma meta que já não tem mais
+// tela própria. loadGoal() não serve aqui porque filtra deleted_on is null.
+export async function loadGoalLabel(id: string): Promise<{ name: string; deletedOn: ISODate | null } | null> {
+  const user = await requireUser()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('goals')
+    .select('name, deleted_on')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .maybeSingle<{ name: string; deleted_on: string | null }>()
+  if (error) throw error
+  return data ? { name: data.name, deletedOn: data.deleted_on } : null
 }

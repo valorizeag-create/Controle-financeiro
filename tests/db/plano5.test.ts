@@ -132,6 +132,49 @@ describe('regras da meta', () => {
   })
 })
 
+describe('guarda da meta contra escrita direta (M-1, fix final)', () => {
+  test('inserir já como usada ou excluída é recusado', async () => {
+    for (const p of [{ status: 'used', used_on: today }, { deleted_on: today }]) {
+      const { error } = await a.client.from('goals').insert({ user_id: a.id, name: 'Viagem', target_cents: 100, ...p })
+      expect(error?.message).toContain('Meta inválida.')
+    }
+  })
+
+  test('excluir direto na tabela com dinheiro dentro é recusado; o dinheiro não fica preso', async () => {
+    const id = await newGoal(a)
+    await deposit(a, id, 5000)
+    const { error } = await a.client.from('goals').update({ deleted_on: today }).eq('id', id)
+    expect(error?.message).toContain('Meta ainda tem dinheiro guardado.')
+    expect(await goal(a, id)).toMatchObject({ deleted_on: null })
+    expect(await balance(a, id)).toBe(5000)
+  })
+
+  test('excluir direto na tabela sem dinheiro dentro é aceito, mas não há como desexcluir depois', async () => {
+    const id = await newGoal(a)
+    const ok = await a.client.from('goals').update({ deleted_on: today }).eq('id', id)
+    expect(ok.error).toBeNull()
+    const undelete = await a.client.from('goals').update({ deleted_on: null }).eq('id', id)
+    expect(undelete.error?.message).toContain('Meta excluída.')
+    const rename = await a.client.from('goals').update({ name: 'Outro nome' }).eq('id', id)
+    expect(rename.error?.message).toContain('Meta excluída.')
+  })
+
+  test('virar "used" direto sem um "use" é recusado; virar "active" direto com um "use" também', async () => {
+    const id = await newGoal(a)
+    await deposit(a, id, 1000)
+    const fakeUsed = await a.client.from('goals').update({ status: 'used', used_on: today }).eq('id', id)
+    expect(fakeUsed.error?.message).toContain('Meta inválida.')
+
+    const r = await useGoal(a, id, 400)
+    expect(await goal(a, id)).toMatchObject({ status: 'used' })
+    const fakeActive = await a.client.from('goals').update({ status: 'active', used_on: null }).eq('id', id)
+    expect(fakeActive.error?.message).toContain('Meta inválida.')
+    // O "use" continua lá; a única forma de voltar a ativa é o RPC, que apaga o "use" antes.
+    const { data: tx } = await a.client.from('transactions').select('id').eq('id', r.tx_id)
+    expect(tx).toHaveLength(1)
+  })
+})
+
 describe('guardar e tirar (RN-13, RN-14)', () => {
   test('guardar soma no guardado da meta, com a data de hoje', async () => {
     const id = await newGoal(a)

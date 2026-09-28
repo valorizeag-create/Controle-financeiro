@@ -2,6 +2,7 @@ import { goalBalance, goalProgress, monthlySuggestion } from '@/domain/goals'
 import { formatBRL, formatWholeBRL, type Cents } from '@/domain/money'
 import { dayMonthLabel, dayMonthYearLabel, monthLabel, shortMonthLabel, type ISODate } from '@/domain/dates'
 import { monthName } from '@/domain/recurrence'
+import { normalizeText } from '@/features/extrato/view-model'
 import type { GoalMovementRow, GoalRow } from './types'
 
 export interface GoalSummary {
@@ -141,4 +142,35 @@ export function pickFeatured(summaries: GoalSummary[]): GoalSummary | null {
   const candidates = summaries.filter((s) => s.goal.status === 'active' && !s.complete)
   if (candidates.length === 0) return null
   return [...candidates].sort(compareFeatured)[0]
+}
+
+export interface GoalFundedExpenseView {
+  title: string
+  amountCents: Cents
+  payment: string | null
+  badge: string
+  notice: string
+}
+
+// M-3: o gasto pago com a meta abre a própria meta (decisão 66); quando a
+// meta foi excluída não há mais tela dela, então o Extrato mostra o gasto
+// aqui mesmo, só para ver — nunca editado nem excluído (o vínculo com o uso
+// precisa continuar batendo, RNF-11).
+export function buildGoalFundedExpense(input: {
+  categoryName: string
+  note: string | null
+  amountCents: Cents
+  payment: string | null
+  goalName: string
+}): GoalFundedExpenseView {
+  const { categoryName, note, amountCents, payment, goalName } = input
+  const hasNote = Boolean(note) && normalizeText(note!) !== normalizeText(categoryName)
+  const title = hasNote ? `${categoryName} · ${note}` : categoryName
+  return {
+    title,
+    amountCents,
+    payment,
+    badge: `pago com a meta ${goalName}`,
+    notice: `A meta ${goalName} foi excluída. Este gasto continua no seu histórico, mas não pode ser editado nem excluído.`,
+  }
 }

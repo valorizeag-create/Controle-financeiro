@@ -64,7 +64,8 @@ const NBSP = String.fromCharCode(0xa0)
 const TX = '9b1c2d3e-4f5a-4b6c-8d7e-0f1a2b3c4d5e'
 
 type Rpc = { data?: unknown; error?: unknown }
-function fakeSupabase(s: { goal?: { name: string; target_cents: number } | null; rpc?: Record<string, Rpc | Rpc[]> } = {}) {
+type GoalSelect = { name: string; target_cents: number } | { status: string } | null
+function fakeSupabase(s: { goal?: GoalSelect; rpc?: Record<string, Rpc | Rpc[]> } = {}) {
   const queue: Record<string, Rpc[]> = Object.fromEntries(Object.entries(s.rpc ?? {}).map(([k, v]) => [k, Array.isArray(v) ? [...v] : [v]]))
   return {
     from: (table: string) => ({
@@ -81,7 +82,8 @@ function fakeSupabase(s: { goal?: { name: string; target_cents: number } | null;
           },
           maybeSingle: async () => {
             calls.push({ op: `select:${table}:${cols}`, filters })
-            return { data: s.goal === undefined ? { name: 'Viagem para Salvador', target_cents: 400000 } : s.goal, error: null }
+            const fallback = cols === 'status' ? { status: 'used' } : { name: 'Viagem para Salvador', target_cents: 400000 }
+            return { data: s.goal === undefined ? fallback : s.goal, error: null }
           },
         }
         return b
@@ -177,29 +179,49 @@ describe('spendFromGoal (RN-15)', () => {
 
 describe('returnLeftover (RN-15b "Devolver")', () => {
   test('tira a sobra inteira e vai para o Seu mês', async () => {
-    h.supabase = fakeSupabase({ rpc: { goal_balance: { data: 18000 }, withdraw_from_goal: { data: 0 } } })
+    h.supabase = fakeSupabase({ goal: { status: 'used' }, rpc: { goal_balance: { data: 18000 }, withdraw_from_goal: { data: 0 } } })
     expect(await redirectOf(actions.returnLeftover(form({ id: ID })))).toBe('/inicio')
-    expect(calls.map((c) => [c.op, c.payload])).toEqual([
-      ['rpc:goal_balance', { p_goal_id: ID }],
-      ['rpc:withdraw_from_goal', { p_goal_id: ID, p_amount_cents: 18000 }],
+    expect(calls).toEqual([
+      { op: 'select:goals:status', filters: { id: ID, user_id: 'u1', deleted_on: null } },
+      { op: 'rpc:goal_balance', filters: {}, payload: { p_goal_id: ID } },
+      { op: 'rpc:withdraw_from_goal', filters: {}, payload: { p_goal_id: ID, p_amount_cents: 18000 } },
     ])
     expect(h.setFlash).toHaveBeenCalledWith('Devolvido. Seu mês já está atualizado.')
   })
 
   test('devolver a sobra quando ela já foi devolvida (outra aba) não grava nada (Review Focus 1)', async () => {
-    h.supabase = fakeSupabase({ rpc: { goal_balance: { data: 0 } } })
+    h.supabase = fakeSupabase({ goal: { status: 'used' }, rpc: { goal_balance: { data: 0 } } })
     expect(await redirectOf(actions.returnLeftover(form({ id: ID })))).toBe(`/metas/${ID}`)
-    expect(calls.map((c) => c.op)).toEqual(['rpc:goal_balance'])
+    expect(calls.map((c) => c.op)).toEqual(['select:goals:status', 'rpc:goal_balance'])
     expect(h.setFlash).not.toHaveBeenCalled()
+  })
+
+  test('meta não está mais "usada" (o uso foi desfeito em outra aba): não devolve o guardado inteiro (M-2)', async () => {
+    h.supabase = fakeSupabase({ goal: { status: 'active' } })
+    expect(await redirectOf(actions.returnLeftover(form({ id: ID })))).toBe(`/metas/${ID}?erro=1`)
+    expect(calls).toEqual([{ op: 'select:goals:status', filters: { id: ID, user_id: 'u1', deleted_on: null } }])
+    expect(h.setFlash).not.toHaveBeenCalled()
+  })
+
+  test('meta excluída ou de outra pessoa: sem tela para voltar, vai para a lista', async () => {
+    h.supabase = fakeSupabase({ goal: null })
+    expect(await redirectOf(actions.returnLeftover(form({ id: ID })))).toBe('/metas')
+    expect(calls).toEqual([{ op: 'select:goals:status', filters: { id: ID, user_id: 'u1', deleted_on: null } }])
   })
 })
 
 describe('deleteGoalUse (decisão 66)', () => {
-  test('exclui o gasto pago com a meta e volta para a meta', async () => {
+  test('exclui o gasto pago com a meta e volta para a meta que o RPC devolveu', async () => {
     h.supabase = fakeSupabase({ rpc: { delete_goal_use: { data: ID } } })
     expect(await redirectOf(actions.deleteGoalUse(form({ transactionId: TX, goalId: ID })))).toBe(`/metas/${ID}`)
     expect(calls).toEqual([{ op: 'rpc:delete_goal_use', filters: {}, payload: { p_transaction_id: TX } }])
     expect(h.setFlash).toHaveBeenCalledWith('Excluído. Seu mês já está atualizado.')
+  })
+
+  test('a página redireciona pela meta que o RPC devolveu, não pelo campo do formulário (M-4)', async () => {
+    const OTHER = 'a1b2c3d4-1111-4444-8888-0f1a2b3c4d5e'
+    h.supabase = fakeSupabase({ rpc: { delete_goal_use: { data: ID } } })
+    expect(await redirectOf(actions.deleteGoalUse(form({ transactionId: TX, goalId: OTHER })))).toBe(`/metas/${ID}`)
   })
 
   test('falha volta com aviso; ids inválidos vão para Metas sem chamar o banco', async () => {

@@ -42,6 +42,67 @@ create policy goals_update on public.goals
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
 
+-- 1b. Guarda da meta: as políticas acima deixam a própria dona gravar
+--     `status`, `used_on` e `deleted_on` livremente (o RLS só confere o
+--     dono, não a transição). Sem isto, uma escrita direta na tabela
+--     poderia excluir uma meta com dinheiro dentro (esse dinheiro ficaria
+--     preso: todo RPC recusa meta excluída), reabrir uma meta excluída, ou
+--     voltar `used` para `active` para usar de novo. As três RPCs abaixo já
+--     gravam nesta ordem compatível: `use_goal` insere o "use" antes de
+--     marcar `used`; `delete_goal_use` apaga o "use" antes de voltar a
+--     `active`; `delete_goal` tira o saldo antes de marcar `deleted_on`.
+create function public.goals_guard() returns trigger
+language plpgsql security invoker set search_path = '' as $$
+declare
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_balance bigint;
+  v_has_use boolean;
+begin
+  if tg_op = 'INSERT' then
+    if new.status <> 'active' or new.used_on is not null or new.deleted_on is not null then
+      raise exception 'Meta inválida.';
+    end if;
+    return new;
+  end if;
+
+  -- Meta excluída não aceita mais nenhuma gravação (nem "desexcluir").
+  if old.deleted_on is not null then
+    raise exception 'Meta excluída.';
+  end if;
+
+  if new.deleted_on is distinct from old.deleted_on then
+    if new.deleted_on <> v_today then
+      raise exception 'Meta inválida.';
+    end if;
+    select coalesce(sum(case when m.kind = 'deposit' then m.amount_cents else -m.amount_cents end), 0)
+      into v_balance
+      from public.goal_movements m
+      where m.goal_id = new.id and m.user_id = new.user_id;
+    if v_balance <> 0 then
+      raise exception 'Meta ainda tem dinheiro guardado.';
+    end if;
+  end if;
+
+  if new.status <> old.status then
+    select exists (
+      select 1 from public.goal_movements m
+      where m.goal_id = new.id and m.user_id = new.user_id and m.kind = 'use'
+    ) into v_has_use;
+    if new.status = 'used' and not v_has_use then
+      raise exception 'Meta inválida.';
+    end if;
+    if new.status = 'active' and v_has_use then
+      raise exception 'Meta inválida.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger goals_guard before insert or update on public.goals
+  for each row execute function public.goals_guard();
+
 -- 2. Gasto pago com meta (RN-15): quanto veio da meta; o resto veio do mês (RN-15a).
 alter table public.transactions
   add constraint transactions_id_user_key unique (id, user_id),
@@ -387,6 +448,7 @@ end;
 $$;
 
 revoke execute on function
+  public.goals_guard(),
   public.goal_movements_guard(),
   public.transactions_goal_link_guard(),
   public.goal_movements_use_delete_guard()

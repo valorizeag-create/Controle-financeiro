@@ -106,11 +106,24 @@ export async function spendFromGoal(_: FormState, fd: FormData): Promise<FormSta
 }
 
 export async function returnLeftover(fd: FormData): Promise<void> {
-  await requireUser()
+  const user = await requireUser()
   const parsedId = recordId.safeParse(String(fd.get('id') ?? ''))
   if (!parsedId.success) redirect('/metas')
   const id = parsedId.data
   const supabase = await createClient()
+  // A sobra só existe enquanto a meta está "usada" (RN-15b). Se outra aba
+  // desfez o uso nesse meio-tempo, a meta voltou a ativa e o saldo que
+  // sobrou é o guardado dela, não uma sobra a devolver: manda para a tela
+  // da meta com o aviso de sempre, em vez de tirar o guardado inteiro.
+  const { data: goal } = await supabase
+    .from('goals')
+    .select('status')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .is('deleted_on', null)
+    .maybeSingle<{ status: string }>()
+  if (!goal) redirect('/metas')
+  if (goal.status !== 'used') redirect(`/metas/${id}?erro=1`)
   const { data: balanceData } = await supabase.rpc('goal_balance', { p_goal_id: id })
   const balance = Number(balanceData)
   if (balance <= 0) redirect(`/metas/${id}`)
@@ -128,9 +141,10 @@ export async function deleteGoalUse(fd: FormData): Promise<void> {
   if (!parsedTx.success || !parsedGoal.success) redirect('/metas')
   const goalId = parsedGoal.data
   const supabase = await createClient()
-  const { error } = await supabase.rpc('delete_goal_use', { p_transaction_id: parsedTx.data })
+  const { data, error } = await supabase.rpc('delete_goal_use', { p_transaction_id: parsedTx.data })
   if (error) redirect(`/metas/${goalId}?erro=1`)
   await setFlash('Excluído. Seu mês já está atualizado.')
   refreshMoneyViews()
-  redirect(`/metas/${goalId}`)
+  // O RPC devolve a meta de verdade; o campo do formulário é só o que a tela tinha na hora.
+  redirect(`/metas/${String(data)}`)
 }
