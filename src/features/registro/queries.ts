@@ -1,55 +1,15 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient, requireUser } from '@/lib/supabase/server'
-import type { CategorizedTx } from '@/domain/breakdown'
 import { fetchAllPages } from './paging'
 import { orderCategories } from '@/features/categorias/names'
 import { ensureOccurrences } from '@/features/contas/occurrences'
+import { TX_COLUMNS, toTxRow, type TxRawRow, type TxRow } from './tx-row'
+
+export type { TxRow } from './tx-row'
 
 export type Profile = { displayName: string; initialBalanceCents: number }
 export type Category = { id: string; name: string; defaultKey: string | null }
-export interface TxRow extends CategorizedTx {
-  id: string
-  source: string | null
-  note: string | null
-  paymentMethod: string | null
-  createdAt: string
-}
-
-type TxRawRow = {
-  id: string
-  kind: string
-  amount_cents: number
-  category_id: string | null
-  source: string | null
-  note: string | null
-  payment_method: string | null
-  occurred_on: string
-  status: string
-  due_on: string | null
-  paid_on: string | null
-  created_at: string
-}
-
-const TX_COLUMNS = 'id, kind, amount_cents, category_id, source, note, payment_method, occurred_on, status, due_on, paid_on, created_at'
-
-function toTxRow(t: TxRawRow): TxRow {
-  return {
-    id: t.id,
-    kind: t.kind as 'income' | 'expense',
-    amountCents: Number(t.amount_cents),
-    categoryId: t.category_id,
-    source: t.source,
-    note: t.note,
-    paymentMethod: t.payment_method,
-    occurredOn: t.occurred_on,
-    status: t.status as 'confirmed' | 'pending',
-    dueOn: t.due_on,
-    paidOn: t.paid_on,
-    goalFundedCents: 0,
-    createdAt: t.created_at,
-  }
-}
 
 async function fetchCategories(supabase: SupabaseClient): Promise<Category[]> {
   // O `.order('sort_order')` aqui é só para a página vir com uma ordem razoável;
