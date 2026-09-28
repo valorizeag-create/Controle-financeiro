@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ChevronDown, Search } from 'lucide-react'
 import type { Category } from '@/features/registro/queries'
+import type { CardRow } from '@/features/cartoes/types'
 import { MAX_QUERY_LENGTH, extratoHref, type ExtratoFilters } from './view-model'
 
 const chip = (active: boolean) =>
@@ -8,19 +9,20 @@ const chip = (active: boolean) =>
     active ? 'border-[1.5px] border-selected bg-brand-wash font-semibold text-brand-ink' : 'border border-control bg-card font-medium text-[#262626]'
   }`
 
-type Props = { filters: ExtratoFilters; categories: Category[]; categoryName: string | null }
+type Props = { filters: ExtratoFilters; categories: Category[]; categoryName: string | null; cards: CardRow[]; cardName: string | null }
 
-export function FiltersBar({ filters, categories, categoryName }: Props) {
+export function FiltersBar({ filters, categories, categoryName, cards, cardName }: Props) {
   const withFilters = (patch: Partial<ExtratoFilters>) => extratoHref({ ...filters, ...patch })
   const isIncome = filters.kind === 'income'
-  const isExpense = filters.kind === 'expense' && !filters.categoryId
+  const isExpense = filters.kind === 'expense' && !filters.categoryId && !filters.cardId
 
   return (
     <div className="flex flex-col gap-3.5">
       <form role="search" action="/extrato" className="flex h-12 items-center gap-2.5 rounded-panel border border-control bg-card px-3.5 text-muted">
         <input type="hidden" name="mes" value={filters.month} />
         {filters.categoryId && <input type="hidden" name="categoria" value={filters.categoryId} />}
-        {!filters.categoryId && filters.kind && <input type="hidden" name="tipo" value={isIncome ? 'entradas' : 'gastos'} />}
+        {!filters.categoryId && filters.kind && !filters.cardId && <input type="hidden" name="tipo" value={isIncome ? 'entradas' : 'gastos'} />}
+        {filters.cardId && <input type="hidden" name="cartao" value={filters.cardId} />}
         <Search className="size-[18px] shrink-0" aria-hidden="true" />
         <input
           type="search"
@@ -35,10 +37,10 @@ export function FiltersBar({ filters, categories, categoryName }: Props) {
       </form>
 
       <nav aria-label="Filtros" className="flex flex-wrap gap-2">
-        <Link href={withFilters({ kind: isIncome ? null : 'income', categoryId: null })} aria-current={isIncome ? 'true' : undefined} className={chip(isIncome)}>
+        <Link href={withFilters({ kind: isIncome ? null : 'income', categoryId: null, cardId: null })} aria-current={isIncome ? 'true' : undefined} className={chip(isIncome)}>
           Entradas
         </Link>
-        <Link href={withFilters({ kind: isExpense ? null : 'expense', categoryId: null })} aria-current={isExpense ? 'true' : undefined} className={chip(isExpense)}>
+        <Link href={withFilters({ kind: isExpense ? null : 'expense', categoryId: null, cardId: null })} aria-current={isExpense ? 'true' : undefined} className={chip(isExpense)}>
           Gastos
         </Link>
         {/* key: remonta fechado depois de escolher (ou limpar) uma categoria. */}
@@ -64,6 +66,31 @@ export function FiltersBar({ filters, categories, categoryName }: Props) {
             })}
           </ul>
         </details>
+        {cards.length > 0 && (
+          // key: remonta fechado depois de escolher (ou limpar) um cartão.
+          <details key={filters.cardId ?? 'none'} role="group" aria-label="Cartão" className="relative">
+            <summary className={`${chip(Boolean(filters.cardId))} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
+              {cardName ?? 'Cartão'}
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </summary>
+            <ul className="absolute left-0 top-12 z-10 flex max-h-72 w-56 flex-col overflow-y-auto rounded-card border border-line bg-card py-1 shadow-sheet">
+              {cards.map((c) => {
+                const selected = filters.cardId === c.id
+                return (
+                  <li key={c.id}>
+                    <Link
+                      href={withFilters(selected ? { cardId: null, kind: null } : { cardId: c.id, kind: 'expense' })}
+                      aria-current={selected ? 'true' : undefined}
+                      className={`flex min-h-11 items-center px-4 text-[15px] ${selected ? 'bg-brand-wash font-semibold text-brand-ink' : 'text-ink hover:bg-canvas'}`}
+                    >
+                      {c.nickname}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </details>
+        )}
       </nav>
     </div>
   )

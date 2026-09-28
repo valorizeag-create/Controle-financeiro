@@ -1,5 +1,6 @@
 import { todayInSaoPaulo } from '@/domain/dates'
 import { loadLedger } from '@/features/registro/queries'
+import { loadCards } from '@/features/cartoes/queries'
 import { MonthNav } from '@/features/seu-mes/month-nav'
 import { FiltersBar } from '@/features/extrato/filters-bar'
 import { ExtratoList } from '@/features/extrato/extrato-list'
@@ -8,9 +9,9 @@ import { buildExtrato, extratoParams, parseExtratoFilters } from '@/features/ext
 export default async function ExtratoPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const today = todayInSaoPaulo()
   const filters = parseExtratoFilters(await searchParams, today)
-  const { categories, transactions } = await loadLedger()
-  const view = buildExtrato({ filters, today, categories, transactions })
-  // As setas do mês mantêm tipo, categoria e busca.
+  const [{ categories, transactions }, cards] = await Promise.all([loadLedger(), loadCards()])
+  const view = buildExtrato({ filters, today, categories, transactions, cards })
+  // As setas do mês mantêm tipo, categoria, cartão e busca.
   const query = Object.fromEntries(Object.entries(extratoParams(view.filters)).filter(([key]) => key !== 'mes'))
 
   return (
@@ -19,7 +20,7 @@ export default async function ExtratoPage({ searchParams }: { searchParams: Prom
         <h1 className="text-[22px] font-semibold tracking-tight text-ink md:text-[26px]">Tudo o que entrou e saiu</h1>
         <MonthNav month={view.filters.month} label={view.monthLabel} basePath="/extrato" query={query} />
       </header>
-      <FiltersBar filters={view.filters} categories={categories} categoryName={view.categoryName} />
+      <FiltersBar filters={view.filters} categories={categories} categoryName={view.categoryName} cards={cards} cardName={view.cardName} />
       <ExtratoList view={view} />
     </main>
   )

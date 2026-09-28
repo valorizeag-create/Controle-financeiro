@@ -1,8 +1,9 @@
 import { dayLabel, isInMonth, monthLabel, monthOf, parseMonthKey, type ISODate, type MonthKey } from '@/domain/dates'
 import { formatBRL, type Cents } from '@/domain/money'
 import { effectiveDate } from '@/domain/summary'
+import { installmentBadge } from '@/domain/installments'
 import type { Category, TxRow } from '@/features/registro/queries'
-import { PAYMENT_LABELS } from '@/features/registro/labels'
+import { paymentText, type CardRow } from '@/features/cartoes/types'
 
 export type KindFilter = 'income' | 'expense' | null
 
@@ -10,6 +11,7 @@ export interface ExtratoFilters {
   month: MonthKey
   kind: KindFilter
   categoryId: string | null
+  cardId: string | null
   q: string
 }
 
@@ -26,13 +28,16 @@ function first(v: string | string[] | undefined): string | undefined {
 export function parseExtratoFilters(sp: SearchParams, today: ISODate): ExtratoFilters {
   const categoria = first(sp.categoria)
   const tipo = first(sp.tipo)
+  const cartao = first(sp.cartao)
   const categoryId = categoria && UUID.test(categoria) ? categoria : null
-  // Categoria só existe em gastos: escolher uma categoria já filtra gastos.
-  const kind: KindFilter = categoryId ? 'expense' : tipo === 'entradas' ? 'income' : tipo === 'gastos' ? 'expense' : null
+  const cardId = cartao && UUID.test(cartao) ? cartao : null
+  // Categoria e cartão só existem em gastos: escolher um deles já filtra gastos.
+  const kind: KindFilter = categoryId || cardId ? 'expense' : tipo === 'entradas' ? 'income' : tipo === 'gastos' ? 'expense' : null
   return {
     month: parseMonthKey(first(sp.mes)) ?? monthOf(today),
     kind,
     categoryId,
+    cardId,
     q: (first(sp.q) ?? '').trim().slice(0, MAX_QUERY_LENGTH),
   }
 }
@@ -40,7 +45,8 @@ export function parseExtratoFilters(sp: SearchParams, today: ISODate): ExtratoFi
 export function extratoParams(f: ExtratoFilters): Record<string, string> {
   const p: Record<string, string> = { mes: f.month }
   if (f.categoryId) p.categoria = f.categoryId
-  else if (f.kind) p.tipo = f.kind === 'income' ? 'entradas' : 'gastos'
+  else if (f.kind && !f.cardId) p.tipo = f.kind === 'income' ? 'entradas' : 'gastos'
+  if (f.cardId) p.cartao = f.cardId
   if (f.q) p.q = f.q
   return p
 }
@@ -78,6 +84,8 @@ export interface ExtratoRow {
   title: string
   subtitle: string | null
   cents: Cents
+  href: string
+  badge: string | null
 }
 
 export interface ExtratoGroup {
@@ -94,6 +102,7 @@ export interface ExtratoView {
   groups: ExtratoGroup[]
   empty: ExtratoEmpty
   categoryName: string | null
+  cardName: string | null
 }
 
 export function buildExtrato(input: {
@@ -101,11 +110,14 @@ export function buildExtrato(input: {
   today: ISODate
   categories: Category[]
   transactions: TxRow[]
+  cards: CardRow[]
 }): ExtratoView {
-  const { today, categories, transactions } = input
+  const { today, categories, transactions, cards } = input
   const nameOf = new Map(categories.map((c) => [c.id, c.name]))
+  const cardById = new Map(cards.map((c) => [c.id, c]))
   const categoryId = input.filters.categoryId && nameOf.has(input.filters.categoryId) ? input.filters.categoryId : null
-  const filters: ExtratoFilters = { ...input.filters, categoryId }
+  const cardId = input.filters.cardId && cardById.has(input.filters.cardId) ? input.filters.cardId : null
+  const filters: ExtratoFilters = { ...input.filters, categoryId, cardId }
 
   const inMonth = transactions.filter((t) => {
     const d = effectiveDate(t)
@@ -115,9 +127,10 @@ export function buildExtrato(input: {
   const visible = inMonth.filter((t) => {
     if (filters.kind && t.kind !== filters.kind) return false
     if (categoryId && t.categoryId !== categoryId) return false
+    if (cardId && t.cardId !== cardId) return false
     // A busca também precisa achar os rótulos que aparecem na linha (toRow): "Outros" e "Entrada".
     const displayedName = t.kind === 'income' ? (t.source ?? 'Entrada') : (nameOf.get(t.categoryId ?? '') ?? 'Outros')
-    const payment = t.paymentMethod ? (PAYMENT_LABELS[t.paymentMethod] ?? null) : null
+    const payment = t.kind === 'expense' ? paymentText(t, cards) : null
     return matchesQuery([displayedName, t.note, payment], t.amountCents, filters.q)
   })
 
@@ -137,7 +150,7 @@ export function buildExtrato(input: {
       group = { date, label: dayLabel(date, today), rows: [] }
       groups.push(group)
     }
-    group.rows.push(toRow(t, nameOf))
+    group.rows.push(toRow(t, nameOf, cards))
   }
 
   const empty: ExtratoEmpty = visible.length > 0 ? null : filters.q ? 'no-results' : inMonth.length === 0 ? 'no-records' : 'no-matches'
@@ -148,23 +161,32 @@ export function buildExtrato(input: {
     groups,
     empty,
     categoryName: categoryId ? (nameOf.get(categoryId) ?? null) : null,
+    cardName: cardId ? (cardById.get(cardId)?.nickname ?? null) : null,
   }
 }
 
-function toRow(t: TxRow, nameOf: Map<string, string>): ExtratoRow {
+function toRow(t: TxRow, nameOf: Map<string, string>, cards: CardRow[]): ExtratoRow {
   if (t.kind === 'income') {
-    return { id: t.id, kind: 'income', title: t.source ?? 'Entrada', subtitle: null, cents: t.amountCents }
+    return { id: t.id, kind: 'income', title: t.source ?? 'Entrada', subtitle: null, cents: t.amountCents, href: `/extrato/${t.id}`, badge: null }
   }
   const category = nameOf.get(t.categoryId ?? '') ?? 'Outros'
   // Contas que se repetem criadas pelo Anotar sem nota guardam o nome da
   // categoria como nota (regra de negócio da recorrência); sem esta checagem
   // o Extrato mostraria "Mercado · Mercado".
   const hasNote = t.note && normalizeText(t.note) !== normalizeText(category)
+  const badge = t.installmentPlanId
+    ? t.installmentNumber !== null && t.installmentCount !== null
+      ? installmentBadge(t.installmentNumber, t.installmentCount)
+      : 'restante das parcelas'
+    : null
+  const href = t.installmentPlanId ? `/extrato/parcelas/${t.installmentPlanId}` : `/extrato/${t.id}`
   return {
     id: t.id,
     kind: 'expense',
     title: hasNote ? `${category} · ${t.note}` : category,
-    subtitle: t.paymentMethod ? (PAYMENT_LABELS[t.paymentMethod] ?? null) : null,
+    subtitle: paymentText(t, cards),
     cents: t.amountCents,
+    href,
+    badge,
   }
 }

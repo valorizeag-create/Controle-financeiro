@@ -26,8 +26,8 @@ const transactions: TxRow[] = [
   row({ id: 't5', kind: 'expense', amountCents: 5000, occurredOn: '2026-08-30', categoryId: MERCADO }),
   row({ id: 't6', kind: 'expense', amountCents: 20000, occurredOn: '2026-08-25', paidOn: '2026-09-19', categoryId: SAUDE }),
 ]
-const f = (p: Partial<ExtratoFilters> = {}): ExtratoFilters => ({ month: '2026-09', kind: null, categoryId: null, q: '', ...p })
-const build = (filters: ExtratoFilters) => buildExtrato({ filters, today, categories, transactions })
+const f = (p: Partial<ExtratoFilters> = {}): ExtratoFilters => ({ month: '2026-09', kind: null, categoryId: null, cardId: null, q: '', ...p })
+const build = (filters: ExtratoFilters) => buildExtrato({ filters, today, categories, transactions, cards: [] })
 const ids = (filters: ExtratoFilters) => build(filters).groups.flatMap((g) => g.rows.map((r) => r.id))
 
 describe('parseExtratoFilters', () => {
@@ -94,7 +94,7 @@ describe('busca (Review Focus 1)', () => {
       row({ id: 'e1', kind: 'expense', amountCents: 1000, occurredOn: '2026-09-10', categoryId: null }),
       row({ id: 'i1', kind: 'income', amountCents: 2000, occurredOn: '2026-09-11', source: null }),
     ]
-    const v = (filters: ExtratoFilters) => buildExtrato({ filters, today, categories, transactions: semCategoriaOuOrigem })
+    const v = (filters: ExtratoFilters) => buildExtrato({ filters, today, categories, transactions: semCategoriaOuOrigem, cards: [] })
     const idsOf = (filters: ExtratoFilters) => v(filters).groups.flatMap((g) => g.rows.map((r) => r.id))
     expect(idsOf(f({ q: 'outros' }))).toEqual(['e1'])
     expect(idsOf(f({ q: 'entrada' }))).toEqual(['i1'])
@@ -107,8 +107,8 @@ describe('buildExtrato', () => {
     expect(v.monthLabel).toBe('setembro de 2026')
     expect(v.groups.map((g) => g.label)).toEqual(['Hoje', 'Ontem', '19 de setembro', '5 de setembro'])
     expect(v.groups[0].rows.map((r) => r.id)).toEqual(['t2', 't1'])
-    expect(v.groups[0].rows[1]).toEqual({ id: 't1', kind: 'expense', title: 'Mercado · feira', subtitle: 'Pix', cents: 14230 })
-    expect(v.groups[3].rows[0]).toEqual({ id: 't4', kind: 'income', title: 'Salário', subtitle: null, cents: 500000 })
+    expect(v.groups[0].rows[1]).toEqual({ id: 't1', kind: 'expense', title: 'Mercado · feira', subtitle: 'Pix', cents: 14230, href: '/extrato/t1', badge: null })
+    expect(v.groups[3].rows[0]).toEqual({ id: 't4', kind: 'income', title: 'Salário', subtitle: null, cents: 500000, href: '/extrato/t4', badge: null })
     expect(v.empty).toBeNull()
   })
   test('conta paga com atraso aparece no dia em que foi paga (A1)', () => {
@@ -143,6 +143,7 @@ describe('buildExtrato', () => {
     const v = buildExtrato({
       filters: f(), today, categories,
       transactions: [row({ id: 'p1', kind: 'expense', amountCents: 100, occurredOn: '2026-09-10', dueOn: '2026-09-10', status: 'pending', categoryId: MERCADO })],
+      cards: [],
     })
     expect(v.groups).toEqual([])
     expect(v.empty).toBe('no-records')
@@ -158,10 +159,52 @@ describe('buildExtrato', () => {
         row({ id: 'r2', kind: 'expense', amountCents: 700, occurredOn: '2026-09-11', categoryId: MERCADO, note: '  mercado  ' }),
         row({ id: 'r3', kind: 'expense', amountCents: 900, occurredOn: '2026-09-12', categoryId: MERCADO, note: 'Feira' }),
       ],
+      cards: [],
     })
     const rows = v.groups.flatMap((g) => g.rows)
     expect(rows.find((r) => r.id === 'r1')?.title).toBe('Mercado')
     expect(rows.find((r) => r.id === 'r2')?.title).toBe('Mercado')
     expect(rows.find((r) => r.id === 'r3')?.title).toBe('Mercado · Feira')
+  })
+})
+
+const K1 = '44444444-4444-4444-8444-444444444444'
+const cards = [{ id: K1, nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const }]
+const withCards: TxRow[] = [
+  row({ id: 'c1', kind: 'expense', amountCents: 12000, occurredOn: '2026-09-20', categoryId: MERCADO, cardId: K1 }),
+  row({ id: 'c2', kind: 'expense', amountCents: 10000, occurredOn: '2026-09-10', categoryId: SAUDE, note: 'Óculos', cardId: K1, installmentPlanId: 'p1', installmentNumber: 2, installmentCount: 5 }),
+  row({ id: 'c3', kind: 'expense', amountCents: 18000, occurredOn: '2026-09-15', categoryId: SAUDE, note: 'Óculos', cardDeleted: true, installmentPlanId: 'p2' }),
+  row({ id: 'c4', kind: 'expense', amountCents: 3000, occurredOn: '2026-09-12', categoryId: MERCADO, paymentMethod: 'pix' }),
+]
+const buildWith = (p: Partial<ExtratoFilters>) => buildExtrato({ filters: f(p), today, categories, transactions: withCards, cards })
+
+describe('cartões e parcelas no Extrato (RF-60, RF-14)', () => {
+  test('lê e escreve o filtro de cartão; cartão implica gastos', () => {
+    expect(parseExtratoFilters({ cartao: K1, tipo: 'entradas' }, today)).toEqual(f({ kind: 'expense', cardId: K1 }))
+    expect(parseExtratoFilters({ cartao: 'x' }, today)).toEqual(f())
+    expect(extratoHref(f({ kind: 'expense', cardId: K1 }))).toBe(`/extrato?mes=2026-09&cartao=${K1}`)
+    expect(extratoHref(f({ kind: 'expense', categoryId: MERCADO, cardId: K1, q: 'x' }))).toBe(`/extrato?mes=2026-09&categoria=${MERCADO}&cartao=${K1}&q=x`)
+  })
+
+  test('filtra pelo cartão; cartão desconhecido é ignorado', () => {
+    const v = buildWith({ kind: 'expense', cardId: K1 })
+    expect(v.groups.flatMap((g) => g.rows.map((r) => r.id))).toEqual(['c1', 'c2'])
+    expect(v.cardName).toBe('Nubank pessoal')
+    const unknown = buildWith({ kind: 'expense', cardId: '55555555-5555-4555-8555-555555555555' })
+    expect(unknown.filters.cardId).toBeNull()
+    expect(unknown.cardName).toBeNull()
+  })
+
+  test('cada linha: cartão (ou "Cartão excluído", ou a forma), selo da parcela e link da compra (Review Focus 4)', () => {
+    const rows = Object.fromEntries(buildWith({}).groups.flatMap((g) => g.rows).map((r) => [r.id, r]))
+    expect(rows.c1).toMatchObject({ subtitle: 'Nubank pessoal', badge: null, href: '/extrato/c1' })
+    expect(rows.c2).toMatchObject({ title: 'Saúde · Óculos', subtitle: 'Nubank pessoal', badge: 'parcela 2 de 5', href: '/extrato/parcelas/p1' })
+    expect(rows.c3).toMatchObject({ subtitle: 'Cartão excluído', badge: 'restante das parcelas', href: '/extrato/parcelas/p2' })
+    expect(rows.c4).toMatchObject({ subtitle: 'Pix', badge: null })
+  })
+
+  test('busca acha pelo apelido do cartão e por "Cartão excluído"', () => {
+    expect(buildWith({ q: 'nubank' }).groups.flatMap((g) => g.rows.map((r) => r.id))).toEqual(['c1', 'c2'])
+    expect(buildWith({ q: 'excluido' }).groups.flatMap((g) => g.rows.map((r) => r.id))).toEqual(['c3'])
   })
 })

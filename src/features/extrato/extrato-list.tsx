@@ -30,7 +30,7 @@ export function ExtratoList({ view }: { view: ExtratoView }) {
     return (
       <div className="flex flex-col items-center gap-3 px-1 py-6 text-center">
         <p className="text-[15px]">Nenhum registro com esses filtros.</p>
-        <Button href={extratoHref({ month: view.filters.month, kind: null, categoryId: null, q: '' })} variant="secondary">Limpar filtros</Button>
+        <Button href={extratoHref({ month: view.filters.month, kind: null, categoryId: null, cardId: null, q: '' })} variant="secondary">Limpar filtros</Button>
       </div>
     )
   }
@@ -43,13 +43,18 @@ export function ExtratoList({ view }: { view: ExtratoView }) {
           <ul className="overflow-hidden rounded-card border border-line bg-card">
             {g.rows.map((r) => (
               <li key={r.id} className="border-b border-line last:border-b-0">
-                <Link href={`/extrato/${r.id}`} className="flex min-h-[68px] items-center gap-3 px-4 py-3.5 hover:bg-canvas">
+                <Link href={r.href} className="flex min-h-[68px] items-center gap-3 px-4 py-3.5 hover:bg-canvas">
                   <span className={`flex size-10 shrink-0 items-center justify-center rounded-panel ${r.kind === 'income' ? 'bg-brand-wash text-brand-text-hover' : 'bg-sunken text-[#262626]'}`}>
                     {r.kind === 'income' ? <ArrowDownLeft className="size-5" aria-hidden="true" /> : <Receipt className="size-5" aria-hidden="true" />}
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-[15px] text-ink">{r.title}</span>
-                    {r.subtitle && <span className="text-[13px] text-muted">{r.subtitle}</span>}
+                    {(r.subtitle || r.badge) && (
+                      <span className="flex items-center gap-1.5">
+                        {r.subtitle && <span className="text-[13px] text-muted">{r.subtitle}</span>}
+                        {r.badge && <span className="rounded-full bg-sunken px-2 py-0.5 text-xs font-medium text-inactive">{r.badge}</span>}
+                      </span>
+                    )}
                   </span>
                   <span className={`num shrink-0 text-[15px] ${r.kind === 'income' ? 'font-semibold text-brand-text-hover' : 'font-medium text-ink'}`}>
                     {r.kind === 'income' ? '+ ' : '− '}<Money cents={r.cents} />
