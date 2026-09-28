@@ -7,4 +7,6 @@ export function refreshMoneyViews(): void {
   revalidatePath('/contas')
   revalidatePath('/cartoes')
   revalidatePath('/metas', 'layout')
+  revalidatePath('/planejamento')
+  revalidatePath('/relatorios')
 }
