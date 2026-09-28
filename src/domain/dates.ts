@@ -57,6 +57,10 @@ export function dayMonthLabel(d: ISODate): string {
   return dayMonthFmt.format(toUTC(d))
 }
 
+export function dayMonthYearLabel(d: ISODate): string {
+  return `${dayMonthLabel(d)} de ${d.slice(0, 4)}`
+}
+
 export function dayLabel(d: ISODate, today: ISODate): string {
   if (d === today) return 'Hoje'
   if (d === addDays(today, -1)) return 'Ontem'
