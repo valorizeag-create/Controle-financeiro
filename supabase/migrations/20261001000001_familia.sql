@@ -397,3 +397,764 @@ grant execute on function
   public.accept_family_invite(text),
   public.transfer_family_admin(uuid)
 to authenticated;
+
+-- ============================================================================
+-- Seção 2 — gastos da família e contas da família
+-- ============================================================================
+
+-- 14. Gasto da família (RN-18, RN-19): continua de quem registrou (sai do
+--     Disponível dele) e ganha a família. Sem dono, só o histórico de quem
+--     excluiu o cadastro (RN-24): sempre confirmado e da família, com a
+--     categoria guardada em ex_category_* (a dele é apagada junto).
+alter table public.transactions
+  alter column user_id drop not null,
+  add column family_id uuid references public.families (id) on delete no action,
+  add column ex_category_key text check (ex_category_key is null or char_length(ex_category_key) <= 40),
+  add column ex_category_name text check (ex_category_name is null or char_length(ex_category_name) between 1 and 40),
+  add constraint family_only_expense check (family_id is null or kind = 'expense'),
+  add constraint ownerless_only_family_history check (user_id is not null or (family_id is not null and status = 'confirmed'));
+
+create index transactions_family_idx on public.transactions (family_id, occurred_on) where family_id is not null;
+
+-- 15. Conta da família (RN-20): o molde é de quem criou.
+alter table public.recurrences
+  add column family_id uuid references public.families (id) on delete no action,
+  add constraint recurrence_family_only_expense check (family_id is null or kind = 'expense');
+
+create index recurrences_family_idx on public.recurrences (family_id) where family_id is not null;
+
+-- 16. Guarda da família nos registros (vale também para gravação direta).
+--     SECURITY DEFINER: consulta a participação e os moldes sem depender da
+--     RLS de quem grava. Não devolve nada; só recusa. Registro sem família:
+--     nada muda (o comportamento pessoal dos planos anteriores fica igual).
+--     a) Entrar na família, ou trocar de dono dentro dela: o dono precisa
+--        participar dela agora. Tirar da família ou ficar sem dono (RN-24):
+--        livre. Ex-membro continua editando os próprios gastos antigos
+--        (decisão 97), mas uma conta a pagar da família só existe e só muda
+--        enquanto o dono participa: quem saiu não transforma um gasto antigo
+--        em conta para a família pagar.
+--     b) Conta a pagar da família só como ocorrência de um molde da mesma
+--        família: ninguém cria, por gravação direta, uma conta com valor
+--        qualquer para outro membro pagar. A FK composta (recurrence_id,
+--        user_id) do Plano 3 continua valendo: uma ocorrência só nasce de um
+--        molde da própria pessoa (quem paga a conta de outro membro ganha um
+--        registro novo, sem molde — item 21).
+create function public.transactions_family_guard() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.family_id is null then
+    return new;
+  end if;
+  if new.user_id is not null
+     and (tg_op = 'INSERT' or new.family_id is distinct from old.family_id
+          or new.user_id is distinct from old.user_id or new.status = 'pending')
+     and not exists (
+       select 1 from public.family_members fm
+       where fm.family_id = new.family_id and fm.user_id = new.user_id and fm.left_at is null
+     ) then
+    raise exception 'Família não encontrada.';
+  end if;
+  if new.status = 'pending'
+     and (tg_op = 'INSERT' or new.status is distinct from old.status
+          or new.family_id is distinct from old.family_id or new.recurrence_id is distinct from old.recurrence_id)
+     and not exists (
+       select 1 from public.recurrences rc
+       where rc.id = new.recurrence_id and rc.family_id = new.family_id
+     ) then
+    raise exception 'Família não encontrada.';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger transactions_family_guard before insert or update on public.transactions
+  for each row execute function public.transactions_family_guard();
+
+-- Molde da família: só de quem participa dela. Um molde ativo (ended_on
+-- vazio) da família exige participação a cada gravação: quem saiu não
+-- reabre uma conta encerrada na saída.
+create function public.recurrences_family_guard() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.family_id is not null
+     and (tg_op = 'INSERT' or new.family_id is distinct from old.family_id or new.ended_on is null)
+     and not exists (
+       select 1 from public.family_members fm
+       where fm.family_id = new.family_id and fm.user_id = new.user_id and fm.left_at is null
+     ) then
+    raise exception 'Família não encontrada.';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger recurrences_family_guard before insert or update on public.recurrences
+  for each row execute function public.recurrences_family_guard();
+
+-- 17. As contas pessoais continuam sendo geradas por quem as criou; as da
+--     família passam para generate_family_occurrences (item 18). Corpo igual
+--     ao da migração 20260928000001, mais "rc.family_id is null".
+create or replace function public.generate_occurrences() returns integer
+language plpgsql security invoker set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_current date := make_date(extract(year from v_today)::int, extract(month from v_today)::int, 1);
+  v_oldest date := (v_current - interval '2 months')::date;
+  r record;
+  v_period date;
+  v_due date;
+  v_rows integer;
+  v_count integer := 0;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+
+  for r in
+    select rc.* from public.recurrences rc
+    where rc.user_id = v_uid
+      and rc.family_id is null
+      and rc.ended_on is null
+      and (rc.generated_through is null or rc.generated_through < v_current)
+      and rc.starts_on < (v_current + interval '1 month')::date
+    order by rc.id
+    for update
+  loop
+    v_period := greatest(
+      coalesce((r.generated_through + interval '1 month')::date, v_oldest),
+      make_date(extract(year from r.starts_on)::int, extract(month from r.starts_on)::int, 1),
+      v_oldest
+    );
+    while v_period <= v_current loop
+      if r.frequency = 'monthly' or extract(month from v_period)::int = r.due_month then
+        v_due := public.occurrence_due_on(v_period, r.due_day);
+        insert into public.transactions (
+          user_id, kind, amount_cents, category_id, source, note, payment_method, card_id,
+          occurred_on, status, due_on, recurrence_id, recurrence_period
+        ) values (
+          v_uid, r.kind, r.amount_cents, r.category_id, r.source, r.note, r.payment_method, r.card_id,
+          v_due, 'pending', v_due, r.id, v_period
+        )
+        on conflict (recurrence_id, recurrence_period) do nothing;
+        get diagnostics v_rows = row_count;
+        v_count := v_count + v_rows;
+      end if;
+      v_period := (v_period + interval '1 month')::date;
+    end loop;
+    update public.recurrences set generated_through = v_current where id = r.id and user_id = v_uid;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+-- 18. Contas da família aparecem quando qualquer membro abre o app (não só
+--     quem criou). SECURITY DEFINER: grava ocorrências em nome de quem criou o
+--     molde (a conta é dele até alguém pagar). Só moldes da família de quem
+--     chama e só de quem ainda participa dela (um molde que sobrou de quem
+--     saiu é pulado e nunca derruba a geração dos outros); mesma regra de
+--     datas de generate_occurrences.
+create function public.generate_family_occurrences() returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_family uuid := public.my_family_id();
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_current date := make_date(extract(year from v_today)::int, extract(month from v_today)::int, 1);
+  v_oldest date := (v_current - interval '2 months')::date;
+  r record;
+  v_period date;
+  v_due date;
+  v_rows integer;
+  v_count integer := 0;
+begin
+  if auth.uid() is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null then
+    return 0;
+  end if;
+
+  for r in
+    select rc.* from public.recurrences rc
+    where rc.family_id = v_family
+      and rc.ended_on is null
+      and (rc.generated_through is null or rc.generated_through < v_current)
+      and rc.starts_on < (v_current + interval '1 month')::date
+      and exists (
+        select 1 from public.family_members fm
+        where fm.family_id = v_family and fm.user_id = rc.user_id and fm.left_at is null
+      )
+    order by rc.id
+    for update of rc
+  loop
+    v_period := greatest(
+      coalesce((r.generated_through + interval '1 month')::date, v_oldest),
+      make_date(extract(year from r.starts_on)::int, extract(month from r.starts_on)::int, 1),
+      v_oldest
+    );
+    while v_period <= v_current loop
+      if r.frequency = 'monthly' or extract(month from v_period)::int = r.due_month then
+        v_due := public.occurrence_due_on(v_period, r.due_day);
+        insert into public.transactions (
+          user_id, kind, amount_cents, category_id, source, note, payment_method, card_id,
+          occurred_on, status, due_on, recurrence_id, recurrence_period, family_id
+        ) values (
+          r.user_id, r.kind, r.amount_cents, r.category_id, r.source, r.note, r.payment_method, r.card_id,
+          v_due, 'pending', v_due, r.id, v_period, r.family_id
+        )
+        on conflict (recurrence_id, recurrence_period) do nothing;
+        get diagnostics v_rows = row_count;
+        v_count := v_count + v_rows;
+      end if;
+      v_period := (v_period + interval '1 month')::date;
+    end loop;
+    update public.recurrences rc set generated_through = v_current where rc.id = r.id and rc.family_id = v_family;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+-- 19. Gastos da família para a família (RF-43). SECURITY DEFINER: lê
+--     registros de outros membros, que a RLS de transactions não mostra (e
+--     não deve mostrar: lá estão cartão, forma de pagamento e parcela).
+--     Devolve só estas colunas, só da família de quem chama, só gastos
+--     confirmados; categoria pela chave padrão ou pelo nome (A3); o nome de
+--     quem registrou vem da participação (guardado ao sair, RN-23; nulo depois
+--     da exclusão do cadastro, RN-24). No máximo 367 dias por chamada.
+create function public.family_expenses(p_from date, p_to date)
+returns table (id uuid, effective_on date, amount_cents bigint, category_key text, category_name text,
+               note text, author_id uuid, author_name text, created_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_family uuid := public.my_family_id();
+begin
+  if auth.uid() is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if p_from is null or p_to is null or p_from > p_to or p_to - p_from > 366
+     or p_from < date '2000-01-01' or p_to > date '2099-12-31' then
+    raise exception 'Período inválido.';
+  end if;
+  if v_family is null then
+    return;
+  end if;
+  return query
+    select t.id, coalesce(t.paid_on, t.occurred_on), t.amount_cents,
+           coalesce(c.default_key, t.ex_category_key), coalesce(c.name, t.ex_category_name, 'Outros'),
+           t.note, t.user_id,
+           (select fm.display_name from public.family_members fm
+              where fm.family_id = t.family_id and fm.user_id = t.user_id
+              order by fm.joined_at desc limit 1),
+           t.created_at
+    from public.transactions t
+    left join public.categories c on c.id = t.category_id and c.user_id = t.user_id
+    where t.family_id = v_family and t.kind = 'expense' and t.status = 'confirmed'
+      and coalesce(t.paid_on, t.occurred_on) between p_from and p_to
+    order by coalesce(t.paid_on, t.occurred_on) desc, t.created_at desc, t.id;
+end;
+$$;
+
+-- Um gasto da família (tela de edição do administrador). Mesmas colunas.
+create function public.family_expense(p_id uuid)
+returns table (id uuid, effective_on date, amount_cents bigint, category_key text, category_name text,
+               note text, author_id uuid, author_name text, created_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select t.id, coalesce(t.paid_on, t.occurred_on), t.amount_cents,
+         coalesce(c.default_key, t.ex_category_key), coalesce(c.name, t.ex_category_name, 'Outros'),
+         t.note, t.user_id,
+         (select fm.display_name from public.family_members fm
+            where fm.family_id = t.family_id and fm.user_id = t.user_id
+            order by fm.joined_at desc limit 1),
+         t.created_at
+  from public.transactions t
+  left join public.categories c on c.id = t.category_id and c.user_id = t.user_id
+  where t.id = p_id and t.family_id = public.my_family_id()
+    and t.kind = 'expense' and t.status = 'confirmed'
+$$;
+
+-- 20. Contas da família a pagar (RN-20) e os moldes ativos. Mesmo motivo do
+--     item 19; nada de cartão nem forma de pagamento. Só ocorrências de
+--     moldes da família, de quem ainda participa dela.
+create function public.family_bills()
+returns table (id uuid, name text, amount_cents bigint, due_on date, author_id uuid)
+language sql stable security definer set search_path = '' as $$
+  select t.id, r.name, t.amount_cents, t.due_on, t.user_id
+  from public.transactions t
+  join public.recurrences r on r.id = t.recurrence_id and r.family_id = t.family_id
+  join public.family_members fm on fm.family_id = t.family_id and fm.user_id = t.user_id and fm.left_at is null
+  where t.family_id = public.my_family_id() and t.kind = 'expense' and t.status = 'pending'
+  order by t.due_on, t.created_at, t.id
+$$;
+
+create function public.family_recurrences()
+returns table (id uuid, name text, amount_cents bigint, frequency text, due_day smallint, due_month smallint, author_id uuid)
+language sql stable security definer set search_path = '' as $$
+  select r.id, r.name, r.amount_cents, r.frequency, r.due_day, r.due_month, r.user_id
+  from public.recurrences r
+  join public.family_members fm on fm.family_id = r.family_id and fm.user_id = r.user_id and fm.left_at is null
+  where r.family_id = public.my_family_id() and r.ended_on is null
+  order by r.due_day, r.name, r.id
+$$;
+
+-- 21. Marcar a conta da família como paga (RN-20): qualquer membro. O valor
+--     sai do Disponível de quem pagou (A1: no dia de hoje).
+--     - Quem criou a conta paga: o registro dele vira pago, como em Contas.
+--     - Outro membro paga: a ocorrência de quem criou sai e nasce um registro
+--       de quem pagou, confirmado, na categoria dele de mesma chave padrão (ou
+--       de mesmo nome; senão Outros), sem cartão e sem forma de pagamento (quem
+--       paga não disse como), com o nome da conta na nota, sem molde. A conta
+--       não volta a ser gerada (decisão 30: a geração só olha meses depois de
+--       generated_through).
+--     Só ocorrência de molde da família, de quem ainda participa dela.
+--     SECURITY DEFINER: a ocorrência é de outra pessoa. A trava compartilhada
+--     da família espera uma saída ou remoção em andamento, e a participação de
+--     quem paga é conferida de novo depois dela. Dois pagamentos ao mesmo
+--     tempo: o segundo espera a trava da conta e não a encontra mais.
+create function public.pay_family_bill(p_id uuid) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_family uuid := public.my_family_id();
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_tx record;
+  v_key text;
+  v_name text;
+  v_mine uuid;
+  v_new uuid;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null then
+    raise exception 'Conta não encontrada.';
+  end if;
+  perform 1 from public.families f where f.id = v_family for share;
+  if public.my_family_id() is distinct from v_family then
+    raise exception 'Conta não encontrada.';
+  end if;
+  select t.user_id, t.category_id, t.amount_cents, t.due_on, t.note, r.name as bill_name into v_tx
+    from public.transactions t
+    join public.recurrences r on r.id = t.recurrence_id and r.family_id = t.family_id
+    where t.id = p_id and t.family_id = v_family and t.kind = 'expense' and t.status = 'pending'
+      and exists (
+        select 1 from public.family_members fm
+        where fm.family_id = v_family and fm.user_id = t.user_id and fm.left_at is null)
+    for update of t;
+  if not found then
+    raise exception 'Conta não encontrada.';
+  end if;
+
+  if v_tx.user_id = v_uid then
+    update public.transactions t set status = 'confirmed', paid_on = v_today where t.id = p_id;
+    return p_id;
+  end if;
+
+  select c.default_key, c.name into v_key, v_name
+    from public.categories c where c.id = v_tx.category_id and c.user_id = v_tx.user_id;
+  select c.id into v_mine from public.categories c
+    where c.user_id = v_uid
+      and ((v_key is not null and c.default_key = v_key) or (v_key is null and lower(c.name) = lower(v_name)));
+  if v_mine is null then
+    select c.id into v_mine from public.categories c where c.user_id = v_uid and c.default_key = 'outros';
+  end if;
+
+  delete from public.transactions t where t.id = p_id;
+  insert into public.transactions (
+    user_id, kind, amount_cents, category_id, note, occurred_on, status, due_on, paid_on, family_id
+  ) values (
+    v_uid, 'expense', v_tx.amount_cents, v_mine, coalesce(v_tx.note, v_tx.bill_name), v_tx.due_on,
+    'confirmed', v_tx.due_on, v_today, v_family
+  ) returning id into v_new;
+  return v_new;
+end;
+$$;
+
+-- 22. Administrador edita valor, data e nota de um gasto da família (RN-21,
+--     RF-44); a categoria continua a de quem registrou. Parcelas e gastos
+--     pagos com meta ficam de fora. Data como no Extrato (decisão 4): até 1 ano
+--     à frente; conta paga: o dia do pagamento, até hoje.
+--     Só gasto de quem ainda participa da família ou histórico sem dono
+--     (RN-24): o registro de quem saiu é só dele (decisão 97), e a família não
+--     mexe mais no Disponível dessa pessoa.
+--     SECURITY DEFINER: o registro pode ser de outra pessoa (ou de Ex-membro
+--     sem cadastro). O papel é conferido de novo depois da trava da família
+--     (uma transferência ao mesmo tempo pode ter acabado de tirá-lo).
+create function public.admin_update_family_expense(p_id uuid, p_amount_cents bigint, p_on date, p_note text)
+returns date
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_family uuid := public.my_family_id();
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_note text := nullif(btrim(coalesce(p_note, '')), '');
+  v_paid date;
+begin
+  if auth.uid() is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null or public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  perform 1 from public.families f where f.id = v_family for share;
+  if public.my_family_id() is distinct from v_family or public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  if p_amount_cents is null or p_amount_cents <= 0 or p_amount_cents > 9999999999 then
+    raise exception 'Valor inválido.';
+  end if;
+  if v_note is not null and char_length(v_note) > 140 then
+    raise exception 'Nota inválida.';
+  end if;
+  select t.paid_on into v_paid from public.transactions t
+    where t.id = p_id and t.family_id = v_family and t.kind = 'expense' and t.status = 'confirmed'
+      and t.installment_plan_id is null and t.goal_id is null
+      and (t.user_id is null or exists (
+        select 1 from public.family_members fm
+        where fm.family_id = v_family and fm.user_id = t.user_id and fm.left_at is null))
+    for update of t;
+  if not found then
+    raise exception 'Gasto não encontrado.';
+  end if;
+  if p_on is null or p_on < date '2000-01-01' or p_on > v_today + 365 or (v_paid is not null and p_on > v_today) then
+    raise exception 'Data inválida.';
+  end if;
+  update public.transactions t set
+    amount_cents = p_amount_cents,
+    note = v_note,
+    occurred_on = case when v_paid is null then p_on else t.occurred_on end,
+    paid_on = case when v_paid is null then null else p_on end
+  where t.id = p_id;
+  return p_on;
+end;
+$$;
+
+create function public.admin_delete_family_expense(p_id uuid) returns date
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_family uuid := public.my_family_id();
+  v_on date;
+begin
+  if auth.uid() is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null or public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  perform 1 from public.families f where f.id = v_family for share;
+  if public.my_family_id() is distinct from v_family or public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  delete from public.transactions t
+    where t.id = p_id and t.family_id = v_family and t.kind = 'expense' and t.status = 'confirmed'
+      and t.installment_plan_id is null and t.goal_id is null
+      and (t.user_id is null or exists (
+        select 1 from public.family_members fm
+        where fm.family_id = v_family and fm.user_id = t.user_id and fm.left_at is null))
+    returning coalesce(t.paid_on, t.occurred_on) into v_on;
+  if v_on is null then
+    raise exception 'Gasto não encontrado.';
+  end if;
+  return v_on;
+end;
+$$;
+
+-- 23. Alterar e encerrar a conta da família: quem criou e o administrador
+--     (etapa-3 §4). Mesmas regras de update_recurrence/end_recurrence
+--     (decisões 36 e 37), sem trocar a categoria (é de quem criou). Só moldes
+--     de quem ainda participa da família. Trava compartilhada da família e
+--     participação conferida de novo depois dela, como no item 22.
+create function public.update_family_recurrence(p_id uuid, p_name text, p_amount_cents bigint, p_due_day integer)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_family uuid := public.my_family_id();
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_name text := btrim(coalesce(p_name, ''));
+  v_owner uuid;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null then
+    raise exception 'Conta não encontrada.';
+  end if;
+  perform 1 from public.families f where f.id = v_family for share;
+  if public.my_family_id() is distinct from v_family then
+    raise exception 'Conta não encontrada.';
+  end if;
+  select r.user_id into v_owner from public.recurrences r
+    where r.id = p_id and r.family_id = v_family and r.ended_on is null
+      and exists (
+        select 1 from public.family_members fm
+        where fm.family_id = v_family and fm.user_id = r.user_id and fm.left_at is null)
+    for update of r;
+  if not found then
+    raise exception 'Conta não encontrada.';
+  end if;
+  if v_owner <> v_uid and public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  if char_length(v_name) not between 1 and 40 then
+    raise exception 'Nome inválido.';
+  end if;
+  if p_amount_cents is null or p_amount_cents <= 0 or p_amount_cents > 9999999999 then
+    raise exception 'Valor inválido.';
+  end if;
+  if p_due_day is null or p_due_day not between 1 and 31 then
+    raise exception 'Dia inválido.';
+  end if;
+  update public.recurrences r set name = v_name, amount_cents = p_amount_cents, due_day = p_due_day
+    where r.id = p_id;
+  update public.transactions t set
+    amount_cents = p_amount_cents,
+    due_on = case when public.occurrence_due_on(t.recurrence_period, p_due_day) >= v_today
+      then public.occurrence_due_on(t.recurrence_period, p_due_day) else t.due_on end,
+    occurred_on = case when public.occurrence_due_on(t.recurrence_period, p_due_day) >= v_today
+      then public.occurrence_due_on(t.recurrence_period, p_due_day) else t.occurred_on end
+  where t.recurrence_id = p_id and t.family_id = v_family and t.status = 'pending' and t.due_on >= v_today;
+end;
+$$;
+
+create function public.end_family_recurrence(p_id uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_family uuid := public.my_family_id();
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_owner uuid;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null then
+    raise exception 'Conta não encontrada.';
+  end if;
+  perform 1 from public.families f where f.id = v_family for share;
+  if public.my_family_id() is distinct from v_family then
+    raise exception 'Conta não encontrada.';
+  end if;
+  select r.user_id into v_owner from public.recurrences r
+    where r.id = p_id and r.family_id = v_family and r.ended_on is null
+      and exists (
+        select 1 from public.family_members fm
+        where fm.family_id = v_family and fm.user_id = r.user_id and fm.left_at is null)
+    for update of r;
+  if not found then
+    raise exception 'Conta não encontrada.';
+  end if;
+  if v_owner <> v_uid and public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  update public.recurrences r set ended_on = v_today where r.id = p_id;
+  delete from public.transactions t
+    where t.recurrence_id = p_id and t.family_id = v_family and t.status = 'pending' and t.due_on > v_today;
+end;
+$$;
+
+-- 24. Anotar com "Gasto da família": conta que se repete e parcelado ganham
+--     p_family (decisão 50 deixou o parcelado da família para este plano).
+--     Corpos iguais aos da migração 20260928000001, mais a família. Entrada
+--     nunca é da família (RN-19).
+drop function public.create_recurring_transaction(text, bigint, uuid, text, text, text, date, text, uuid);
+
+create function public.create_recurring_transaction(
+  p_kind text, p_amount_cents bigint, p_category_id uuid, p_source text, p_note text,
+  p_payment_method text, p_occurred_on date, p_frequency text, p_card_id uuid default null,
+  p_family boolean default false
+) returns uuid
+language plpgsql security invoker set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_period date := make_date(extract(year from p_occurred_on)::int, extract(month from p_occurred_on)::int, 1);
+  v_note text := nullif(btrim(p_note), '');
+  v_payment text := case when p_card_id is null then p_payment_method end;
+  v_family uuid := case when coalesce(p_family, false) then public.my_family_id() end;
+  v_name text;
+  v_rec uuid;
+  v_tx uuid;
+  v_done boolean := p_occurred_on <= v_today;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if coalesce(p_family, false) and (v_family is null or p_kind is distinct from 'expense') then
+    raise exception 'Família não encontrada.';
+  end if;
+
+  if p_kind = 'expense' then
+    select c.name into v_name from public.categories c where c.id = p_category_id and c.user_id = v_uid;
+    if v_name is null then
+      raise exception 'Categoria não encontrada.';
+    end if;
+    v_name := coalesce(v_note, v_name);
+  else
+    if p_card_id is not null then
+      raise exception 'Cartão não encontrado.';
+    end if;
+    v_name := coalesce(nullif(btrim(p_source), ''), 'Entrada');
+  end if;
+
+  insert into public.recurrences (
+    user_id, kind, name, amount_cents, category_id, source, payment_method, card_id,
+    frequency, due_day, due_month, starts_on, generated_through, note, family_id
+  ) values (
+    v_uid, p_kind, btrim(left(v_name, 40)), p_amount_cents, p_category_id, p_source, v_payment, p_card_id,
+    p_frequency, extract(day from p_occurred_on)::int,
+    case when p_frequency = 'yearly' then extract(month from p_occurred_on)::int end,
+    p_occurred_on, v_period, nullif(left(v_note, 140), ''), v_family
+  ) returning id into v_rec;
+
+  insert into public.transactions (
+    user_id, kind, amount_cents, category_id, source, note, payment_method, card_id,
+    occurred_on, status, due_on, paid_on, recurrence_id, recurrence_period, family_id
+  ) values (
+    v_uid, p_kind, p_amount_cents, p_category_id, p_source, v_note, v_payment, p_card_id,
+    p_occurred_on, case when v_done then 'confirmed' else 'pending' end, p_occurred_on,
+    case when v_done then p_occurred_on end, v_rec, v_period, v_family
+  ) returning id into v_tx;
+
+  return v_tx;
+end;
+$$;
+
+drop function public.create_installment_purchase(bigint, integer, uuid, text, uuid, text, date);
+
+create function public.create_installment_purchase(
+  p_amount_cents bigint, p_count integer, p_category_id uuid, p_note text,
+  p_card_id uuid, p_payment_method text, p_purchased_on date, p_family boolean default false
+) returns uuid
+language plpgsql security invoker set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_family uuid := case when coalesce(p_family, false) then public.my_family_id() end;
+  v_plan uuid;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if coalesce(p_family, false) and v_family is null then
+    raise exception 'Família não encontrada.';
+  end if;
+  if p_count is null or p_count < 2 or p_count > 48 or p_amount_cents is null or p_amount_cents < p_count then
+    raise exception 'Parcelas inválidas.';
+  end if;
+  if p_purchased_on is null or p_purchased_on > v_today or p_purchased_on < date '2000-01-01' then
+    raise exception 'Data inválida.';
+  end if;
+  if not exists (select 1 from public.categories c where c.id = p_category_id and c.user_id = v_uid) then
+    raise exception 'Categoria não encontrada.';
+  end if;
+  if p_card_id is not null and not exists (select 1 from public.cards k where k.id = p_card_id and k.user_id = v_uid) then
+    raise exception 'Cartão não encontrado.';
+  end if;
+
+  insert into public.installment_plans (user_id, total_cents, installment_count, purchased_on)
+    values (v_uid, p_amount_cents, p_count, p_purchased_on)
+    returning id into v_plan;
+
+  insert into public.transactions (
+    user_id, kind, amount_cents, category_id, note, payment_method, card_id,
+    occurred_on, installment_plan_id, installment_number, installment_count, family_id
+  )
+  select
+    v_uid, 'expense', s.cents, p_category_id, nullif(btrim(p_note), ''),
+    case when p_card_id is null then p_payment_method end, p_card_id,
+    s.on_date, v_plan, s.installment_no, p_count, v_family
+  from public.installment_schedule(p_amount_cents, p_count, p_purchased_on) s;
+
+  return v_plan;
+end;
+$$;
+
+-- Quitar leva a família da compra, se quem quita ainda participa dela
+-- (ex-membro quita como gasto pessoal). Corpo igual ao da migração
+-- 20260928000001, mais family_id.
+create or replace function public.settle_installments(p_plan_id uuid, p_amount_cents bigint) returns uuid
+language plpgsql security invoker set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_first record;
+  v_count integer;
+  v_tx uuid;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  perform 1 from public.installment_plans p
+    where p.id = p_plan_id and p.user_id = v_uid and p.status = 'active'
+    for update;
+  if not found then
+    raise exception 'Compra não encontrada.';
+  end if;
+  if p_amount_cents is null or p_amount_cents <= 0 or p_amount_cents > 9999999999 then
+    raise exception 'Valor inválido.';
+  end if;
+
+  select t.category_id, t.note, t.payment_method, t.card_id, t.card_deleted, t.family_id into v_first
+    from public.transactions t
+    where t.installment_plan_id = p_plan_id and t.user_id = v_uid and t.installment_number is not null
+    order by t.installment_number
+    limit 1;
+
+  delete from public.transactions t
+    where t.installment_plan_id = p_plan_id and t.user_id = v_uid
+      and t.installment_number is not null and t.occurred_on > v_today;
+  get diagnostics v_count = row_count;
+  if v_count = 0 then
+    raise exception 'Nenhuma parcela futura.';
+  end if;
+
+  insert into public.transactions (
+    user_id, kind, amount_cents, category_id, note, payment_method, card_id, card_deleted,
+    occurred_on, installment_plan_id, family_id
+  ) values (
+    v_uid, 'expense', p_amount_cents, v_first.category_id, v_first.note, v_first.payment_method,
+    v_first.card_id, v_first.card_deleted, v_today, p_plan_id,
+    case when v_first.family_id = public.my_family_id() then v_first.family_id end
+  ) returning id into v_tx;
+
+  update public.installment_plans p set status = 'settled', closed_on = v_today
+    where p.id = p_plan_id and p.user_id = v_uid;
+
+  return v_tx;
+end;
+$$;
+
+revoke execute on function public.transactions_family_guard(), public.recurrences_family_guard()
+from public, anon, authenticated;
+
+revoke execute on function
+  public.generate_family_occurrences(),
+  public.family_expenses(date, date),
+  public.family_expense(uuid),
+  public.family_bills(),
+  public.family_recurrences(),
+  public.pay_family_bill(uuid),
+  public.admin_update_family_expense(uuid, bigint, date, text),
+  public.admin_delete_family_expense(uuid),
+  public.update_family_recurrence(uuid, text, bigint, integer),
+  public.end_family_recurrence(uuid),
+  public.create_recurring_transaction(text, bigint, uuid, text, text, text, date, text, uuid, boolean),
+  public.create_installment_purchase(bigint, integer, uuid, text, uuid, text, date, boolean)
+from public, anon;
+
+grant execute on function
+  public.generate_family_occurrences(),
+  public.family_expenses(date, date),
+  public.family_expense(uuid),
+  public.family_bills(),
+  public.family_recurrences(),
+  public.pay_family_bill(uuid),
+  public.admin_update_family_expense(uuid, bigint, date, text),
+  public.admin_delete_family_expense(uuid),
+  public.update_family_recurrence(uuid, text, bigint, integer),
+  public.end_family_recurrence(uuid),
+  public.create_recurring_transaction(text, bigint, uuid, text, text, text, date, text, uuid, boolean),
+  public.create_installment_purchase(bigint, integer, uuid, text, uuid, text, date, boolean)
+to authenticated;
