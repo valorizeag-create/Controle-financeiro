@@ -86,6 +86,7 @@ begin
     select v_uid, p_month, x.category_id, x.amount_cents
       from unnest(p_category_ids, p_amounts) as x (category_id, amount_cents)
       where x.amount_cents is not null
+      order by x.category_id
     on conflict (user_id, month, category_id)
       do update set amount_cents = excluded.amount_cents;
 

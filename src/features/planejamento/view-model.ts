@@ -34,7 +34,7 @@ export interface PlanejamentoView {
 
 export interface PlannedCardView {
   /** Frase de abertura: quanto falta na categoria mais perto do limite (ou o que passou). */
-  leadText: string
+  leadText: string | null
   withinText: string
   lines: BudgetLineView[]
 }
@@ -108,15 +108,19 @@ export function buildPlanejamento(input: BuildInput): PlanejamentoView {
   }
 }
 
-function leadOf(items: { line: BudgetLine; name: string }[]): string {
+function leadOf(items: { line: BudgetLine; name: string }[]): string | null {
   const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'pt-BR')
-  const open = items.filter((i) => i.line.state !== 'over')
+  const open = items.filter((i) => i.line.state !== 'over' && i.line.remainingCents > 0)
   if (open.length > 0) {
     const pick = [...open].sort((a, b) => a.line.remainingCents - b.line.remainingCents || byName(a, b))[0]
     return `Você ainda tem ${formatCompactBRL(pick.line.remainingCents)} para ${pick.name} este mês.`
   }
-  const pick = [...items].sort((a, b) => b.line.overCents - a.line.overCents || byName(a, b))[0]
-  return `${pick.name}: Passou ${formatCompactBRL(pick.line.overCents)} do planejado.`
+  const over = items.filter((i) => i.line.state === 'over')
+  if (over.length > 0) {
+    const pick = [...over].sort((a, b) => b.line.overCents - a.line.overCents || byName(a, b))[0]
+    return `${pick.name}: Passou ${formatCompactBRL(pick.line.overCents)} do planejado.`
+  }
+  return null
 }
 
 export function buildPlannedCard(input: BuildInput): PlannedCardView | null {

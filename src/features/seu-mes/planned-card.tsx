@@ -13,7 +13,7 @@ export function PlannedCard({ card }: { card: PlannedCardView }) {
         <Link href="/planejamento" className="-my-2 inline-flex min-h-11 items-center text-[15px] font-medium text-brand-text">Ver planejamento</Link>
       </div>
       <div className="flex flex-col gap-1">
-        <p className="m-0 text-[15px] text-ink">{card.leadText}</p>
+        {card.leadText ? <p className="m-0 text-[15px] text-ink">{card.leadText}</p> : null}
         <p className="m-0 text-[15px] text-body">{card.withinText}</p>
       </div>
       <BudgetLines lines={card.lines} showAdjust={false} />

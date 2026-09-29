@@ -114,9 +114,16 @@ describe('repetir o planejamento do mês anterior (RF-24)', () => {
   test('copia para as categorias ainda sem planejado; não sobrescreve nem duplica (Review Focus 3)', async () => {
     const [mercado, lazer] = await Promise.all(['mercado', 'lazer'].map((k) => categoryId(a, k)))
     await setMonth(a, '2026-05-01', [mercado, lazer], [100000, 30000])
+    // dois toques ao mesmo tempo, num mês ainda vazio: a cópia acontece uma vez só
+    const race = await Promise.all([
+      a.client.rpc('repeat_previous_budgets', { p_month: '2026-06-01' }),
+      a.client.rpc('repeat_previous_budgets', { p_month: '2026-06-01' }),
+    ])
+    expect(race.map((r) => r.error)).toEqual([null, null])
+    expect(race.reduce((sum, r) => sum + Number(r.data), 0)).toBe(2)
     const { data, error } = await a.client.rpc('repeat_previous_budgets', { p_month: '2026-06-01' })
     expect(error).toBeNull()
-    expect(data).toBe(2)
+    expect(data).toBe(0)
     await setMonth(a, '2026-07-01', [lazer], [50000])
     const partial = await a.client.rpc('repeat_previous_budgets', { p_month: '2026-07-01' })
     expect(partial.data).toBe(1)
@@ -127,7 +134,9 @@ describe('repetir o planejamento do mês anterior (RF-24)', () => {
       a.client.rpc('repeat_previous_budgets', { p_month: '2026-06-01' }),
     ])
     expect(again.map((r) => r.data)).toEqual([0, 0])
-    expect(await plan(a, '2026-06-01')).toHaveLength(2)
+    expect(await plan(a, '2026-06-01')).toEqual(
+      [{ category_id: mercado, amount_cents: 100000 }, { category_id: lazer, amount_cents: 30000 }].sort((x, y) => x.category_id.localeCompare(y.category_id)),
+    )
   })
 
   test('mês inválido é recusado; mês anterior vazio não copia nada; nada vem de outra pessoa', async () => {
@@ -155,8 +164,34 @@ describe('categoria excluída (RN-27, Review Focus 2)', () => {
   test('a soma em "Outros" nunca passa do limite do app', async () => {
     const [outros, compras] = await Promise.all([categoryId(a, 'outros'), categoryId(a, 'compras')])
     await setMonth(a, '2026-10-01', [compras, outros], [1, 9_999_999_999])
-    await a.client.rpc('delete_category', { p_category_id: compras })
+    const { error } = await a.client.rpc('delete_category', { p_category_id: compras })
+    expect(error).toBeNull()
     expect(await plan(a, '2026-10-01')).toEqual([{ category_id: outros, amount_cents: 9_999_999_999 }])
+  })
+
+  test('gasto pago com meta segue para "Outros" sem barrar: vínculo, valor e movimento intactos', async () => {
+    const [outros, transporte] = await Promise.all([categoryId(a, 'outros'), categoryId(a, 'transporte')])
+    const goal = await a.client.from('goals').insert({ user_id: a.id, name: 'Viagem', target_cents: 400000 }).select('id').single()
+    expect(goal.error).toBeNull()
+    const goalId = goal.data!.id as string
+    const dep = await a.client.rpc('deposit_to_goal', { p_goal_id: goalId, p_amount_cents: 20000 })
+    expect(dep.error).toBeNull()
+    const use = await a.client.rpc('use_goal', { p_goal_id: goalId, p_amount_cents: 12000, p_category_id: transporte })
+    expect(use.error).toBeNull()
+    const txId = (use.data as { tx_id: string }[])[0].tx_id
+    await setMonth(a, '2026-12-01', [transporte], [5000])
+
+    const { error } = await a.client.rpc('delete_category', { p_category_id: transporte })
+    expect(error).toBeNull()
+
+    const tx = await a.client.from('transactions').select('category_id, goal_id, goal_funded_cents, amount_cents').eq('id', txId).single()
+    expect(tx.error).toBeNull()
+    expect(tx.data).toMatchObject({ category_id: outros, goal_id: goalId })
+    expect(Number(tx.data!.goal_funded_cents)).toBe(12000)
+    expect(Number(tx.data!.amount_cents)).toBe(12000)
+    const moves = await a.client.from('goal_movements').select('kind, amount_cents').eq('transaction_id', txId)
+    expect(moves.data?.map((m) => [m.kind, Number(m.amount_cents)])).toEqual([['use', 12000]])
+    expect(await plan(a, '2026-12-01')).toEqual([{ category_id: outros, amount_cents: 5000 }])
   })
 
   test('apagar direto uma categoria com planejado é barrado — por isso existe a função', async () => {

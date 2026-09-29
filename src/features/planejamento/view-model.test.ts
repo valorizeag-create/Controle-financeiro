@@ -114,6 +114,34 @@ describe('bloco "Planejado" do Seu mês (RF-33)', () => {
     expect(card?.leadText).toBe(`Você ainda tem ${brl('100')} para Alfa este mês.`)
   })
 
+  test('frase de abertura: categoria exatamente no planejado (sobra 0) não abre a frase; vale a que ainda tem', () => {
+    const cats = [
+      { id: 'a', name: 'Alfa', defaultKey: null },
+      { id: 'b', name: 'Beta', defaultKey: null },
+    ]
+    const tx = [row({ id: 'x1', categoryId: 'a', amountCents: 10000 }), row({ id: 'x2', categoryId: 'b', amountCents: 5000 })]
+    const card = buildPlannedCard({ month: '2026-09', today, categories: cats, transactions: tx, budgets: [budget('a', 10000), budget('b', 20000)] })
+    expect(card?.leadText).toBe(`Você ainda tem ${brl('150')} para Beta este mês.`)
+  })
+
+  test('frase de abertura: tudo exatamente no planejado, sem categoria com sobra nem que passou: sem frase', () => {
+    const cats = [{ id: 'a', name: 'Alfa', defaultKey: null }]
+    const tx = [row({ id: 'x1', categoryId: 'a', amountCents: 10000 })]
+    const card = buildPlannedCard({ month: '2026-09', today, categories: cats, transactions: tx, budgets: [budget('a', 10000)] })
+    expect(card).not.toBeNull()
+    expect(card?.leadText).toBeNull()
+  })
+
+  test('frase de abertura: uma no planejado exato e outra que passou, abre com a que passou', () => {
+    const cats = [
+      { id: 'a', name: 'Alfa', defaultKey: null },
+      { id: 'b', name: 'Beta', defaultKey: null },
+    ]
+    const tx = [row({ id: 'x1', categoryId: 'a', amountCents: 10000 }), row({ id: 'x2', categoryId: 'b', amountCents: 12000 })]
+    const card = buildPlannedCard({ month: '2026-09', today, categories: cats, transactions: tx, budgets: [budget('a', 10000), budget('b', 10000)] })
+    expect(card?.leadText).toBe(`Beta: Passou ${brl('20')} do planejado.`)
+  })
+
   test('frase de abertura: se todas passaram, abre com a que mais passou, com o nome da categoria', () => {
     const cats = categories.filter((c) => ['c5', 'c4'].includes(c.id))
     const card = buildPlannedCard({ month: '2026-09', today, categories: cats, transactions, budgets: [budget('c5', 30000), budget('c4', 40000)] })

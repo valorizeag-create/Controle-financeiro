@@ -9,18 +9,18 @@ export function InOutChart({ bars }: { bars: ChartBar[] }) {
       </h2>
       <div className="flex gap-4 text-[13px] text-muted">
         <span className="flex items-center gap-1.5">
-          <span className="size-3 rounded-sm bg-brand" />
+          <span aria-hidden="true" className="size-3 rounded-sm bg-brand" />
           Entrou
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-3 rounded-sm bg-spend" />
+          <span aria-hidden="true" className="size-3 rounded-sm bg-spend" />
           Saiu
         </span>
       </div>
-      <div aria-hidden="true" className="flex h-[180px] items-end gap-2">
+      <div aria-hidden="true" data-testid="chart-bars" className="flex h-[180px] items-end gap-2">
         {bars.map((b) => (
           <div key={b.month} className="flex h-full min-w-0 flex-1 items-end justify-center gap-1">
-            <div className="w-full max-w-7 rounded-t-sm border border-brand-text-hover bg-brand" style={{ height: `${b.entrouHeight}%` }} />
+            <div className={`w-full max-w-7 rounded-t-sm bg-brand ${b.entrouHeight > 0 ? 'border border-brand-text-hover' : ''}`} style={{ height: `${b.entrouHeight}%` }} />
             <div className="w-full max-w-7 rounded-t-sm bg-spend" style={{ height: `${b.saiuHeight}%` }} />
           </div>
         ))}

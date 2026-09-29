@@ -23,3 +23,19 @@ test('Planejado: frase de abertura, quantas estão dentro, linhas sem link de aj
   expect(card.textContent).toContain('Passou R$ 20 do planejado.')
   expect(within(card).getAllByRole('link')).toHaveLength(1)
 })
+
+test('Planejado: sem frase de abertura, só a de quantas estão dentro', () => {
+  render(
+    <PlannedCard
+      card={{
+        leadText: null,
+        withinText: 'Você está dentro do planejado em 1 de 1 categorias.',
+        lines: [],
+      }}
+    />,
+  )
+  const card = screen.getByRole('region', { name: 'Planejado' })
+  expect(card.textContent).toContain('Você está dentro do planejado em 1 de 1 categorias.')
+  expect(card.textContent).not.toContain('Você ainda tem')
+  expect(card.querySelectorAll('p')).toHaveLength(1)
+})
