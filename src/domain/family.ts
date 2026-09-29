@@ -104,8 +104,8 @@ export function splitFamilyUse(
   parts: { userId: string; cents: Cents }[],
 ): { userId: string; cents: Cents }[] {
   const active = parts.filter((p) => p.cents > 0)
-  const total = active.reduce((a, p) => a + BigInt(p.cents), 0n)
-  if (fundedCents <= 0 || total === 0n) return []
+  const total = active.reduce((a, p) => a + BigInt(p.cents), BigInt(0))
+  if (fundedCents <= 0 || total === BigInt(0)) return []
   const funded = BigInt(fundedCents)
   if (funded > total) throw new RangeError('funded exceeds the sum of parts')
 
@@ -113,19 +113,19 @@ export function splitFamilyUse(
     const num = funded * BigInt(p.cents)
     return { userId: p.userId, part: p.cents, share: num / total, rest: num % total }
   })
-  let left = funded - rows.reduce((a, r) => a + r.share, 0n)
+  let left = funded - rows.reduce((a, r) => a + r.share, BigInt(0))
   const order = [...rows].sort((a, b) =>
     a.rest === b.rest
       ? b.part - a.part || (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0)
       : a.rest < b.rest ? 1 : -1,
   )
   for (const r of order) {
-    if (left <= 0n) break
-    r.share += 1n
-    left -= 1n
+    if (left <= BigInt(0)) break
+    r.share += BigInt(1)
+    left -= BigInt(1)
   }
   return rows
-    .filter((r) => r.share > 0n)
+    .filter((r) => r.share > BigInt(0))
     .sort((a, b) => (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0))
     .map((r) => ({ userId: r.userId, cents: Number(r.share) }))
 }
