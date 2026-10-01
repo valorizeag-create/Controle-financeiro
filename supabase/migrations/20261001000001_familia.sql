@@ -102,17 +102,25 @@ create table public.family_invites (
 create index family_invites_family_idx on public.family_invites (family_id);
 
 -- 4. Avisos para a família (RN-22d, RN-22e). Push e e-mail: Plano 8.
+--    member_id liga o aviso de saída à participação de quem saiu: é por ele
+--    que a exclusão do cadastro apaga o nome e o valor dos avisos antigos
+--    dessa pessoa (RN-24, seção 4). O aviso de cadastro excluído nunca tem
+--    nome, valor nem participação.
 create table public.family_events (
   id uuid primary key default gen_random_uuid(),
   family_id uuid not null references public.families (id) on delete no action,
   kind text not null check (kind in ('member_left', 'member_deleted')),
+  member_id uuid references public.family_members (id) on delete no action,
   member_name text check (member_name is null or char_length(member_name) between 1 and 60),
   goal_name text check (goal_name is null or char_length(goal_name) between 1 and 40),
   amount_cents bigint check (amount_cents is null or (amount_cents > 0 and amount_cents <= 9999999999)),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint family_event_deleted_is_anonymous
+    check (kind <> 'member_deleted' or (member_id is null and member_name is null and amount_cents is null))
 );
 
 create index family_events_family_idx on public.family_events (family_id, created_at desc);
+create index family_events_member_idx on public.family_events (member_id) where member_id is not null;
 
 -- 5. Quem sou eu na família. SECURITY DEFINER de propósito e com escopo
 --    mínimo: uma política de family_members que consultasse family_members
@@ -472,12 +480,17 @@ create trigger transactions_family_guard before insert or update on public.trans
 
 -- Molde da família: só de quem participa dela. Um molde ativo (ended_on
 -- vazio) da família exige participação a cada gravação: quem saiu não
--- reabre uma conta encerrada na saída.
+-- reabre uma conta encerrada na saída. A família do molde é escolhida ao
+-- criar e nunca muda: trocar depois deixaria ocorrências a pagar da família
+-- presas a um molde pessoal (ou o contrário).
 create function public.recurrences_family_guard() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
+  if tg_op = 'UPDATE' and new.family_id is distinct from old.family_id then
+    raise exception 'Família não encontrada.';
+  end if;
   if new.family_id is not null
-     and (tg_op = 'INSERT' or new.family_id is distinct from old.family_id or new.ended_on is null)
+     and (tg_op = 'INSERT' or new.ended_on is null)
      and not exists (
        select 1 from public.family_members fm
        where fm.family_id = new.family_id and fm.user_id = new.user_id and fm.left_at is null
@@ -1880,3 +1893,329 @@ grant execute on function
   public.delete_family_goal_use(uuid),
   public.delete_family_goal(uuid)
 to authenticated;
+
+-- ============================================================================
+-- Seção 4 — sair, remover, encerrar e excluir o cadastro (RN-22d/e, RN-23–25)
+-- ============================================================================
+--
+-- Travas: sair, remover e excluir o cadastro travam a família de forma
+-- exclusiva antes de qualquer outra coisa. As funções das seções 2 e 3 pegam a
+-- mesma trava (compartilhada) e conferem de novo a participação depois dela:
+-- quem estava no meio de guardar, pagar ou usar termina antes da saída, e quem
+-- chega depois já não participa.
+
+-- 37. Registro sem dono (Ex-membro, RN-24) não aponta para nada de quem
+--     excluiu o cadastro: nem cartão, nem parcela, nem molde, nem categoria
+--     (a categoria dele é apagada; o nome fica guardado em ex_category_*).
+--     E ex_category_* só existe em registro sem dono: quem tem cadastro (ou
+--     quem saiu da família) não muda a categoria que a família vê nos gastos
+--     dele gravando essas colunas direto. Para registro com dono, a regra do
+--     núcleo continua igual (gasto tem categoria; entrada, não).
+alter table public.transactions
+  drop constraint expense_has_category,
+  add constraint expense_has_category check (
+    case when user_id is null then category_id is null
+         else (kind = 'expense') = (category_id is not null) end
+  ),
+  add constraint ex_category_only_ownerless check (
+    user_id is null or (ex_category_key is null and ex_category_name is null)
+  );
+
+-- 38. Saída de uma pessoa (sair ou ser removida). Interna: sem grant; só as
+--     funções abaixo a chamam. SECURITY DEFINER: grava em family_members e
+--     family_events (sem gravação direta) e devolve a parte de quem sai.
+--     Em ordem:
+--     a) trava a família (quem chama já travou; aqui de novo, para a função
+--        nunca rodar sem ela) e a participação;
+--     b) quem administra não sai enquanto houver outras pessoas (RN-25): a
+--        família nunca fica sem administrador, nem numa corrida entre passar
+--        a administração e remover;
+--     c) trava as metas da família, em ordem de id, antes de somar as partes:
+--        um "guardar" que terminou enquanto esperávamos entra na soma, e o
+--        que chegar depois é recusado (a pessoa já não participa);
+--     d) RN-22d: cada parte maior que zero volta hoje para o Disponível de
+--        quem sai (return_on_exit), inclusive a sobra em meta já usada, com um
+--        aviso por meta; sem parte, um aviso só. Sozinha na família (que vai
+--        ser encerrada), nenhum aviso: não há quem leia. Os movimentos entram
+--        antes de left_at: a guarda só aceita movimento de quem participa.
+--        Depois daqui só quem participa tem parte nas metas da família;
+--     e) as contas da família que a pessoa criou são encerradas e as ainda
+--        não pagas dela saem (a família cria de novo se quiser). Assim nada
+--        dela fica "a pagar" na família, e excluir um cartão ou uma categoria
+--        depois da saída nunca esbarra na guarda da família;
+--     f) parcelas da família que ainda vão vencer voltam a ser só dela (a
+--        família não acompanha os gastos futuros de quem saiu). Os gastos já
+--        feitos ficam na família (RN-23): a participação guarda o nome;
+--     g) left_at.
+create function public.family_detach(p_family uuid, p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_member uuid;
+  v_name text;
+  v_role text;
+  v_others boolean;
+  v_any boolean := false;
+  r record;
+begin
+  perform 1 from public.families f where f.id = p_family for update;
+  select fm.id, fm.display_name, fm.role into v_member, v_name, v_role
+    from public.family_members fm
+    where fm.family_id = p_family and fm.user_id = p_user and fm.left_at is null
+    for update;
+  if not found then
+    raise exception 'Pessoa não encontrada.';
+  end if;
+
+  v_others := exists (
+    select 1 from public.family_members fm
+    where fm.family_id = p_family and fm.left_at is null and fm.user_id <> p_user
+  );
+  if v_role = 'admin' and v_others then
+    raise exception 'Escolha quem vai administrar a família antes de sair.';
+  end if;
+
+  perform 1 from public.goals g
+    where g.family_id = p_family and g.deleted_on is null
+    order by g.id
+    for update;
+
+  for r in
+    select g.id, g.name,
+           sum(case when m.kind = 'deposit' then m.amount_cents else -m.amount_cents end)::bigint as part
+    from public.goals g
+    join public.goal_movements m on m.goal_id = g.id and m.user_id = p_user
+    where g.family_id = p_family and g.deleted_on is null
+    group by g.id, g.name
+    having sum(case when m.kind = 'deposit' then m.amount_cents else -m.amount_cents end) > 0
+    order by g.name, g.id
+  loop
+    insert into public.goal_movements (user_id, goal_id, kind, amount_cents, occurred_on)
+      values (p_user, r.id, 'return_on_exit', r.part, v_today);
+    if v_others then
+      insert into public.family_events (family_id, kind, member_id, member_name, goal_name, amount_cents)
+        values (p_family, 'member_left', v_member, v_name, r.name, r.part);
+    end if;
+    v_any := true;
+  end loop;
+  if v_others and not v_any then
+    insert into public.family_events (family_id, kind, member_id, member_name)
+      values (p_family, 'member_left', v_member, v_name);
+  end if;
+
+  update public.recurrences rc set ended_on = v_today
+    where rc.family_id = p_family and rc.user_id = p_user and rc.ended_on is null;
+  delete from public.transactions t
+    where t.family_id = p_family and t.user_id = p_user and t.status = 'pending';
+
+  update public.transactions t set family_id = null
+    where t.family_id = p_family and t.user_id = p_user
+      and t.installment_plan_id is not null and t.occurred_on > v_today;
+
+  update public.family_members fm set left_at = now() where fm.id = v_member;
+end;
+$$;
+
+-- 39. Sair da família (RF-45, RN-25). Administrador com outras pessoas passa
+--     a administração antes; sozinho, a família é encerrada (e o convite
+--     pendente dela deixa de valer). SECURITY DEFINER: chama family_detach e
+--     grava em families. A participação é conferida de novo depois da trava.
+create function public.leave_family() returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_family uuid := public.my_family_id();
+  v_others integer;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null then
+    raise exception 'Família não encontrada.';
+  end if;
+  perform 1 from public.families f where f.id = v_family for update;
+  if public.my_family_id() is distinct from v_family then
+    raise exception 'Família não encontrada.';
+  end if;
+  select count(*) into v_others from public.family_members fm
+    where fm.family_id = v_family and fm.left_at is null and fm.user_id <> v_uid;
+  if public.my_family_role() = 'admin' and v_others > 0 then
+    raise exception 'Escolha quem vai administrar a família antes de sair.';
+  end if;
+  perform public.family_detach(v_family, v_uid);
+  if v_others = 0 then
+    update public.families f set ended_at = now() where f.id = v_family;
+    update public.family_invites i set revoked_at = now()
+      where i.family_id = v_family and i.accepted_at is null and i.revoked_at is null;
+  end if;
+end;
+$$;
+
+-- 40. Remover um membro (RF-44): só o administrador, nunca a si mesmo.
+--     SECURITY DEFINER: chama family_detach para outra pessoa. O papel é
+--     conferido de novo depois da trava da família: passar a administração e
+--     remover ao mesmo tempo (duas abas) nunca tira da família quem acabou de
+--     virar administrador. Só alcança quem participa da família de quem chama
+--     (family_detach procura a participação nela).
+create function public.remove_family_member(p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_family uuid := public.my_family_id();
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null or public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  perform 1 from public.families f where f.id = v_family for update;
+  if public.my_family_id() is distinct from v_family or public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  if p_user is null or p_user = v_uid then
+    raise exception 'Pessoa não encontrada.';
+  end if;
+  perform public.family_detach(v_family, p_user);
+end;
+$$;
+
+-- 41. Exclusão do cadastro (RN-22e, RN-24, LGPD; a tela é do Plano 9). Roda
+--     antes da cascata de auth.users, como dona da função (SECURITY DEFINER:
+--     mexe em registros e participações que a pessoa não alcança pela API, e
+--     quem apaga é o serviço de autenticação). Nunca recusa: nenhum estado da
+--     família impede alguém de excluir o cadastro. Não supõe participação
+--     ativa: quem já saiu também tem gastos no histórico de uma família (e,
+--     num banco antigo, poderia ter parte parada numa meta dela). Em ordem:
+--     a) família ativa (travada; a participação é lida de novo depois da
+--        trava): aviso sem nome por meta em que havia parte, ou um aviso só;
+--        se era a administradora, quem participa há mais tempo assume
+--        (RN-25) e o convite pendente cai, como ao passar a administração;
+--        sozinha, a família é encerrada (sem aviso: não há quem leia);
+--     b) contas da família ainda não pagas dela saem;
+--     c) uso de meta que não sustenta o guardado de mais ninguém sai com ela:
+--        o gasto pago com meta pessoal que foi marcado da família (só por
+--        gravação direta) e, em família encerrada, o uso em que só entraram
+--        partes dela ou de quem também já excluiu o cadastro;
+--     d) gastos da família ficam sem dono (Ex-membro), com o nome da
+--        categoria guardado, sem categoria, cartão, parcela nem molde. Em
+--        família encerrada ninguém mais lê o histórico: lá os gastos dela
+--        saem na cascata, como os pessoais — menos o gasto de um uso de meta
+--        em que outra pessoa ainda tem parte (apagar mexeria no guardado
+--        dela);
+--     e) a parte dela já usada em compras da família fica na compra, sem
+--        dono, por UPDATE (a cascata apagaria o movimento e a soma das partes
+--        da compra deixaria de bater); o resto do guardado sai na cascata, e
+--        as metas da família diminuem;
+--     f) os avisos antigos de saída dela perdem o nome e o valor (viram o
+--        aviso de cadastro excluído);
+--     g) participações perdem a pessoa e o nome.
+create function public.handle_user_deleted() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_family uuid;
+  v_role text;
+  v_next uuid;
+  v_any boolean := false;
+  r record;
+begin
+  loop
+    select fm.family_id into v_family from public.family_members fm
+      where fm.user_id = old.id and fm.left_at is null;
+    exit when v_family is null;
+    perform 1 from public.families f where f.id = v_family for update;
+    select fm.role into v_role from public.family_members fm
+      where fm.family_id = v_family and fm.user_id = old.id and fm.left_at is null;
+    exit when found;
+  end loop;
+
+  if v_family is not null then
+    select fm.user_id into v_next from public.family_members fm
+      where fm.family_id = v_family and fm.left_at is null and fm.user_id <> old.id
+      order by fm.joined_at, fm.user_id
+      limit 1;
+    if v_next is not null then
+      for r in
+        select g.name from public.goals g
+        join public.goal_movements m on m.goal_id = g.id and m.user_id = old.id
+        where g.family_id = v_family and g.deleted_on is null
+        group by g.id, g.name
+        having sum(case when m.kind = 'deposit' then m.amount_cents else -m.amount_cents end) > 0
+        order by g.name, g.id
+      loop
+        insert into public.family_events (family_id, kind, goal_name) values (v_family, 'member_deleted', r.name);
+        v_any := true;
+      end loop;
+      if not v_any then
+        insert into public.family_events (family_id, kind) values (v_family, 'member_deleted');
+      end if;
+    end if;
+    update public.family_members fm set left_at = now(), role = 'member'
+      where fm.family_id = v_family and fm.user_id = old.id and fm.left_at is null;
+    if v_next is null then
+      update public.families f set ended_at = now() where f.id = v_family;
+    elsif v_role = 'admin' then
+      update public.family_members fm set role = 'admin'
+        where fm.family_id = v_family and fm.user_id = v_next and fm.left_at is null;
+    end if;
+    if v_next is null or v_role = 'admin' then
+      update public.family_invites i set revoked_at = now()
+        where i.family_id = v_family and i.accepted_at is null and i.revoked_at is null;
+    end if;
+  end if;
+
+  delete from public.transactions t
+    where t.user_id = old.id and t.family_id is not null and t.status = 'pending';
+
+  delete from public.goal_movements m
+    using public.transactions t
+    where m.transaction_id = t.id and m.kind = 'use'
+      and t.user_id = old.id and t.family_id is not null
+      and (
+        exists (select 1 from public.goals g where g.id = t.goal_id and g.family_id is null)
+        or (
+          exists (select 1 from public.families f where f.id = t.family_id and f.ended_at is not null)
+          and not exists (
+            select 1 from public.goal_movements o
+            where o.transaction_id = t.id and o.user_id is not null and o.user_id <> old.id
+          )
+        )
+      );
+  delete from public.transactions t
+    using public.goals g
+    where t.user_id = old.id and t.family_id is not null and g.id = t.goal_id and g.family_id is null;
+
+  update public.transactions t set
+    ex_category_key = (select c.default_key from public.categories c where c.id = t.category_id and c.user_id = old.id),
+    ex_category_name = (select c.name from public.categories c where c.id = t.category_id and c.user_id = old.id),
+    user_id = null, category_id = null, card_id = null, card_deleted = false, payment_method = null,
+    installment_plan_id = null, installment_number = null, installment_count = null,
+    recurrence_id = null, recurrence_period = null
+  where t.user_id = old.id and t.family_id is not null
+    and (
+      exists (select 1 from public.families f where f.id = t.family_id and f.ended_at is null)
+      or exists (select 1 from public.goal_movements m where m.transaction_id = t.id)
+    );
+
+  update public.goal_movements m set user_id = null
+    where m.user_id = old.id and m.kind = 'use'
+      and exists (select 1 from public.goals g where g.id = m.goal_id and g.family_id is not null);
+
+  update public.family_events e set kind = 'member_deleted', member_id = null, member_name = null, amount_cents = null
+    where e.member_id in (select fm.id from public.family_members fm where fm.user_id = old.id);
+
+  update public.family_members fm set user_id = null, display_name = null, left_at = coalesce(fm.left_at, now())
+    where fm.user_id = old.id;
+
+  return old;
+end;
+$$;
+
+create trigger on_auth_user_deleted before delete on auth.users
+  for each row execute function public.handle_user_deleted();
+
+revoke execute on function public.family_detach(uuid, uuid), public.handle_user_deleted()
+from public, anon, authenticated;
+
+revoke execute on function public.leave_family(), public.remove_family_member(uuid) from public, anon;
+grant execute on function public.leave_family(), public.remove_family_member(uuid) to authenticated;
