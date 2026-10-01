@@ -19,6 +19,7 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 
 type DbError = { message?: string; code?: string }
 
+// As mensagens que o código reconhece vêm das funções do banco (migração 20261001000001, itens 20-23).
 // Impasse entre duas gravações ao mesmo tempo: tentar de novo funciona.
 const isDeadlock = (e: DbError) => e.code === '40P01'
 const says = (e: DbError, part: string) => (e.message ?? '').includes(part)
@@ -34,7 +35,10 @@ export async function payFamilyBill(fd: FormData): Promise<void> {
   const { error } = await supabase.rpc('pay_family_bill', { p_id: parsedId.data })
   if (error) {
     // Já paga (toque duplo) ou de fora da família: nada a avisar.
-    if (says(error, 'Conta não encontrada')) redirect(volta)
+    if (says(error, 'Conta não encontrada')) {
+      refreshMoneyViews()
+      redirect(volta)
+    }
     redirect(`${FAMILY_BILLS}?erro=1`)
   }
   await setFlash('Conta marcada como paga.')
@@ -57,7 +61,11 @@ export async function updateFamilyExpense(_: FormState, fd: FormData): Promise<F
     p_on: d.occurredOn,
     p_note: d.note,
   })
-  if (error) return errorState({ message: failure(error), values })
+  if (error) {
+    // Conta já paga com data de pagamento: o banco não aceita dia futuro. O dia errado fica no campo.
+    if (says(error, 'Data inválida')) return errorState({ fieldErrors: { date: 'Escolha o dia.' }, values })
+    return errorState({ message: failure(error), values })
+  }
   await setFlash('Alterações salvas.')
   refreshMoneyViews()
   redirect(`${FAMILY_HOME}?mes=${monthOf(d.occurredOn)}`)
@@ -70,7 +78,10 @@ export async function deleteFamilyExpense(fd: FormData): Promise<void> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('admin_delete_family_expense', { p_id: parsedId.data })
   if (error) {
-    if (says(error, 'Gasto não encontrado')) redirect(FAMILY_HOME)
+    if (says(error, 'Gasto não encontrado')) {
+      refreshMoneyViews()
+      redirect(FAMILY_HOME)
+    }
     redirect(`${FAMILY_HOME}?erro=1`)
   }
   await setFlash('Gasto excluído.')
@@ -106,7 +117,10 @@ export async function endFamilyBill(fd: FormData): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.rpc('end_family_recurrence', { p_id: parsedId.data })
   if (error) {
-    if (says(error, 'Conta não encontrada')) redirect(FAMILY_BILLS)
+    if (says(error, 'Conta não encontrada')) {
+      refreshMoneyViews()
+      redirect(FAMILY_BILLS)
+    }
     redirect(`${FAMILY_BILLS}?erro=1`)
   }
   await setFlash('Encerrada. O histórico continua no Extrato.')

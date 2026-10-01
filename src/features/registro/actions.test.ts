@@ -545,7 +545,7 @@ describe('"Gasto da família" (RN-18)', () => {
 
   test('editar: aplica a família e mantém todos os filtros de dono (nunca remover)', async () => {
     h.supabase = fakeSupabase({ kind: 'expense', existingFamilyId: null, family: 'f1' })
-    await redirectOf(updateTransaction(idle, form({ ...edit, family: 'on' })))
+    await redirectOf(updateTransaction(idle, form({ ...edit, family: 'on', familyChoice: '1' })))
     const upd = calls.find((c) => c.op === 'update:transactions')!
     expect(upd.payload).toMatchObject({ family_id: 'f1' })
     expect(upd.filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null, goal_id: null })
@@ -553,24 +553,34 @@ describe('"Gasto da família" (RN-18)', () => {
 
   test('editar: gasto que já é da família não troca de família; desmarcar tira', async () => {
     h.supabase = fakeSupabase({ kind: 'expense', existingFamilyId: 'f0', family: 'f1' })
-    await redirectOf(updateTransaction(idle, form({ ...edit, family: 'on' })))
+    await redirectOf(updateTransaction(idle, form({ ...edit, family: 'on', familyChoice: '1' })))
     expect(calls.find((c) => c.op === 'update:transactions')!.payload).not.toHaveProperty('family_id')
     expect(calls.some((c) => c.op === 'read:family_members')).toBe(false)
     calls.length = 0
-    await redirectOf(updateTransaction(idle, form(edit)))
+    await redirectOf(updateTransaction(idle, form({ ...edit, familyChoice: '1' })))
     expect(calls.find((c) => c.op === 'update:transactions')!.payload).toMatchObject({ family_id: null })
+  })
+
+  test('sem o marcador familyChoice, family_id não entra no update (nem lê a família)', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense', existingFamilyId: 'f0', family: 'f1' })
+    await redirectOf(updateTransaction(idle, form(edit)))
+    expect(calls.find((c) => c.op === 'update:transactions')!.payload).not.toHaveProperty('family_id')
+    calls.length = 0
+    await redirectOf(updateTransaction(idle, form({ ...edit, family: 'on' })))
+    expect(calls.find((c) => c.op === 'update:transactions')!.payload).not.toHaveProperty('family_id')
+    expect(calls.some((c) => c.op === 'read:family_members')).toBe(false)
   })
 
   test('editar sem família: recusa e mantém o que foi digitado', async () => {
     h.supabase = fakeSupabase({ kind: 'expense', existingFamilyId: null, family: null })
-    const state = await updateTransaction(idle, form({ ...edit, family: 'on' }))
+    const state = await updateTransaction(idle, form({ ...edit, family: 'on', familyChoice: '1' }))
     expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { family: 'on' } })
     expect(calls.some((c) => c.op === 'update:transactions')).toBe(false)
   })
 
   test('editar gasto pago com meta: o filtro de meta continua e nada muda', async () => {
     h.supabase = fakeSupabase({ kind: 'expense', goalFunded: true, existingFamilyId: null, family: 'f1' })
-    const state = await updateTransaction(idle, form({ ...edit, family: 'on' }))
+    const state = await updateTransaction(idle, form({ ...edit, family: 'on', familyChoice: '1' }))
     expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED })
     expect(calls.find((c) => c.op === 'update:transactions')!.filters).toMatchObject({ goal_id: null, installment_plan_id: null })
   })

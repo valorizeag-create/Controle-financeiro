@@ -14,11 +14,11 @@ import { familyPatch } from '@/features/familia/schemas'
 import { INSTALLMENT_MESSAGES, makeExpenseSchema, makeIncomeSchema, parseRepeat, readInstallments } from './schemas'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
-const EXPENSE_FIELDS = ['amount', 'categoryId', 'when', 'date', 'note', 'paymentMethod', 'cardId', 'family'] as const
+const EXPENSE_FIELDS = ['amount', 'categoryId', 'when', 'date', 'note', 'paymentMethod', 'cardId', 'family', 'familyChoice'] as const
 const INCOME_FIELDS = ['amount', 'source', 'when', 'date'] as const
 const REPEAT_FIELDS = ['repeats', 'frequency'] as const
 const INSTALLMENT_FIELDS = ['parcelado', 'installments'] as const
-const ALL_FIELDS = ['amount', 'categoryId', 'source', 'when', 'date', 'note', 'paymentMethod', 'cardId', 'family'] as const
+const ALL_FIELDS = ['amount', 'categoryId', 'source', 'when', 'date', 'note', 'paymentMethod', 'cardId', 'family', 'familyChoice'] as const
 const recordId = z.uuid()
 
 // Impasse entre duas gravações ao mesmo tempo (40P01): tentar de novo funciona.
@@ -190,14 +190,18 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     if (dateColumn === 'paid_on' && d.occurredOn > today) return errorState({ fieldErrors: { date: 'Escolha o dia.' }, values })
     // "Gasto da família": só em gasto confirmado, nunca pago com meta (o filtro goal_id abaixo
     // também barra). A família vem do banco; sem família, o aviso é o de sempre.
+    // Só mexe na família quando o formulário declara a escolha (campo oculto familyChoice=1, ao lado
+    // da caixa). Sem o marcador (formulário antigo ou sem a caixa), family_id fica como está.
     const wantsFamily = values.family === 'on'
     let patch: { family_id?: string | null } = {}
-    if (wantsFamily && !existing.family_id) {
-      const mine = await familyOf(supabase, user.id)
-      if (!mine.ok || !mine.id) return errorState({ message: SAVE_FAILED, values })
-      patch = familyPatch({ existingFamilyId: null, wantsFamily, myFamilyId: mine.id })
-    } else {
-      patch = familyPatch({ existingFamilyId: existing.family_id ?? null, wantsFamily, myFamilyId: null })
+    if (values.familyChoice === '1') {
+      if (wantsFamily && !existing.family_id) {
+        const mine = await familyOf(supabase, user.id)
+        if (!mine.ok || !mine.id) return errorState({ message: SAVE_FAILED, values })
+        patch = familyPatch({ existingFamilyId: null, wantsFamily, myFamilyId: mine.id })
+      } else {
+        patch = familyPatch({ existingFamilyId: existing.family_id ?? null, wantsFamily, myFamilyId: null })
+      }
     }
     const { data, error } = await supabase
       .from('transactions')

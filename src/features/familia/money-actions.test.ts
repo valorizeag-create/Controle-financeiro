@@ -118,6 +118,15 @@ describe('administrador: gasto da família', () => {
     expect(h.setFlash).not.toHaveBeenCalled()
   })
 
+  test('data que o banco recusa (conta paga no futuro) fica no campo da data', async () => {
+    rpcError('admin_update_family_expense', 'Data inválida.')
+    expect(await updateFamilyExpense(idle, form({ id: UUID, amount: '10', when: 'other', date: '2027-01-01', note: '' }))).toMatchObject({
+      status: 'error',
+      fieldErrors: { date: 'Escolha o dia.' },
+      values: { amount: '10' },
+    })
+  })
+
   test('exclui e volta ao mês do gasto excluído', async () => {
     rpcData('admin_delete_family_expense', '2026-09-03')
     expect(await redirectOf(deleteFamilyExpense(form({ id: UUID })))).toBe('/inicio/familia?mes=2026-09')
