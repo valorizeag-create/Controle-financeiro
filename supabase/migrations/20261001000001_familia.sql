@@ -17,8 +17,10 @@ create extension if not exists pgcrypto with schema extensions;
 -- Seção 1 — família, participantes, convites e administração
 -- ============================================================================
 
--- 1. Família. Nunca é apagada: sem ninguém, fica encerrada (o histórico de
---    Ex-membro fica nela, RN-24).
+-- 1. Família. Nunca é apagada: sem ninguém, fica encerrada. O histórico de
+--    Ex-membro (RN-24) fica na família enquanto ela tem alguém; numa família
+--    encerrada ninguém lê mais nada, e os gastos de quem excluiu o cadastro
+--    por último saem com ele (seção 4, item 41).
 create table public.families (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(name) between 1 and 40 and name = btrim(regexp_replace(name, '\s+', ' ', 'g'))),
@@ -447,6 +449,13 @@ create index recurrences_family_idx on public.recurrences (family_id) where fami
 --        user_id) do Plano 3 continua valendo: uma ocorrência só nasce de um
 --        molde da própria pessoa (quem paga a conta de outro membro ganha um
 --        registro novo, sem molde — item 21).
+--     Quando o registro entra na família, troca de dono ou vira conta a pagar,
+--     a guarda pega antes a trava compartilhada da família: uma gravação
+--     direta feita no mesmo instante de uma saída (seção 4) espera a saída
+--     terminar e é recusada, em vez de deixar com quem saiu uma conta a pagar
+--     que a saída já não alcança. Só nesses casos: alterar um registro que já
+--     era da família não pega a trava (a saída mexe nesses registros depois de
+--     travar a família; a ordem contrária aqui seria um impasse).
 create function public.transactions_family_guard() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -461,6 +470,21 @@ begin
        where fm.family_id = new.family_id and fm.user_id = new.user_id and fm.left_at is null
      ) then
     raise exception 'Família não encontrada.';
+  end if;
+  -- Só quem já passou na conferência acima pega a trava (ninguém trava a
+  -- família dos outros por uma gravação direta); depois dela, a participação
+  -- é conferida de novo.
+  if new.user_id is not null
+     and (tg_op = 'INSERT' or new.family_id is distinct from old.family_id
+          or new.user_id is distinct from old.user_id
+          or (new.status = 'pending' and old.status is distinct from 'pending')) then
+    perform 1 from public.families f where f.id = new.family_id for share;
+    if not exists (
+      select 1 from public.family_members fm
+      where fm.family_id = new.family_id and fm.user_id = new.user_id and fm.left_at is null
+    ) then
+      raise exception 'Família não encontrada.';
+    end if;
   end if;
   if new.status = 'pending'
      and (tg_op = 'INSERT' or new.status is distinct from old.status
@@ -482,7 +506,9 @@ create trigger transactions_family_guard before insert or update on public.trans
 -- vazio) da família exige participação a cada gravação: quem saiu não
 -- reabre uma conta encerrada na saída. A família do molde é escolhida ao
 -- criar e nunca muda: trocar depois deixaria ocorrências a pagar da família
--- presas a um molde pessoal (ou o contrário).
+-- presas a um molde pessoal (ou o contrário). Criar ou reabrir um molde da
+-- família espera, pela trava compartilhada da família, uma saída em andamento
+-- (mesmo motivo e mesmo cuidado da guarda dos registros, acima).
 create function public.recurrences_family_guard() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -496,6 +522,16 @@ begin
        where fm.family_id = new.family_id and fm.user_id = new.user_id and fm.left_at is null
      ) then
     raise exception 'Família não encontrada.';
+  end if;
+  if new.family_id is not null
+     and (tg_op = 'INSERT' or (new.ended_on is null and old.ended_on is not null)) then
+    perform 1 from public.families f where f.id = new.family_id for share;
+    if not exists (
+      select 1 from public.family_members fm
+      where fm.family_id = new.family_id and fm.user_id = new.user_id and fm.left_at is null
+    ) then
+      raise exception 'Família não encontrada.';
+    end if;
   end if;
   return new;
 end;
@@ -585,6 +621,14 @@ begin
     raise exception 'Sessão necessária.' using errcode = '42501';
   end if;
   if v_family is null then
+    return 0;
+  end if;
+  -- A família primeiro, os moldes depois: a mesma ordem da saída (seção 4),
+  -- que trava a família e só então encerra os moldes de quem sai. Sem isto,
+  -- gerar (molde, depois a família pela FK da ocorrência) e sair (família,
+  -- depois o molde) ao mesmo tempo terminariam em impasse.
+  perform 1 from public.families f where f.id = v_family for share;
+  if public.my_family_id() is distinct from v_family then
     return 0;
   end if;
 
@@ -1898,11 +1942,29 @@ to authenticated;
 -- Seção 4 — sair, remover, encerrar e excluir o cadastro (RN-22d/e, RN-23–25)
 -- ============================================================================
 --
--- Travas: sair, remover e excluir o cadastro travam a família de forma
--- exclusiva antes de qualquer outra coisa. As funções das seções 2 e 3 pegam a
--- mesma trava (compartilhada) e conferem de novo a participação depois dela:
--- quem estava no meio de guardar, pagar ou usar termina antes da saída, e quem
--- chega depois já não participa.
+-- Travas: sair e remover travam a família de forma exclusiva antes de
+-- qualquer outra coisa (a exclusão do cadastro também, mas só depois da linha
+-- de auth.users, que o banco trava antes do gatilho). Pegam a mesma trava, de
+-- forma compartilhada, e conferem de novo a participação depois dela:
+--   - seção 2: generate_family_occurrences, pay_family_bill,
+--     admin_update_family_expense, admin_delete_family_expense,
+--     update_family_recurrence, end_family_recurrence;
+--   - seção 3: create_family_goal, update_family_goal, deposit_family_goal,
+--     withdraw_family_goal, use_family_goal, delete_family_goal_use,
+--     delete_family_goal;
+--   - as guardas transactions_family_guard e recurrences_family_guard, só
+--     quando algo entra na família (registro novo, molde novo ou reaberto,
+--     gasto que vira conta a pagar).
+-- Assim, quem estava no meio de gerar, guardar, pagar ou usar termina antes da
+-- saída, e quem chega depois já não participa. A ordem é sempre a família
+-- primeiro e as linhas (moldes, metas, registros) depois.
+-- Não pegam a trava (são SECURITY INVOKER, e quem chama não pode travar a
+-- família): as leituras e as funções pessoais dos planos anteriores
+-- (delete_card, delete_category, update_recurrence, settle_installments…) e
+-- as create_* do Anotar. Se alguém é removido no mesmo instante em que mexe
+-- nos próprios registros da família por uma delas, ou exclui o cadastro no
+-- instante em que a família grava algo em nome dele, o banco pode desfazer um
+-- dos dois pedidos (impasse, 40P01): nada fica pela metade, e repetir resolve.
 
 -- 37. Registro sem dono (Ex-membro, RN-24) não aponta para nada de quem
 --     excluiu o cadastro: nem cartão, nem parcela, nem molde, nem categoria
@@ -2190,7 +2252,11 @@ begin
     ex_category_name = (select c.name from public.categories c where c.id = t.category_id and c.user_id = old.id),
     user_id = null, category_id = null, card_id = null, card_deleted = false, payment_method = null,
     installment_plan_id = null, installment_number = null, installment_count = null,
-    recurrence_id = null, recurrence_period = null
+    recurrence_id = null, recurrence_period = null,
+    -- Em família encerrada o gasto só fica pelo valor (a parte de outra
+    -- pessoa); a nota que ela escreveu não tem mais quem leia.
+    note = case when exists (select 1 from public.families f where f.id = t.family_id and f.ended_at is null)
+                then t.note end
   where t.user_id = old.id and t.family_id is not null
     and (
       exists (select 1 from public.families f where f.id = t.family_id and f.ended_at is null)

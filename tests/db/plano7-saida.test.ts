@@ -29,11 +29,13 @@ async function deposit(u: TestUser, goal: string, cents: number) {
   if (error) throw error
 }
 async function totals(u: TestUser): Promise<Record<string, number>> {
-  const { data } = await u.client.rpc('family_goal_totals')
+  const { data, error } = await u.client.rpc('family_goal_totals')
+  if (error) throw error
   return Object.fromEntries(((data ?? []) as { goal_id: string; saved_cents: number }[]).map((r) => [r.goal_id, Number(r.saved_cents)]))
 }
 async function events(u: TestUser) {
-  const { data } = await u.client.from('family_events').select('kind, member_name, goal_name, amount_cents').order('created_at').order('goal_name')
+  const { data, error } = await u.client.from('family_events').select('kind, member_name, goal_name, amount_cents').order('created_at').order('goal_name')
+  if (error) throw error
   return (data ?? []).map((e) => ({ ...e, amount_cents: e.amount_cents === null ? null : Number(e.amount_cents) }))
 }
 async function familyRows(u: TestUser, to = today) {
@@ -498,6 +500,67 @@ describe('saída, remoção e administração ao mesmo tempo (I1, I4)', () => {
     }
   })
 
+  test('sair e gerar as contas da família ao mesmo tempo: os dois pedidos terminam, sem impasse (ordem das travas)', async () => {
+    const [raul, sara] = [await user('Raul'), await user('Sara')]
+    const fam = await createFamily(raul, 'Família Raul')
+    await joinFamily(sara, raul)
+    // Contas da Sara ainda não geradas neste mês: é o que a geração trava e a saída encerra.
+    const open: string[] = []
+    for (const name of ['Luz', 'Água', 'Gás']) {
+      const { data, error } = await sara.client.from('recurrences').insert({
+        user_id: sara.id, kind: 'expense', name, amount_cents: 5000, category_id: await categoryId(sara, 'casa'),
+        frequency: 'monthly', due_day: 28, starts_on: monthStart, family_id: fam,
+      }).select('id').single()
+      if (error) throw error
+      open.push(data.id as string)
+    }
+    const [left, generated] = await Promise.all([
+      sara.client.rpc('leave_family'),
+      raul.client.rpc('generate_family_occurrences'),
+    ])
+    expect(left.error).toBeNull()
+    expect(generated.error).toBeNull()
+    expect((await sara.client.rpc('my_family_id')).data).toBeNull()
+    // Quem quer que tenha chegado primeiro: nada da Sara fica aberto nem a pagar na família.
+    const templates = (await admin.from('recurrences').select('ended_on').in('id', open)).data!
+    expect(templates.map((t) => t.ended_on)).toEqual([today, today, today])
+    expect((await admin.from('transactions').select('id').in('recurrence_id', open)).data).toEqual([])
+    expect((await raul.client.rpc('family_bills')).data).toEqual([])
+    expect((await raul.client.rpc('generate_family_occurrences')).error).toBeNull()
+  })
+
+  test('criar uma conta da família por gravação direta no instante da remoção: nada aberto fica com quem saiu', async () => {
+    const [teo, uli] = [await user('Teo'), await user('Uli')]
+    const fam = await createFamily(teo, 'Família Teo')
+    await joinFamily(uli, teo)
+    const card = (await uli.client.from('cards').insert({ user_id: uli.id, nickname: 'Inter', kind: 'debit', color: 'orange' }).select('id').single()).data!.id
+    const [inserted, removed] = await Promise.all([
+      uli.client.from('recurrences').insert({
+        user_id: uli.id, kind: 'expense', name: 'Direta', amount_cents: 100, category_id: await categoryId(uli, 'casa'),
+        frequency: 'monthly', due_day: 10, starts_on: monthStart, family_id: fam, card_id: card,
+      }),
+      teo.client.rpc('remove_family_member', { p_user: uli.id }),
+    ])
+    expect(removed.error).toBeNull()
+    if (inserted.error !== null) expect(inserted.error.message).toContain('Família não encontrada.')
+    const leftOpen = await admin.from('recurrences').select('id').eq('user_id', uli.id).eq('family_id', fam).is('ended_on', null)
+    expect(leftOpen.data).toEqual([])
+    expect((await uli.client.rpc('delete_card', { p_card_id: card })).error).toBeNull()
+  })
+
+  test('sozinho e com parte numa meta: a parte volta, a família é encerrada e nenhum aviso é gravado', async () => {
+    const vito = await user('Vito')
+    const fam = await createFamily(vito, 'Família Vito')
+    const goal = await familyGoal(vito, 'Viagem')
+    await deposit(vito, goal, 4200)
+    expect((await vito.client.rpc('leave_family')).error).toBeNull()
+    expect((await vito.client.from('goal_movements').select('kind, amount_cents, occurred_on').eq('goal_id', goal).order('created_at')).data)
+      .toEqual([{ kind: 'deposit', amount_cents: 4200, occurred_on: today }, { kind: 'return_on_exit', amount_cents: 4200, occurred_on: today }])
+    expect(await part(vito, goal)).toBe(0)
+    expect((await admin.from('families').select('ended_at').eq('id', fam).single()).data?.ended_at).not.toBeNull()
+    expect(await familyEvents(fam)).toEqual([])
+  })
+
   test('família encerrada pela saída: o convite pendente deixa de valer', async () => {
     const quim = await user('Quim')
     const fam = await createFamily(quim, 'Família Quim')
@@ -518,7 +581,8 @@ describe('saída e remoção só para quem participa, e da própria família (I5
     expect((await anon.rpc('remove_family_member', { p_user: fabio.id })).error?.message).toContain('permission denied')
     for (const client of [anon, bia.client, ana.client]) {
       expect((await client.rpc('family_detach', { p_family: famAna, p_user: fabio.id })).error?.message).toContain('permission denied')
-      expect((await client.rpc('handle_user_deleted')).error).not.toBeNull()
+      // Função de gatilho: a API nem a oferece (PGRST202) ou o banco recusa (42501).
+      expect(['PGRST202', '42501']).toContain((await client.rpc('handle_user_deleted')).error?.code)
     }
     expect((await fabio.client.rpc('my_family_id')).data).toBe(famAna)
     expect((await ana.client.rpc('my_family_role')).data).toBe('admin')
