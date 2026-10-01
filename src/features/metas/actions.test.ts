@@ -122,6 +122,25 @@ describe('createGoal', () => {
     const state = await actions.createGoal({ status: 'idle' }, form({ name: 'Reserva', target: '10', deadline: '' }))
     expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { name: 'Reserva' } })
   })
+
+  test('"Meta da família": cria pela função do banco, sem inserir em goals nem mandar família', async () => {
+    h.supabase = fakeSupabase()
+    const url = await redirectOf(actions.createGoal({ status: 'idle' }, form({ name: 'Reforma', target: '10.000', deadline: '', family: 'on', family_id: 'f9' })))
+    expect(url).toBe('/metas')
+    expect(calls).toEqual([{ op: 'rpc:create_family_goal', filters: {}, payload: { p_name: 'Reforma', p_target_cents: 1000000, p_deadline: null } }])
+    expect(h.setFlash).toHaveBeenCalledWith('Meta criada. O primeiro passo já foi dado.')
+    expect(h.refresh).toHaveBeenCalled()
+  })
+
+  test('"Meta da família" com prazo manda o 1º dia do mês; falha avisa sem perder nada; impasse pede para tentar de novo', async () => {
+    h.supabase = fakeSupabase()
+    await redirectOf(actions.createGoal({ status: 'idle' }, form({ name: 'Reforma', target: '10.000', deadline: '2027-03', family: 'on' })))
+    expect((calls[0].payload as { p_deadline: unknown }).p_deadline).toBe('2027-03-01')
+    h.supabase = fakeSupabase({ rpcError: { message: 'Família não encontrada.' } })
+    expect(await actions.createGoal({ status: 'idle' }, form({ name: 'Reforma', target: '10', deadline: '', family: 'on' }))).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { name: 'Reforma' } })
+    h.supabase = fakeSupabase({ rpcError: { code: '40P01', message: 'deadlock' } })
+    expect(await actions.createGoal({ status: 'idle' }, form({ name: 'Reforma', target: '10', deadline: '', family: 'on' }))).toMatchObject({ message: 'Algo não saiu como esperado do nosso lado. Tente novamente em instantes.' })
+  })
 })
 
 describe('updateGoal', () => {

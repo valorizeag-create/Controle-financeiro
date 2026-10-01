@@ -7,6 +7,7 @@ import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/
 import { setFlash } from '@/lib/flash'
 import { refreshMoneyViews } from '@/lib/refresh'
 import { todayInSaoPaulo } from '@/domain/dates'
+import { UNEXPECTED } from '@/features/auth/errors'
 import { makeGoalSchema } from './schemas'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
@@ -22,6 +23,18 @@ export async function createGoal(_: FormState, fd: FormData): Promise<FormState>
   if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error), values })
   const d = parsed.data
   const supabase = await createClient()
+  // "Meta da família": a família vem do banco (auth.uid()); o formulário só diz "sim" ou "não".
+  if (fd.get('family') === 'on') {
+    const { error: familyError } = await supabase.rpc('create_family_goal', {
+      p_name: d.name,
+      p_target_cents: d.targetCents,
+      p_deadline: d.deadline ? `${d.deadline}-01` : null,
+    })
+    if (familyError) return errorState({ message: familyError.code === '40P01' ? UNEXPECTED : SAVE_FAILED, values })
+    await setFlash('Meta criada. O primeiro passo já foi dado.')
+    refreshMoneyViews()
+    redirect('/metas')
+  }
   const { data, error } = await supabase
     .from('goals')
     .insert({
