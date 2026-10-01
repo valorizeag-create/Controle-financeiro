@@ -1166,9 +1166,11 @@ to authenticated;
 -- Regra de ouro das metas da família: só quem participa agora tem parte
 -- nelas. Quem sai recebe a parte de volta na saída (seção 4), e nenhuma
 -- função abaixo devolve dinheiro, grava ou apaga algo de quem já não
--- participa (C1 da revisão de segurança). Travas sempre na mesma ordem:
--- família (compartilhada) → meta → gasto; a saída (seção 4) trava a família
--- de forma exclusiva, então espera quem está no meio de uma destas funções,
+-- participa (C1 da revisão de segurança). Travas: sempre a família primeiro
+-- (compartilhada), depois a meta; só delete_family_goal_use trava também o
+-- gasto, entre a família e a meta (nenhuma outra função trava um gasto que já
+-- existe e depois a meta, então não há impasse). A saída (seção 4) trava a
+-- família de forma exclusiva: espera quem está no meio de uma destas funções,
 -- e cada função confere de novo a família e o papel depois da trava.
 
 -- 25. Meta da família: sem dono (user_id nulo) e com família. Cada parte é
@@ -1179,7 +1181,10 @@ alter table public.goals
   alter column user_id drop not null,
   add column family_id uuid references public.families (id) on delete no action,
   add column created_by uuid references auth.users (id) on delete set null,
-  add constraint goal_owner_or_family check ((user_id is null) <> (family_id is null));
+  add constraint goal_owner_or_family check ((user_id is null) <> (family_id is null)),
+  -- "Quem criou" só existe na meta da família (a pessoal é da dona): ninguém
+  -- grava o id de outra pessoa na própria meta.
+  add constraint goal_created_by_only_family check (created_by is null or family_id is not null);
 
 create index goals_family_idx on public.goals (family_id) where family_id is not null;
 
@@ -1311,6 +1316,32 @@ $$;
 --     de outra pessoa por uma gravação direta, M5), e a participação de novo
 --     depois dela: uma saída que terminou enquanto esperávamos a trava já
 --     devolveu a parte de quem saiu, e nada mais entra em nome dessa pessoa.
+--
+--     Antes dela roda goal_movements_author_guard (os gatilhos BEFORE disparam
+--     em ordem de nome: "author" vem antes de "guard"). Esta guarda roda antes
+--     da RLS e responde conforme o saldo ("Valor maior que o guardado.",
+--     "Valor inválido."); sem a outra, um membro gravaria direto um movimento
+--     em nome de outro membro e, pela resposta, descobriria a parte dele
+--     (A4 B). Por isso uma gravação direta pela API (papel authenticated ou
+--     anon) em nome de outra pessoa é recusada antes de qualquer consulta,
+--     sempre com a mesma mensagem, seja qual for o valor. SECURITY INVOKER de
+--     propósito: current_user é o papel de quem grava. Dentro das funções
+--     SECURITY DEFINER deste arquivo (uso, exclusão e saída, que gravam o
+--     movimento de cada membro) current_user é o dono delas, e a gravação
+--     passa; as funções pessoais do Plano 5 gravam sempre auth.uid().
+create function public.goal_movements_author_guard() returns trigger
+language plpgsql security invoker set search_path = '' as $$
+begin
+  if current_user in ('authenticated', 'anon') and new.user_id is distinct from auth.uid() then
+    raise exception 'Meta não encontrada.';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger goal_movements_author_guard before insert on public.goal_movements
+  for each row execute function public.goal_movements_author_guard();
+
 create or replace function public.goal_movements_guard() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -1822,6 +1853,7 @@ $$;
 
 revoke execute on function
   public.goals_guard(),
+  public.goal_movements_author_guard(),
   public.goal_movements_guard(),
   public.transactions_goal_link_guard(),
   public.goal_movements_use_delete_guard()

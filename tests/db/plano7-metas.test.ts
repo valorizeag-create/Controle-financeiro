@@ -145,8 +145,24 @@ describe('guardar e tirar a própria parte (RN-22, RN-22a, A4 B)', () => {
     const direct = await bia.client.from('goal_movements').insert({ user_id: bia.id, goal_id: goal, kind: 'deposit', amount_cents: 100, occurred_on: today })
     expect(direct.error).not.toBeNull()
     const asOther = await bia.client.from('goal_movements').insert({ user_id: ana.id, goal_id: goal, kind: 'withdraw', amount_cents: 100, occurred_on: today })
-    expect(asOther.error).not.toBeNull()
+    expect(asOther.error?.message).toContain('Meta não encontrada.')
     expect(await total(ana, goal)).toBe(300000)
+  })
+
+  test('gravar direto em nome de outro membro dá sempre a mesma recusa, seja qual for o valor: a parte dele não vaza (A4 B)', async () => {
+    const before = [await part(ana, goal), await total(ana, goal)]
+    expect(before[0]).toBe(100000)
+    const answers: string[] = []
+    for (const kind of ['withdraw', 'deposit']) {
+      for (const cents of [1, 100000, 100001, 9_999_999_999]) {
+        const r = await bia.client.from('goal_movements').insert({ user_id: ana.id, goal_id: goal, kind, amount_cents: cents, occurred_on: today })
+        expect(r.error, `${kind} ${cents}`).not.toBeNull()
+        answers.push(`${r.error?.code} ${r.error?.message}`)
+      }
+    }
+    expect(new Set(answers).size).toBe(1)
+    expect(answers[0]).toContain('Meta não encontrada.')
+    expect([await part(ana, goal), await total(ana, goal)]).toEqual(before)
   })
 
   test('o Guardado de cada pessoa inclui a parte dela na meta da família', async () => {
@@ -338,7 +354,7 @@ describe('metas da família: só para quem participa, e da própria família (I5
       ['delete_family_goal', { p_goal_id: goal }],
     ]
     for (const [fn, args] of calls) {
-      expect((await anon.rpc(fn, args)).error, fn).not.toBeNull()
+      expect((await anon.rpc(fn, args)).error?.message, fn).toContain('permission denied')
     }
     for (const fn of ['goals_guard', 'goal_movements_guard', 'transactions_goal_link_guard', 'goal_movements_use_delete_guard']) {
       expect((await bia.client.rpc(fn)).error, fn).not.toBeNull()
@@ -399,6 +415,42 @@ describe('metas da família: só para quem participa, e da própria família (I5
       .toEqual({ family_id: famAna, goal_id: goal, goal_funded_cents: 1000 })
     expect(await part(bia, goal)).toBe(0)
     expect(await total(eva, goal)).toBe(0)
+  })
+})
+
+describe('dois pedidos ao mesmo tempo na meta da família', () => {
+  test('dois usos ao mesmo tempo: só um acontece, e a parte de cada um sai uma vez', async () => {
+    const goal = await familyGoal(bia)
+    await deposit(ana, goal, 1000)
+    await deposit(bia, goal, 3000)
+    const casa = await categoryId(ana, 'casa')
+    const results = await Promise.all([
+      ana.client.rpc('use_family_goal', { p_goal_id: goal, p_amount_cents: 4000, p_category_id: casa }),
+      ana.client.rpc('use_family_goal', { p_goal_id: goal, p_amount_cents: 4000, p_category_id: casa }),
+    ])
+    expect(results.filter((r) => r.error === null)).toHaveLength(1)
+    expect(byUser(await uses(goal))).toEqual({ [ana.id]: 1000, [bia.id]: 3000 })
+    expect(await total(eva, goal)).toBe(0)
+  })
+
+  test('tirar e usar ao mesmo tempo: quem chega primeiro decide, e nenhum centavo some nem sai duas vezes', async () => {
+    const goal = await familyGoal(bia)
+    await deposit(ana, goal, 1000)
+    await deposit(bia, goal, 3000)
+    const casa = await categoryId(ana, 'casa')
+    const [taken, used] = await Promise.all([
+      bia.client.rpc('withdraw_family_goal', { p_goal_id: goal, p_amount_cents: 3000 }),
+      ana.client.rpc('use_family_goal', { p_goal_id: goal, p_amount_cents: 4000, p_category_id: casa }),
+    ])
+    expect(used.error).toBeNull()
+    const funded = Number((used.data as { funded_cents: number }[])[0].funded_cents)
+    if (taken.error === null) {
+      expect(funded).toBe(1000)
+    } else {
+      expect(taken.error.message).toContain('Valor maior que o guardado.')
+      expect(funded).toBe(4000)
+    }
+    expect([await part(ana, goal), await part(bia, goal), await total(eva, goal)]).toEqual([0, 0, 0])
   })
 })
 
