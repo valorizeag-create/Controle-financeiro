@@ -14,6 +14,8 @@ import { familyNameSchema, INVITE_CODE, inviteLink, memberIdSchema } from './sch
 import type { InviteState } from './invite-state'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
+// Mesmo formato (uuid), usado aqui para o convite.
+const inviteIdSchema = memberIdSchema
 const FULL = 'A família já está completa.'
 
 type DbError = { message?: string; code?: string }
@@ -59,7 +61,7 @@ export async function createInvite(_: InviteState, _fd: FormData): Promise<Invit
 
 export async function revokeInvite(fd: FormData): Promise<void> {
   await requireUser()
-  const parsedId = memberIdSchema.safeParse(String(fd.get('id') ?? ''))
+  const parsedId = inviteIdSchema.safeParse(String(fd.get('id') ?? ''))
   if (!parsedId.success) redirect('/familia?erro=1')
   const supabase = await createClient()
   const { error } = await supabase.rpc('revoke_family_invite', { p_id: parsedId.data })
@@ -75,7 +77,11 @@ export async function acceptInvite(fd: FormData): Promise<void> {
   if (!INVITE_CODE.test(code)) redirect('/familia')
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('accept_family_invite', { p_code: code })
-  if (error) redirect(`/convite/${code}?erro=${says(error, 'já participa') ? 'familia' : 'convite'}`)
+  if (error) {
+    // convite = o banco diz que não vale (inválido, vencido, usado, família cheia); 1 = passageiro ou inesperado, tentar de novo.
+    const reason = says(error, 'já participa') ? 'familia' : says(error, 'Convite inválido') || says(error, 'completa') ? 'convite' : '1'
+    redirect(`/convite/${code}?erro=${reason}`)
+  }
   let name: string | null = null
   if (typeof data === 'string') {
     const { data: family } = await supabase.from('families').select('name').eq('id', data).maybeSingle<{ name: string }>()

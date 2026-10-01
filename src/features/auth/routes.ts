@@ -19,12 +19,13 @@ export function safeNext(next: string | null): string {
 // /convite/{código de 32 caracteres}. O código é um segredo: nunca vai para log nem aviso.
 const INVITE_RETURN = /^\/convite\/[A-Za-z0-9_-]{32}$/
 
-export function inviteReturn(next: string | null | undefined): string | null {
-  if (!next || safeNext(next) !== next) return null
+// `next` vem de searchParams ou de formulário: pode ser lista (?next=a&next=b) ou outra coisa que não texto.
+export function inviteReturn(next: unknown): string | null {
+  if (typeof next !== 'string' || !next || safeNext(next) !== next) return null
   return INVITE_RETURN.test(next) ? next : null
 }
 
-export function withNext(path: string, next: string | null | undefined): string {
+export function withNext(path: string, next: unknown): string {
   const back = inviteReturn(next)
   return back ? `${path}?next=${encodeURIComponent(back)}` : path
 }

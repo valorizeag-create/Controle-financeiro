@@ -35,7 +35,7 @@ test('o convite é público; outras rotas parecidas não', () => {
 
 test('volta ao convite: só o formato exato, só caminho interno', () => {
   expect(inviteReturn(`/convite/${CODE}`)).toBe(`/convite/${CODE}`)
-  for (const bad of [null, undefined, '', '/convite/abc', `/convite/${CODE}x`, `/convite/${CODE}?x=1`, '/extrato', '//evil.com', `//convite/${CODE}`, 'https://evil.com', `/convite/${'a'.repeat(31)}/`]) {
+  for (const bad of [null, undefined, '', '/convite/abc', `/convite/${CODE}x`, `/convite/${CODE}?x=1`, '/extrato', '//evil.com', `//convite/${CODE}`, 'https://evil.com', `/convite/${'a'.repeat(31)}/`, `/convite/${CODE}\n`, `/convite/${CODE}/`, `/convite/${CODE}#x`, `/convite/../${CODE}`, `/\\convite/${CODE}`, `/convite\\${CODE}`, `%2Fconvite%2F${CODE}`, `/convite/${'a'.repeat(31)}@`, `/convite/${'a'.repeat(31)}.`, `/Convite/${CODE}`, ['/convite/' + CODE], ['a', 'b'], 42, {}]) {
     expect(inviteReturn(bad)).toBeNull()
   }
   expect(withNext('/criar-cadastro', `/convite/${CODE}`)).toBe(`/criar-cadastro?next=%2Fconvite%2F${CODE}`)

@@ -17,7 +17,6 @@ const h = vi.hoisted(() => {
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/env', () => ({ env: { siteUrl: 'https://iris.app' } }))
 vi.mock('@/lib/flash', () => ({ setFlash: vi.fn() }))
-vi.mock('@/features/shell/sign-out-button', () => ({ SignOutButton: () => null }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: {

@@ -134,6 +134,7 @@ describe('convite', () => {
   test('devolve o link e o último dia; nada do código em flash', async () => {
     rpcData('create_family_invite', [{ invite_code: 'A'.repeat(32), invite_expires_at: '2026-10-05T15:00:00Z' }])
     expect(await actions.createInvite({ status: 'idle' }, form({}))).toEqual({ status: 'ready', link: `https://iris.app/convite/${'A'.repeat(32)}`, expiresOn: '2026-10-05' })
+    expect(rpcCalls).toEqual([{ fn: 'create_family_invite', args: undefined }])
     expect(h.setFlash).not.toHaveBeenCalled()
     expect(h.revalidatePath).toHaveBeenCalledWith('/familia')
     rpcError('create_family_invite', 'A família já está completa.')
@@ -175,6 +176,15 @@ describe('aceitar o convite', () => {
     expect(h.setFlash).not.toHaveBeenCalled()
   })
 
+  test('impasse ou erro inesperado: tentar de novo, sem dizer que o convite é inválido', async () => {
+    const code = 'd'.repeat(32)
+    rpcError('accept_family_invite', 'deadlock detected', '40P01')
+    expect(await redirectOf(actions.acceptInvite(form({ code })))).toBe(`/convite/${code}?erro=1`)
+    rpcError('accept_family_invite', 'fetch failed')
+    expect(await redirectOf(actions.acceptInvite(form({ code })))).toBe(`/convite/${code}?erro=1`)
+    expect(h.setFlash).not.toHaveBeenCalled()
+  })
+
   test('nome da família vem do banco, filtrado pela família aceita; o código nunca vai para o aviso', async () => {
     const code = 'c'.repeat(32)
     rpcData('accept_family_invite', 'f1')
@@ -195,7 +205,9 @@ describe('sair da família', () => {
     expect(await redirectOf(actions.leaveFamily(form({})))).toBe('/familia?erro=1')
     expect(h.setFlash).not.toHaveBeenCalled()
     rpcData('leave_family', null)
+    rpcCalls = []
     expect(await redirectOf(actions.leaveFamily(form({})))).toBe('/familia')
+    expect(rpcCalls).toEqual([{ fn: 'leave_family', args: undefined }])
     expect(h.setFlash).toHaveBeenCalledWith('Você saiu da família.')
   })
 })

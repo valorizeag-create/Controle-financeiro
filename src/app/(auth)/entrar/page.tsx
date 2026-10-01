@@ -4,7 +4,7 @@ import { GoogleButton } from '@/features/auth/google-button'
 import { inviteReturn, withNext } from '@/features/auth/routes'
 import { FormAlert } from '@/ui/form-alert'
 
-export default async function EntrarPage({ searchParams }: { searchParams: Promise<{ erro?: string; next?: string }> }) {
+export default async function EntrarPage({ searchParams }: { searchParams: Promise<{ erro?: string; next?: string | string[] }> }) {
   const { erro, next: rawNext } = await searchParams
   const next = inviteReturn(rawNext) ?? undefined
   return (

@@ -3,7 +3,7 @@ import { SignUpForm } from '@/features/auth/forms'
 import { inviteReturn, withNext } from '@/features/auth/routes'
 import { GoogleButton } from '@/features/auth/google-button'
 
-export default async function CriarCadastroPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+export default async function CriarCadastroPage({ searchParams }: { searchParams: Promise<{ next?: string | string[] }> }) {
   const next = inviteReturn((await searchParams).next) ?? undefined
   return (
     <>
