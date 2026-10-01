@@ -252,3 +252,53 @@ describe('Foi parcelado (só gasto, só ao criar)', () => {
     expect(screen.queryByLabelText('Foi parcelado')).toBeNull()
   })
 })
+
+describe('AnotarForm — gasto da família', () => {
+  const gasto = { id: 'r1', kind: 'expense' as const, amountCents: 100, categoryId: '1', source: null, note: null, paymentMethod: null, occurredOn: today }
+
+  test('sem inFamily não existe a caixa nem o marcador', () => {
+    const { container } = render(<AnotarForm kind="expense" categories={categories} today={today} />)
+    expect(screen.queryByLabelText('Gasto da família')).toBeNull()
+    expect(container.querySelector('input[name="familyChoice"]')).toBeNull()
+  })
+
+  test('com inFamily a caixa existe só em "Saiu dinheiro", dentro de Mais detalhes, com o marcador familyChoice', () => {
+    const { container } = render(<AnotarForm kind="expense" categories={categories} today={today} inFamily />)
+    const box = screen.getByLabelText('Gasto da família') as HTMLInputElement
+    expect(box.name).toBe('family')
+    expect(box.checked).toBe(false)
+    expect(box.closest('details')).toBeTruthy()
+    const marker = container.querySelector('input[name="familyChoice"]') as HTMLInputElement
+    expect(marker.type).toBe('hidden')
+    expect(marker.value).toBe('1')
+    cleanup()
+    const income = render(<AnotarForm kind="income" categories={categories} today={today} inFamily />)
+    expect(screen.queryByLabelText('Gasto da família')).toBeNull()
+    expect(income.container.querySelector('input[name="familyChoice"]')).toBeNull()
+  })
+
+  test('na edição de gasto da família a caixa vem marcada; de gasto pessoal, desmarcada', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} inFamily record={{ ...gasto, familyId: 'f1' }} />)
+    expect(screen.getByLabelText('Gasto da família')).toHaveProperty('checked', true)
+    cleanup()
+    render(<AnotarForm kind="expense" categories={categories} today={today} inFamily record={gasto} />)
+    expect(screen.getByLabelText('Gasto da família')).toHaveProperty('checked', false)
+  })
+
+  test('depois de um erro, o valor devolvido family: on volta marcado e os detalhes abertos', () => {
+    mockUseActionState.mockReturnValueOnce([
+      { status: 'error', submission: 1, message: 'Falhou.', values: { amount: '10', family: 'on' } },
+      vi.fn(),
+      false,
+    ])
+    render(<AnotarForm kind="expense" categories={categories} today={today} inFamily />)
+    expect(screen.getByLabelText('Gasto da família')).toHaveProperty('checked', true)
+    expect(screen.getByText('Mais detalhes').closest('details')?.open).toBe(true)
+  })
+
+  test('parcelado e conta que se repete convivem com a caixa (o banco aceita p_family)', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} inFamily />)
+    fireEvent.click(screen.getByLabelText('Foi parcelado'))
+    expect(screen.getByLabelText('Gasto da família')).toBeTruthy()
+  })
+})

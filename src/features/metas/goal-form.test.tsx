@@ -54,3 +54,18 @@ test('erro no campo aparece e o que foi digitado fica', () => {
   expect((screen.getByLabelText('Para o que você quer guardar?') as HTMLInputElement).value).toBe('Viagem')
   expect(screen.getByLabelText('Até quando? (opcional)').getAttribute('aria-invalid')).toBe('true')
 })
+
+test('"Meta da família" só ao criar e só com inFamily, com a ajuda ligada à caixa', () => {
+  render(<GoalForm action={action} minMonth="2026-09" />)
+  expect(screen.queryByLabelText('Meta da família')).toBeNull()
+  cleanup()
+  render(<GoalForm action={action} minMonth="2026-09" inFamily />)
+  const box = screen.getByLabelText('Meta da família') as HTMLInputElement
+  expect(box.name).toBe('family')
+  expect(screen.getByText('Todos da família veem o total; cada pessoa vê só a própria parte.')).toBeTruthy()
+  expect(box.getAttribute('aria-describedby')).toBe('family-help')
+  cleanup()
+  const goal = { id: 'g1', name: 'Viagem', targetCents: 100000, deadline: null, status: 'active' as const, usedOn: null, deletedOn: null, createdAt: '2026-07-01T12:00:00Z' }
+  render(<GoalForm action={action} minMonth="2026-09" inFamily goal={goal} />)
+  expect(screen.queryByLabelText('Meta da família')).toBeNull()
+})

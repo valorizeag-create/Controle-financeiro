@@ -2,12 +2,14 @@ import { Plus } from 'lucide-react'
 import { Button } from '@/ui/button'
 import { todayInSaoPaulo } from '@/domain/dates'
 import { loadGoals, loadGoalMovements } from '@/features/metas/queries'
+import { loadFamilyGoals, loadFamilySummary } from '@/features/familia/queries'
 import { buildMetas } from '@/features/metas/view-model'
 import { MetasList } from '@/features/metas/metas-list'
 
 export default async function MetasPage() {
-  const [goals, movements] = await Promise.all([loadGoals(), loadGoalMovements()])
-  const view = buildMetas({ goals, movements, today: todayInSaoPaulo() })
+  const [goals, movements, family] = await Promise.all([loadGoals(), loadGoalMovements(), loadFamilySummary()])
+  const familyGoals = family ? await loadFamilyGoals(family.id) : []
+  const view = buildMetas({ goals, movements, today: todayInSaoPaulo(), familyGoals })
 
   return (
     <main className="mx-auto flex max-w-[720px] flex-col gap-3.5 px-4 pt-5 md:px-9 md:pt-7">

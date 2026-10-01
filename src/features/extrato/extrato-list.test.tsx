@@ -24,8 +24,8 @@ test('lista agrupada por dia; cada registro abre a edição', () => {
       view={{
         ...base,
         groups: [
-          { date: '2026-09-22', label: 'Hoje', rows: [{ id: 't1', kind: 'expense', title: 'Mercado · feira', subtitle: 'Pix', cents: 14230, href: '/extrato/t1', badge: null }] },
-          { date: '2026-09-05', label: '5 de setembro', rows: [{ id: 't4', kind: 'income', title: 'Salário', subtitle: null, cents: 500000, href: '/extrato/t4', badge: null }] },
+          { date: '2026-09-22', label: 'Hoje', rows: [{ id: 't1', kind: 'expense', title: 'Mercado · feira', subtitle: 'Pix', cents: 14230, href: '/extrato/t1', badge: null, family: false }] },
+          { date: '2026-09-05', label: '5 de setembro', rows: [{ id: 't4', kind: 'income', title: 'Salário', subtitle: null, cents: 500000, href: '/extrato/t4', badge: null, family: false }] },
         ],
       }}
     />,
@@ -70,7 +70,7 @@ test('linha de meta: ícone de meta, nome da meta e valor sem sinal', () => {
       view={{
         filters: { month: '2026-09', kind: null, categoryId: null, cardId: null, q: '' }, monthLabel: 'setembro de 2026', empty: null,
         categoryName: null, cardName: null,
-        groups: [{ date: '2026-09-19', label: '19 de setembro', rows: [{ id: 'm1', kind: 'goal', title: 'Guardado na meta', subtitle: 'Viagem para Salvador', cents: 30000, href: '/metas/g1', badge: null }] }],
+        groups: [{ date: '2026-09-19', label: '19 de setembro', rows: [{ id: 'm1', kind: 'goal', title: 'Guardado na meta', subtitle: 'Viagem para Salvador', cents: 30000, href: '/metas/g1', badge: null, family: false }] }],
       }}
     />,
   )
@@ -86,7 +86,7 @@ test('parcela: selo do protótipo e link para a compra', () => {
     <ExtratoList
       view={{
         ...base,
-        groups: [{ date: '2026-09-22', label: 'Hoje', rows: [{ id: 't9', kind: 'expense', title: 'Compras · tênis', subtitle: 'Nubank pessoal', cents: 8450, href: '/extrato/parcelas/p1', badge: 'parcela 2 de 5' }] }],
+        groups: [{ date: '2026-09-22', label: 'Hoje', rows: [{ id: 't9', kind: 'expense', title: 'Compras · tênis', subtitle: 'Nubank pessoal', cents: 8450, href: '/extrato/parcelas/p1', badge: 'parcela 2 de 5', family: false }] }],
       }}
     />,
   )
@@ -94,4 +94,26 @@ test('parcela: selo do protótipo e link para a compra', () => {
   expect(link.getAttribute('href')).toBe('/extrato/parcelas/p1')
   expect(link.textContent).toContain('Nubank pessoal')
   expect(link.textContent).toContain('parcela 2 de 5')
+})
+
+test('etiqueta "da família" só na linha do gasto da família', () => {
+  render(
+    <ExtratoList
+      view={{
+        ...base,
+        groups: [
+          {
+            date: '2026-09-22',
+            label: 'Hoje',
+            rows: [
+              { id: 'f1', kind: 'expense', title: 'Casa · luz', subtitle: null, cents: 9000, href: '/extrato/f1', badge: null, family: true },
+              { id: 'p1', kind: 'expense', title: 'Mercado', subtitle: null, cents: 5000, href: '/extrato/p1', badge: null, family: false },
+            ],
+          },
+        ],
+      }}
+    />,
+  )
+  expect(screen.getByRole('link', { name: /Casa · luz/ }).textContent).toContain('da família')
+  expect(screen.getByRole('link', { name: /Mercado/ }).textContent).not.toContain('da família')
 })

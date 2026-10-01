@@ -18,7 +18,8 @@ const recordId = z.uuid()
 export async function createGoal(_: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser()
   const today = todayInSaoPaulo()
-  const values = readFields(fd, GOAL_FIELDS)
+  // "family" volta nos valores do erro para a caixa "Meta da família" continuar marcada.
+  const values = readFields(fd, [...GOAL_FIELDS, 'family'])
   const parsed = makeGoalSchema(today, 'create').safeParse(values)
   if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error), values })
   const d = parsed.data

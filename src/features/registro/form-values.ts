@@ -18,6 +18,7 @@ export type EditableRecord = {
   paymentMethod: string | null
   occurredOn: ISODate
   cardId?: string | null
+  familyId?: string | null
 }
 
 export function recordToFormValues(r: EditableRecord, today: ISODate): Record<string, string> {
@@ -29,6 +30,7 @@ export function recordToFormValues(r: EditableRecord, today: ISODate): Record<st
     note: r.note ?? '',
     paymentMethod: r.paymentMethod ?? '',
     cardId: r.cardId ?? '',
+    family: r.familyId ? 'on' : '',
     when,
     date: when === 'other' ? r.occurredOn : '',
   }

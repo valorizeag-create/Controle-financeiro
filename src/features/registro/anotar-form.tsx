@@ -23,6 +23,7 @@ type Props = {
   record?: EditableRecord
   cards?: CardRow[]
   lastCardId?: string | null
+  inFamily?: boolean
 }
 
 function RepeatOption({
@@ -100,7 +101,7 @@ function InstallmentOption({
   )
 }
 
-export function AnotarForm({ kind, categories, today, record, cards = [], lastCardId = null }: Props) {
+export function AnotarForm({ kind, categories, today, record, cards = [], lastCardId = null, inFamily = false }: Props) {
   const [state, action, pending] = useActionState(record ? updateTransaction : createTransaction, idle)
   const err = state.status === 'error' ? state : null
   const v = err?.values ?? (record ? recordToFormValues(record, today) : {})
@@ -109,7 +110,7 @@ export function AnotarForm({ kind, categories, today, record, cards = [], lastCa
   // "Sujo" = há algo digitado que ainda não foi salvo; o botão Fechar pergunta antes de descartar.
   const [touched, setTouched] = useState(false)
   const isExpense = kind === 'expense'
-  const hasDetails = Boolean(v.note || v.paymentMethod || v.repeats || v.parcelado)
+  const hasDetails = Boolean(v.note || v.paymentMethod || v.repeats || v.parcelado || (inFamily && v.family === 'on'))
   const hasCards = isExpense && cards.length > 0
   // "Isso se repete"/"É uma conta que se repete" e "Foi parcelado" nunca ficam marcados juntos.
   const [extra, setExtra] = useState<'repeat' | 'installments' | null>(
@@ -257,6 +258,16 @@ export function AnotarForm({ kind, categories, today, record, cards = [], lastCa
                   ))}
                 </select>
               </div>
+            )}
+            {inFamily && (
+              <>
+                {/* O marcador diz ao servidor que a caixa estava na tela: sem ele, a família do gasto não muda. */}
+                <input type="hidden" name="familyChoice" value="1" />
+                <label className="flex min-h-11 items-center justify-between gap-3 text-[15px] text-ink">
+                  Gasto da família
+                  <input type="checkbox" name="family" defaultChecked={v.family === 'on'} className="size-[22px] accent-[#6cbf38]" />
+                </label>
+              </>
             )}
             {!record && (
               <RepeatOption

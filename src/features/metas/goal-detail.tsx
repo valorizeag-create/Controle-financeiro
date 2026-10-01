@@ -10,7 +10,9 @@ import { formatBRL } from '@/domain/money'
 import { deleteGoalUse } from './movement-actions'
 import type { GoalDetailView, GoalHistoryItem } from './view-model'
 
-export function GoalHero({ view }: { view: GoalDetailView }) {
+// `myPartCents` (meta da família): o resumo é o total de todos e "Sua parte" é só da pessoa.
+// `showUseLink: false` esconde "Usar o dinheiro da meta" (na família, só o administrador usa, e a ação fica nos botões).
+export function GoalHero({ view, myPartCents, showUseLink = true }: { view: GoalDetailView; myPartCents?: number; showUseLink?: boolean }) {
   const { summary, state, celebration, usedText } = view
   const { goal, balanceCents, percent, remainingText, suggestion } = summary
 
@@ -22,6 +24,7 @@ export function GoalHero({ view }: { view: GoalDetailView }) {
         <span className="text-[15px] text-brand-text">de {formatBRL(goal.targetCents)}</span>
       </div>
       <ProgressBar percent={percent} size="lg" label={`Progresso de ${goal.name}`} />
+      {myPartCents !== undefined && <p className="text-[15px] font-medium text-brand-ink">Sua parte: {formatBRL(myPartCents)}</p>}
 
       {state === 'active' && (
         <>
@@ -38,12 +41,14 @@ export function GoalHero({ view }: { view: GoalDetailView }) {
         <div className="flex flex-col gap-3 rounded-card bg-brand p-[22px] text-brand-ink">
           <Target className="size-8" aria-hidden="true" />
           {celebration && <p className="text-xl font-bold leading-snug">{celebration}</p>}
-          <Link
-            href={`/metas/${goal.id}/usar`}
-            className="inline-flex min-h-11 w-fit items-center rounded-panel bg-brand-ink px-4 text-[15px] font-semibold text-white"
-          >
-            Usar o dinheiro da meta
-          </Link>
+          {showUseLink && (
+            <Link
+              href={`/metas/${goal.id}/usar`}
+              className="inline-flex min-h-11 w-fit items-center rounded-panel bg-brand-ink px-4 text-[15px] font-semibold text-white"
+            >
+              Usar o dinheiro da meta
+            </Link>
+          )}
         </div>
       )}
 
@@ -84,7 +89,16 @@ export function GoalActions({ view }: { view: GoalDetailView }) {
   )
 }
 
-export function GoalHistory({ goalId, items }: { goalId: string; items: GoalHistoryItem[] }) {
+// `deleteUse`: a ação que desfaz o uso (a da meta da família, para o administrador); `null` esconde o botão.
+export function GoalHistory({
+  goalId,
+  items,
+  deleteUse = deleteGoalUse,
+}: {
+  goalId: string
+  items: GoalHistoryItem[]
+  deleteUse?: ((fd: FormData) => Promise<void>) | null
+}) {
   if (items.length === 0) return null
 
   return (
@@ -99,7 +113,7 @@ export function GoalHistory({ goalId, items }: { goalId: string; items: GoalHist
             </span>
             <span className="flex items-center gap-2">
               <span className={`font-semibold ${item.positive ? 'text-brand-text' : 'text-ink'}`}>{item.amountText}</span>
-              {item.transactionId && (
+              {item.transactionId && deleteUse && (
                 <ConfirmAction
                   trigger="Excluir"
                   triggerAriaLabel={`Excluir o gasto de ${item.dateLabel}`}
@@ -107,7 +121,7 @@ export function GoalHistory({ goalId, items }: { goalId: string; items: GoalHist
                   body="Seu mês será recalculado. O valor volta para a meta."
                   confirmLabel="Excluir"
                   cancelLabel="Cancelar"
-                  action={deleteGoalUse}
+                  action={deleteUse}
                   fields={{ transactionId: item.transactionId, goalId }}
                 />
               )}

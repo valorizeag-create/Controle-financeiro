@@ -3,6 +3,7 @@ import { formatBRL, formatWholeBRL, type Cents } from '@/domain/money'
 import { dayMonthLabel, dayMonthYearLabel, monthLabel, shortMonthLabel, type ISODate } from '@/domain/dates'
 import { monthName } from '@/domain/recurrence'
 import { normalizeText } from '@/features/extrato/view-model'
+import type { FamilyGoalRow } from '@/features/familia/types'
 import type { GoalMovementRow, GoalRow } from './types'
 
 export interface GoalSummary {
@@ -17,9 +18,10 @@ export interface GoalSummary {
   suggestion: { untilLabel: string; perMonth: string } | null
 }
 
-export function summarizeGoal(goal: GoalRow, movements: GoalMovementRow[], today: ISODate): GoalSummary {
+// `totalCents` é para a meta da família: o total de todos (A4 B); sem ele, o saldo vem dos movimentos de quem pede.
+export function summarizeGoal(goal: GoalRow, movements: GoalMovementRow[], today: ISODate, totalCents?: Cents): GoalSummary {
   const own = movements.filter((m) => m.goalId === goal.id)
-  const balanceCents = goalBalance(own)
+  const balanceCents = totalCents ?? goalBalance(own)
   const { percent, remainingCents, complete } = goalProgress(balanceCents, goal.targetCents)
 
   const remainingText = complete ? null : `Faltam ${formatBRL(remainingCents)} para ${goal.name}.`
@@ -39,23 +41,44 @@ export function summarizeGoal(goal: GoalRow, movements: GoalMovementRow[], today
 export interface MetasView {
   totalCents: Cents
   active: GoalSummary[]
+  family: { id: string; name: string; percent: number; remainingCents: Cents; myPartCents: Cents }[]
   concluded: { id: string; name: string; caption: string }[]
   empty: boolean
 }
 
-export function buildMetas(input: { goals: GoalRow[]; movements: GoalMovementRow[]; today: ISODate }): MetasView {
-  const { goals, movements, today } = input
+export function buildMetas(input: {
+  goals: GoalRow[]
+  movements: GoalMovementRow[]
+  today: ISODate
+  familyGoals?: FamilyGoalRow[]
+}): MetasView {
+  const { goals, movements, today, familyGoals = [] } = input
+  const familyAlive = familyGoals.filter((g) => g.deletedOn === null)
   const notDeleted = goals.filter((g) => g.deletedOn === null)
   const currentYear = today.slice(0, 4)
 
-  const totalCents = notDeleted.reduce(
+  // Inclui a parte da própria pessoa nas metas da família (decisão 104): os movimentos são só dela.
+  const totalCents = [...notDeleted, ...familyAlive].reduce(
     (sum, g) => sum + goalBalance(movements.filter((m) => m.goalId === g.id)),
     0,
   )
 
   const active = notDeleted.filter((g) => g.status === 'active').map((g) => summarizeGoal(g, movements, today))
 
-  const concluded = notDeleted
+  const family = familyAlive
+    .filter((g) => g.status === 'active')
+    .map((g) => {
+      const { percent, remainingCents } = goalProgress(g.savedCents, g.targetCents)
+      return {
+        id: g.id,
+        name: g.name,
+        percent,
+        remainingCents,
+        myPartCents: goalBalance(movements.filter((m) => m.goalId === g.id)),
+      }
+    })
+
+  const concluded = [...notDeleted, ...familyAlive]
     .filter((g) => g.status === 'used')
     .sort((a, b) => (a.usedOn! < b.usedOn! ? 1 : a.usedOn! > b.usedOn! ? -1 : 0))
     .map((g) => {
@@ -64,7 +87,7 @@ export function buildMetas(input: { goals: GoalRow[]; movements: GoalMovementRow
       return { id: g.id, name: g.name, caption: `${g.name} · usada em ${label}` }
     })
 
-  return { totalCents, active, concluded, empty: notDeleted.length === 0 }
+  return { totalCents, active, family, concluded, empty: notDeleted.length === 0 && familyAlive.length === 0 }
 }
 
 export interface GoalHistoryItem {
@@ -86,6 +109,10 @@ export interface GoalDetailView {
   canWithdraw: boolean
   canUse: boolean
   history: GoalHistoryItem[]
+}
+
+export interface FamilyGoalDetailView extends GoalDetailView {
+  myPartCents: Cents
 }
 
 function historyLabel(kind: GoalMovementRow['kind']): GoalHistoryItem['label'] {
@@ -124,6 +151,30 @@ export function buildGoalDetail(input: { goal: GoalRow; movements: GoalMovementR
   })
 
   return { summary, state, celebration, usedText, balanceText, canDeposit, canWithdraw, canUse, history }
+}
+
+// Meta da família (A4 B): o resumo mostra o total de todos; o histórico e "Sua parte" são só da pessoa.
+// Tirar vale na parte própria, mesmo com a meta usada (a sobra de cada um, RN-22c); usar é decisão do administrador (a tela confere o papel).
+export function buildFamilyGoalDetail(input: {
+  goal: FamilyGoalRow
+  movements: GoalMovementRow[]
+  today: ISODate
+}): FamilyGoalDetailView {
+  const { goal, movements, today } = input
+  const base = buildGoalDetail({ goal, movements, today })
+  const own = movements.filter((m) => m.goalId === goal.id)
+  const summary = summarizeGoal(goal, own, today, goal.savedCents)
+  const myPartCents = goalBalance(own)
+  const state: GoalDetailView['state'] = goal.status === 'used' ? 'used' : summary.complete ? 'complete' : 'active'
+  return {
+    ...base,
+    summary,
+    state,
+    celebration: state === 'complete' ? `Você chegou lá. ${goal.name} está completa.` : null,
+    canWithdraw: myPartCents > 0,
+    canUse: goal.status === 'active' && goal.savedCents > 0,
+    myPartCents,
+  }
 }
 
 function compareFeatured(a: GoalSummary, b: GoalSummary): number {

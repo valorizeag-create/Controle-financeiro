@@ -70,3 +70,26 @@ test('erros aparecem nos campos e o que foi digitado continua', () => {
   expect(screen.getByRole('radio', { name: 'Mercado' })).toHaveProperty('checked', true)
   expect(screen.getByRole('radio', { name: 'Todo ano' })).toHaveProperty('checked', true)
 })
+
+test('"Conta da família" só com inFamily, só em conta e só ao criar', () => {
+  render(<RecurrenceForm kind="expense" categories={categories} action={action} />)
+  expect(screen.queryByLabelText('Conta da família')).toBeNull()
+  cleanup()
+  render(<RecurrenceForm kind="expense" categories={categories} action={action} inFamily />)
+  const box = screen.getByLabelText('Conta da família') as HTMLInputElement
+  expect(box.name).toBe('family')
+  expect(box.checked).toBe(false)
+  cleanup()
+  render(<RecurrenceForm kind="income" categories={categories} action={action} inFamily />)
+  expect(screen.queryByLabelText('Conta da família')).toBeNull()
+})
+
+test('depois de um erro, "Conta da família" continua marcada', () => {
+  mockUseActionState.mockReturnValueOnce([
+    { status: 'error', submission: 1, fieldErrors: { name: 'Falta o nome.' }, values: { name: '', amount: '10', family: 'on' } },
+    vi.fn(),
+    false,
+  ])
+  render(<RecurrenceForm kind="expense" categories={categories} action={action} inFamily />)
+  expect(screen.getByLabelText('Conta da família')).toHaveProperty('checked', true)
+})

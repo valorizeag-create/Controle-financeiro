@@ -8,18 +8,20 @@ import { idle } from '@/lib/forms'
 import { formatBRL, parseBRL } from '@/domain/money'
 import type { Category } from '@/features/registro/queries'
 import { spendFromGoal } from './movement-actions'
+import { spendFromFamilyGoal } from './family-goal-actions'
 
-type Props = { goalId: string; balanceCents: number; categories: Category[] }
+// `family`: meta da família, usada pelo administrador; o banco divide o uso entre as partes, então não há diferença a mostrar.
+type Props = { goalId: string; balanceCents: number; categories: Category[]; family?: boolean }
 
-export function UseGoalForm({ goalId, balanceCents, categories }: Props) {
-  const [state, action, pending] = useActionState(spendFromGoal, idle)
+export function UseGoalForm({ goalId, balanceCents, categories, family = false }: Props) {
+  const [state, action, pending] = useActionState(family ? spendFromFamilyGoal : spendFromGoal, idle)
   const err = state.status === 'error' ? state : null
   const v = err?.values ?? {}
   const e = err?.fieldErrors ?? {}
   const [amount, setAmount] = useState(v.amount ?? '')
 
   const parsed = parseBRL(amount)
-  const diffCents = parsed !== null && parsed > balanceCents ? parsed - balanceCents : null
+  const diffCents = !family && parsed !== null && parsed > balanceCents ? parsed - balanceCents : null
 
   return (
     <form key={err ? err.submission : 'idle'} action={action} noValidate className="flex flex-col gap-5">
@@ -62,9 +64,11 @@ export function UseGoalForm({ goalId, balanceCents, categories }: Props) {
         {e.categoryId && <span id="cat-error" className="text-sm text-error-ink">{e.categoryId}</span>}
       </fieldset>
 
-      <p className="text-sm text-muted">
-        Esse gasto não sai do seu Disponível de novo: o dinheiro já tinha saído quando foi guardado.
-      </p>
+      {!family && (
+        <p className="text-sm text-muted">
+          Esse gasto não sai do seu Disponível de novo: o dinheiro já tinha saído quando foi guardado.
+        </p>
+      )}
 
       {err?.message && <FormAlert>{err.message}</FormAlert>}
 

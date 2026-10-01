@@ -11,6 +11,7 @@ import { Money } from '@/ui/money'
 import { loadCards } from '@/features/cartoes/queries'
 import { paymentText } from '@/features/cartoes/types'
 import { loadGoalLabel } from '@/features/metas/queries'
+import { loadMyFamily } from '@/features/familia/queries'
 import { buildGoalFundedExpense } from '@/features/metas/view-model'
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ erro?: string }> }
@@ -18,7 +19,7 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ erro?: s
 export default async function EditarRegistroPage({ params, searchParams }: Props) {
   const [{ id }, { erro }] = await Promise.all([params, searchParams])
   if (!z.uuid().safeParse(id).success) notFound()
-  const [tx, categories, cards] = await Promise.all([loadTransaction(id), loadCategories(), loadCards()])
+  const [tx, categories, cards, family] = await Promise.all([loadTransaction(id), loadCategories(), loadCards(), loadMyFamily()])
   // Contas a pagar/receber (pendentes) ganham tela própria no Plano 3.
   if (!tx || tx.status !== 'confirmed') notFound()
   // Uma parcela ou o restante quitado não têm formulário próprio: a tela é a da compra inteira.
@@ -66,6 +67,7 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
     paymentMethod: tx.paymentMethod,
     occurredOn: tx.paidOn ?? tx.occurredOn,
     cardId: tx.cardId,
+    familyId: tx.familyId,
   }
 
   return (
@@ -78,7 +80,7 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
           <SheetClose href={`/extrato?mes=${monthOf(tx.paidOn ?? tx.occurredOn)}`} />
         </div>
         {erro && <FormAlert>Algo não saiu como esperado do nosso lado. Tente novamente em instantes.</FormAlert>}
-        <AnotarForm kind={tx.kind} categories={categories} today={todayInSaoPaulo()} record={record} cards={cards} />
+        <AnotarForm kind={tx.kind} categories={categories} today={todayInSaoPaulo()} record={record} cards={cards} inFamily={family !== null || tx.familyId !== null} />
         <ConfirmAction
           trigger="Excluir"
           triggerClassName="flex min-h-12 items-center justify-center rounded-panel border border-control bg-card px-5 text-base font-semibold text-ink hover:bg-canvas"

@@ -12,6 +12,7 @@ type Props = {
   action: (s: FormState, fd: FormData) => Promise<FormState>
   goal?: GoalRow
   minMonth: MonthKey
+  inFamily?: boolean
 }
 
 // Metas costumam ter valores maiores; separador de milhar ajuda a ler ao editar.
@@ -23,7 +24,7 @@ function targetToInput(cents: number): string {
   return `${sign}${digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${decPart}`
 }
 
-export function GoalForm({ action, goal, minMonth }: Props) {
+export function GoalForm({ action, goal, minMonth, inFamily = false }: Props) {
   const [state, formAction, pending] = useActionState(action, idle)
   const err = state.status === 'error' ? state : null
   const v = err?.values ?? (goal ? { name: goal.name, target: targetToInput(goal.targetCents), deadline: goal.deadline ?? '' } : {})
@@ -82,6 +83,16 @@ export function GoalForm({ action, goal, minMonth }: Props) {
         />
         {e.deadline && <span id="deadline-error" className="text-sm text-error-ink">{e.deadline}</span>}
       </div>
+
+      {inFamily && !goal && (
+        <div className="flex flex-col gap-1.5">
+          <label className="flex min-h-11 items-center justify-between gap-3 text-[15px] font-medium text-ink">
+            Meta da família
+            <input type="checkbox" name="family" aria-describedby="family-help" defaultChecked={v.family === 'on'} className="size-[22px] accent-[#6cbf38]" />
+          </label>
+          <span id="family-help" className="text-sm text-muted">Todos da família veem o total; cada pessoa vê só a própria parte.</span>
+        </div>
+      )}
 
       {err?.message && <FormAlert>{err.message}</FormAlert>}
 

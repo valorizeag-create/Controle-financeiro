@@ -19,11 +19,12 @@ type Props = {
   categories: Category[]
   action: (s: FormState, fd: FormData) => Promise<FormState>
   recurrence?: RecurrenceRow
+  inFamily?: boolean
 }
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1)
 
-export function RecurrenceForm({ kind, categories, action, recurrence }: Props) {
+export function RecurrenceForm({ kind, categories, action, recurrence, inFamily = false }: Props) {
   const [state, formAction, pending] = useActionState(action, idle)
   const err = state.status === 'error' ? state : null
   const isExpense = kind === 'expense'
@@ -104,6 +105,13 @@ export function RecurrenceForm({ kind, categories, action, recurrence }: Props) 
       )}
 
       <TextField name="dueDay" label={isExpense ? 'Vence dia' : 'Chega dia'} inputMode="numeric" defaultValue={v.dueDay} error={e.dueDay} />
+
+      {inFamily && isExpense && !recurrence && (
+        <label className="flex min-h-11 items-center justify-between gap-3 text-[15px] text-ink">
+          Conta da família
+          <input type="checkbox" name="family" defaultChecked={v.family === 'on'} className="size-[22px] accent-[#6cbf38]" />
+        </label>
+      )}
 
       {err?.message && <FormAlert>{err.message}</FormAlert>}
 

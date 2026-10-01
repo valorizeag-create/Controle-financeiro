@@ -2,6 +2,7 @@ import { todayInSaoPaulo } from '@/domain/dates'
 import { loadLedger } from '@/features/registro/queries'
 import { loadCards } from '@/features/cartoes/queries'
 import { loadGoals } from '@/features/metas/queries'
+import { loadFamilyGoals, loadFamilySummary } from '@/features/familia/queries'
 import { MonthNav } from '@/features/seu-mes/month-nav'
 import { FiltersBar } from '@/features/extrato/filters-bar'
 import { ExtratoList } from '@/features/extrato/extrato-list'
@@ -10,8 +11,10 @@ import { buildExtrato, extratoParams, parseExtratoFilters } from '@/features/ext
 export default async function ExtratoPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const today = todayInSaoPaulo()
   const filters = parseExtratoFilters(await searchParams, today)
-  const [{ categories, transactions, goalMovements }, cards, goals] = await Promise.all([loadLedger(), loadCards(), loadGoals()])
-  const view = buildExtrato({ filters, today, categories, transactions, cards, goals, movements: goalMovements })
+  const [{ categories, transactions, goalMovements }, cards, goals, family] = await Promise.all([loadLedger(), loadCards(), loadGoals(), loadFamilySummary()])
+  // Metas da família entram só para dar nome e link às linhas da própria pessoa (movimentos dela, gasto pago com a meta).
+  const familyGoals = family ? await loadFamilyGoals(family.id) : []
+  const view = buildExtrato({ filters, today, categories, transactions, cards, goals: [...goals, ...familyGoals], movements: goalMovements })
   // As setas do mês mantêm tipo, categoria, cartão e busca.
   const query = Object.fromEntries(Object.entries(extratoParams(view.filters)).filter(([key]) => key !== 'mes'))
 

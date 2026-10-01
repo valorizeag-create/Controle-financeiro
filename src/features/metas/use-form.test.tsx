@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 
 vi.mock('./movement-actions', () => ({ spendFromGoal: vi.fn() }))
+vi.mock('./family-goal-actions', () => ({ spendFromFamilyGoal: vi.fn() }))
 const { UseGoalForm } = await import('./use-form')
 
 afterEach(() => cleanup())
@@ -33,4 +34,12 @@ test('gasto maior que o guardado avisa quanto sai do mês (RN-15a); menor não a
   expect(warning?.textContent).toBe(`A diferença de R$${NBSP}520,00 sai do seu Disponível deste mês.`)
   fireEvent.change(amount, { target: { value: '2.300' } })
   expect(document.querySelector('[aria-live="polite"]')).toBeNull()
+})
+
+test('meta da família: sem o aviso de diferença nem a frase do Disponível', () => {
+  render(<UseGoalForm goalId="g1" balanceCents={248000} categories={categories} family />)
+  fireEvent.change(screen.getByLabelText('Quanto foi o gasto?'), { target: { value: '3.000' } })
+  expect(screen.queryByText(/A diferença de/)).toBeNull()
+  expect(screen.queryByText(/Esse gasto não sai do seu Disponível de novo/)).toBeNull()
+  expect(screen.getByRole('button', { name: 'Usar o dinheiro da meta' })).toBeTruthy()
 })

@@ -87,6 +87,8 @@ export interface ExtratoRow {
   cents: Cents
   href: string
   badge: string | null
+  // Gasto marcado como da família (a etiqueta "da família" do protótipo).
+  family: boolean
 }
 
 // Movimentos que ganham uma linha própria no Extrato; "use" não entra (o gasto que ele gerou já aparece).
@@ -201,7 +203,7 @@ export function buildExtrato(input: {
 
 function toRow(t: TxRow, nameOf: Map<string, string>, cards: CardRow[], goalById: Map<string, GoalRow>): ExtratoRow {
   if (t.kind === 'income') {
-    return { id: t.id, kind: 'income', title: t.source ?? 'Entrada', subtitle: null, cents: t.amountCents, href: `/extrato/${t.id}`, badge: null }
+    return { id: t.id, kind: 'income', title: t.source ?? 'Entrada', subtitle: null, cents: t.amountCents, href: `/extrato/${t.id}`, badge: null, family: false }
   }
   const category = nameOf.get(t.categoryId ?? '') ?? 'Outros'
   // Contas que se repetem criadas pelo Anotar sem nota guardam o nome da
@@ -220,6 +222,7 @@ function toRow(t: TxRow, nameOf: Map<string, string>, cards: CardRow[], goalById
       cents: t.amountCents,
       href: goalHref(t.goalId, goalById),
       badge: `pago com a meta ${goalById.get(t.goalId)?.name ?? ''}`,
+      family: t.familyId !== null,
     }
   }
   const badge = t.installmentPlanId
@@ -228,7 +231,7 @@ function toRow(t: TxRow, nameOf: Map<string, string>, cards: CardRow[], goalById
       : 'restante das parcelas'
     : null
   const href = t.installmentPlanId ? `/extrato/parcelas/${t.installmentPlanId}` : `/extrato/${t.id}`
-  return { id: t.id, kind: 'expense', title, subtitle, cents: t.amountCents, href, badge }
+  return { id: t.id, kind: 'expense', title, subtitle, cents: t.amountCents, href, badge, family: t.familyId !== null }
 }
 
 function toGoalRow(m: GoalMovementRow, goalById: Map<string, GoalRow>): ExtratoRow {
@@ -240,5 +243,6 @@ function toGoalRow(m: GoalMovementRow, goalById: Map<string, GoalRow>): ExtratoR
     cents: m.amountCents,
     href: goalHref(m.goalId, goalById),
     badge: null,
+    family: false,
   }
 }

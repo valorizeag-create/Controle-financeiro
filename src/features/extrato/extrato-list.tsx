@@ -59,10 +59,11 @@ export function ExtratoList({ view }: { view: ExtratoView }) {
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-[15px] text-ink">{r.title}</span>
-                    {(r.subtitle || r.badge) && (
+                    {(r.subtitle || r.badge || r.family) && (
                       <span className="flex items-center gap-1.5">
                         {r.subtitle && <span className="text-[13px] text-muted">{r.subtitle}</span>}
                         {r.badge && <span className="rounded-full bg-sunken px-2 py-0.5 text-xs font-medium text-inactive">{r.badge}</span>}
+                        {r.family && <span className="rounded-full bg-brand-wash px-2 py-0.5 text-xs font-medium text-brand-text">da família</span>}
                       </span>
                     )}
                   </span>

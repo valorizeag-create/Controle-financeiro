@@ -17,9 +17,12 @@ describe('recordToFormValues', () => {
   }
   test('registro de hoje e de ontem usam os atalhos', () => {
     expect(recordToFormValues(base, '2026-09-30')).toEqual({
-      amount: '142,30', categoryId: 'c1', source: '', note: 'feira', paymentMethod: 'pix', cardId: '', when: 'today', date: '',
+      amount: '142,30', categoryId: 'c1', source: '', note: 'feira', paymentMethod: 'pix', cardId: '', family: '', when: 'today', date: '',
     })
     expect(recordToFormValues(base, '2026-10-01')).toMatchObject({ when: 'yesterday', date: '' })
+  })
+  test('gasto da família vem marcado', () => {
+    expect(recordToFormValues({ ...base, familyId: 'f1' }, '2026-09-30').family).toBe('on')
   })
   test('outro dia leva a data', () => {
     expect(recordToFormValues({ ...base, occurredOn: '2026-08-15' }, '2026-09-30')).toMatchObject({ when: 'other', date: '2026-08-15' })

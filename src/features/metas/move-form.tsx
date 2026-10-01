@@ -5,16 +5,21 @@ import { Button } from '@/ui/button'
 import { FormAlert } from '@/ui/form-alert'
 import { idle } from '@/lib/forms'
 import { depositToGoal, withdrawFromGoal } from './movement-actions'
+import { depositToFamilyGoal, withdrawFromFamilyGoal } from './family-goal-actions'
 
-type Props = { goalId: string; mode: 'deposit' | 'withdraw' }
+// `family`: a meta é da família (guardar e tirar mexem só na parte da própria pessoa).
+type Props = { goalId: string; mode: 'deposit' | 'withdraw'; family?: boolean }
 
 const COPY = {
   deposit: { label: 'Quanto você quer guardar?', hint: 'Esse valor sai do seu Disponível deste mês.', button: 'Guardar dinheiro' },
   withdraw: { label: 'Quanto você quer tirar?', hint: 'Esse valor volta para o seu Disponível deste mês.', button: 'Tirar dinheiro' },
 } as const
 
-export function MoveForm({ goalId, mode }: Props) {
-  const [state, action, pending] = useActionState(mode === 'deposit' ? depositToGoal : withdrawFromGoal, idle)
+export function MoveForm({ goalId, mode, family = false }: Props) {
+  const move = family
+    ? mode === 'deposit' ? depositToFamilyGoal : withdrawFromFamilyGoal
+    : mode === 'deposit' ? depositToGoal : withdrawFromGoal
+  const [state, action, pending] = useActionState(move, idle)
   const err = state.status === 'error' ? state : null
   const v = err?.values ?? {}
   const e = err?.fieldErrors ?? {}

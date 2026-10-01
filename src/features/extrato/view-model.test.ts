@@ -103,13 +103,26 @@ describe('busca (Review Focus 1)', () => {
 })
 
 describe('buildExtrato', () => {
+  test('family é verdadeiro só para registro com familyId', () => {
+    const v = buildExtrato({
+      filters: f(),
+      today: '2026-09-22',
+      categories: [],
+      cards: [],
+      transactions: [
+        row({ id: 'a', kind: 'expense', amountCents: 1000, occurredOn: '2026-09-22', familyId: 'fam1' }),
+        row({ id: 'b', kind: 'expense', amountCents: 1000, occurredOn: '2026-09-22' }),
+      ],
+    })
+    expect(Object.fromEntries(v.groups[0].rows.map((r) => [r.id, r.family]))).toEqual({ a: true, b: false })
+  })
   test('agrupa pelo dia efetivo, do mais recente, com Hoje e Ontem', () => {
     const v = build(f())
     expect(v.monthLabel).toBe('setembro de 2026')
     expect(v.groups.map((g) => g.label)).toEqual(['Hoje', 'Ontem', '19 de setembro', '5 de setembro'])
     expect(v.groups[0].rows.map((r) => r.id)).toEqual(['t2', 't1'])
-    expect(v.groups[0].rows[1]).toEqual({ id: 't1', kind: 'expense', title: 'Mercado · feira', subtitle: 'Pix', cents: 14230, href: '/extrato/t1', badge: null })
-    expect(v.groups[3].rows[0]).toEqual({ id: 't4', kind: 'income', title: 'Salário', subtitle: null, cents: 500000, href: '/extrato/t4', badge: null })
+    expect(v.groups[0].rows[1]).toEqual({ id: 't1', kind: 'expense', title: 'Mercado · feira', subtitle: 'Pix', cents: 14230, href: '/extrato/t1', badge: null, family: false })
+    expect(v.groups[3].rows[0]).toEqual({ id: 't4', kind: 'income', title: 'Salário', subtitle: null, cents: 500000, href: '/extrato/t4', badge: null, family: false })
     expect(v.empty).toBeNull()
   })
   test('conta paga com atraso aparece no dia em que foi paga (A1)', () => {

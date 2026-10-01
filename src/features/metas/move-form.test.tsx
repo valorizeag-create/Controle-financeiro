@@ -9,6 +9,8 @@ vi.mock('react', async (orig) => {
 })
 const acts = vi.hoisted(() => ({ depositToGoal: vi.fn(), withdrawFromGoal: vi.fn() }))
 vi.mock('./movement-actions', () => acts)
+const familyActs = vi.hoisted(() => ({ depositToFamilyGoal: vi.fn(), withdrawFromFamilyGoal: vi.fn() }))
+vi.mock('./family-goal-actions', () => familyActs)
 const { MoveForm } = await import('./move-form')
 
 const mockUseActionState = vi.mocked(useActionState)
@@ -41,4 +43,17 @@ test('tirar: erro de valor maior que o guardado fica no campo, com o valor digit
   expect(screen.getByText('Esta meta tem R$ 180,00. Tire até esse valor.')).toBeTruthy()
   expect(screen.getByText('Esse valor volta para o seu Disponível deste mês.')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Tirar dinheiro' })).toBeTruthy()
+})
+
+test('meta da família: guardar e tirar chamam as ações da família; sem family, as pessoais', () => {
+  render(<MoveForm goalId="g1" mode="deposit" family />)
+  expect(mockUseActionState.mock.calls[0][0]).toBe(familyActs.depositToFamilyGoal)
+  cleanup()
+  mockUseActionState.mockClear()
+  render(<MoveForm goalId="g1" mode="withdraw" family />)
+  expect(mockUseActionState.mock.calls[0][0]).toBe(familyActs.withdrawFromFamilyGoal)
+  cleanup()
+  mockUseActionState.mockClear()
+  render(<MoveForm goalId="g1" mode="withdraw" />)
+  expect(mockUseActionState.mock.calls[0][0]).toBe(acts.withdrawFromGoal)
 })

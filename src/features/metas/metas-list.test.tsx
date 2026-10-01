@@ -15,7 +15,7 @@ const summary = (p: Partial<GoalSummary> & { id: string; name: string }): GoalSu
 
 test('lista do protótipo: guardado em metas, "Só suas" e "Concluídas"', () => {
   const view: MetasView = {
-    totalCents: 428000, empty: false,
+    totalCents: 428000, empty: false, family: [],
     active: [summary({ id: 'g1', name: 'Viagem para Salvador' })],
     concluded: [{ id: 'g3', name: 'Computador novo', caption: 'Computador novo · usada em julho' }],
   }
@@ -33,8 +33,42 @@ test('lista do protótipo: guardado em metas, "Só suas" e "Concluídas"', () =>
 })
 
 test('sem metas: convite da copy para criar a primeira', () => {
-  render(<MetasList view={{ totalCents: 0, empty: true, active: [], concluded: [] }} />)
+  render(<MetasList view={{ totalCents: 0, empty: true, active: [], family: [], concluded: [] }} />)
   expect(screen.getByText('Nenhuma meta por enquanto. Uma viagem, uma reserva, um presente: o que você quer tornar possível?')).toBeTruthy()
   expect(screen.getByRole('link', { name: 'Criar meta' }).getAttribute('href')).toBe('/metas/nova')
   expect(screen.queryByText('Guardado em metas')).toBeNull()
+})
+
+test('"Da família": sem metas da família a seção não existe; com uma, vem depois de "Só suas" com o total e só a minha parte', () => {
+  const personal = [summary({ id: 'g1', name: 'Viagem para Salvador' })]
+  const { rerender } = render(<MetasList view={{ totalCents: 0, empty: false, active: personal, family: [], concluded: [] }} />)
+  expect(screen.queryByRole('heading', { name: 'Da família' })).toBeNull()
+  rerender(
+    <MetasList
+      view={{
+        totalCents: 0, empty: false, active: personal, concluded: [],
+        family: [{ id: 'f1', name: 'Reforma da cozinha', percent: 30, remainingCents: 700000, myPartCents: 180000 }],
+      }}
+    />,
+  )
+  const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+  expect(headings.indexOf('Da família')).toBeGreaterThan(headings.indexOf('Só suas'))
+  const link = screen.getByRole('link', { name: /^Reforma da cozinha/ })
+  expect(link.getAttribute('href')).toBe('/metas/f1')
+  expect(link.textContent).toContain('30%')
+  expect(link.textContent).toContain(`Faltam R$${NBSP}7.000`)
+  expect(link.textContent).toContain(`Sua parte: R$${NBSP}1.800`)
+})
+
+test('só metas da família: sem "Só suas" e sem o convite de lista vazia', () => {
+  render(
+    <MetasList
+      view={{
+        totalCents: 180000, empty: false, active: [], concluded: [],
+        family: [{ id: 'f1', name: 'Reforma da cozinha', percent: 30, remainingCents: 700000, myPartCents: 180000 }],
+      }}
+    />,
+  )
+  expect(screen.queryByRole('heading', { name: 'Só suas' })).toBeNull()
+  expect(screen.getByRole('heading', { name: 'Da família' })).toBeTruthy()
 })

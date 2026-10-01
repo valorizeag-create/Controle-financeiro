@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Button } from '@/ui/button'
 import { Money } from '@/ui/money'
+import { formatCompactBRL } from '@/domain/money'
 import { ProgressBar } from '@/ui/progress-bar'
 import type { MetasView } from './view-model'
 
@@ -41,6 +42,31 @@ export function MetasList({ view }: { view: MetasView }) {
                 <div className="flex items-center justify-between text-sm text-muted">
                   <span>{s.shortRemaining}</span>
                   <span>{s.deadlineShort}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {view.family.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="px-1 text-sm font-semibold text-inactive">Da família</h2>
+          <div className="flex flex-col gap-2">
+            {view.family.map((f) => (
+              <Link
+                key={f.id}
+                href={`/metas/${f.id}`}
+                className="flex flex-col gap-3 rounded-card border border-line bg-card p-[18px] text-ink shadow-card"
+              >
+                <div className="flex items-baseline justify-between">
+                  <span className="text-base font-semibold text-ink">{f.name}</span>
+                  <span className="text-sm font-semibold text-brand-text">{f.percent}%</span>
+                </div>
+                <ProgressBar percent={f.percent} label={`Progresso de ${f.name}`} />
+                <div className="flex items-center justify-between text-sm text-muted">
+                  <span>{f.remainingCents === 0 ? 'Meta completa' : `Faltam ${formatCompactBRL(f.remainingCents)}`}</span>
+                  <span>{`Sua parte: ${formatCompactBRL(f.myPartCents)}`}</span>
                 </div>
               </Link>
             ))}

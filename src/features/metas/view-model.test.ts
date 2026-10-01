@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
+import type { FamilyGoalRow } from '@/features/familia/types'
 import type { GoalMovementRow, GoalRow } from './types'
-import { buildGoalDetail, buildGoalFundedExpense, buildMetas, pickFeatured, summarizeGoal } from './view-model'
+import { buildFamilyGoalDetail, buildGoalDetail, buildGoalFundedExpense, buildMetas, pickFeatured, summarizeGoal } from './view-model'
 
 const NBSP = String.fromCharCode(0xa0)
 const brl = (s: string) => `R$${NBSP}${s}`
@@ -139,4 +140,47 @@ test('meta em destaque: a ativa mais adiantada que ainda não chegou lá (decis�
   expect(pickFeatured([a, b, c])?.goal.id).toBe('g3')
   expect(pickFeatured([b])).toBeNull()
   expect(pickFeatured([])).toBeNull()
+})
+
+const familyGoal = (p: Partial<FamilyGoalRow> = {}): FamilyGoalRow => ({
+  ...goal({ id: 'g1', name: 'Reforma da cozinha', targetCents: 1000000 }), familyId: 'f1', createdBy: 'u2', savedCents: 300000, ...p,
+})
+
+describe('metas da família', () => {
+  test('Da família: total da família, quanto falta e só a minha parte (protótipo Metas)', () => {
+    const v = buildMetas({
+      goals: [], today,
+      movements: [mv({ goalId: 'g1', kind: 'deposit', amountCents: 180000, occurredOn: '2026-09-01' })],
+      familyGoals: [familyGoal()],
+    })
+    expect(v.family).toEqual([{ id: 'g1', name: 'Reforma da cozinha', percent: 30, remainingCents: 700000, myPartCents: 180000 }])
+    expect(v.empty).toBe(false)
+    // "Guardado em metas" inclui a minha parte (decisão 104), nunca o total da família.
+    expect(v.totalCents).toBe(180000)
+  })
+
+  test('sem metas da família a lista é a de sempre; meta da família usada vai para Concluídas', () => {
+    expect(buildMetas({ goals: [], movements: [], today }).family).toEqual([])
+    const v = buildMetas({
+      goals: [], movements: [], today,
+      familyGoals: [familyGoal({ status: 'used', usedOn: '2026-08-10' })],
+    })
+    expect(v.family).toEqual([])
+    expect(v.concluded).toEqual([{ id: 'g1', name: 'Reforma da cozinha', caption: 'Reforma da cozinha · usada em agosto' }])
+  })
+
+  test('detalhe: resumo com o total, "Sua parte" só dos meus movimentos; tirar some com parte 0', () => {
+    const d = buildFamilyGoalDetail({
+      goal: familyGoal(), today,
+      movements: [mv({ goalId: 'g1', kind: 'deposit', amountCents: 180000, occurredOn: '2026-09-01' })],
+    })
+    expect(d.summary.balanceCents).toBe(300000)
+    expect(d.summary.percent).toBe(30)
+    expect(d.myPartCents).toBe(180000)
+    expect(d.canWithdraw).toBe(true)
+    expect(d.canUse).toBe(true)
+    expect(d.history).toHaveLength(1)
+    const none = buildFamilyGoalDetail({ goal: familyGoal({ savedCents: 0 }), today, movements: [] })
+    expect(none).toMatchObject({ myPartCents: 0, canWithdraw: false, canUse: false, canDeposit: true })
+  })
 })

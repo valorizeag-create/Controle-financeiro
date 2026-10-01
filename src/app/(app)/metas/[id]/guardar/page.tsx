@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { z } from 'zod'
-import { loadGoal } from '@/features/metas/queries'
+import { resolveGoal } from '@/features/metas/resolve-goal'
 import { MoveForm } from '@/features/metas/move-form'
 import { SheetClose } from '@/features/registro/sheet-close'
 
@@ -9,7 +9,7 @@ type Props = { params: Promise<{ id: string }> }
 export default async function GuardarPage({ params }: Props) {
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
-  const data = await loadGoal(id)
+  const data = await resolveGoal(id)
   if (!data) notFound()
   if (data.goal.status !== 'active') redirect(`/metas/${id}`)
 
@@ -23,7 +23,7 @@ export default async function GuardarPage({ params }: Props) {
           </div>
           <SheetClose href={`/metas/${id}`} />
         </div>
-        <MoveForm goalId={id} mode="deposit" />
+        <MoveForm goalId={id} mode="deposit" family={data.kind === 'family'} />
       </section>
     </div>
   )
