@@ -3,6 +3,8 @@ import { monthOf, parseMonthKey, todayInSaoPaulo } from '@/domain/dates'
 import { loadLedger } from '@/features/registro/queries'
 import { loadGoals } from '@/features/metas/queries'
 import { loadBudgets } from '@/features/planejamento/queries'
+import { loadFamilySummary } from '@/features/familia/queries'
+import { ViewSwitch } from '@/features/familia/view-switch'
 import { buildSeuMes } from '@/features/seu-mes/view-model'
 import { Hero } from '@/features/seu-mes/hero'
 import { MonthNav } from '@/features/seu-mes/month-nav'
@@ -19,7 +21,13 @@ export default async function InicioPage({ searchParams }: { searchParams: Promi
   const today = todayInSaoPaulo()
   const { mes } = await searchParams
   const month = parseMonthKey(mes) ?? monthOf(today)
-  const [{ profile, categories, transactions, goalMovements }, goals, budgets] = await Promise.all([loadLedger(), loadGoals(), loadBudgets([month])])
+  // O seletor Eu · Família só aparece para quem tem família; os números pessoais não dependem dele (RNF-11).
+  const [{ profile, categories, transactions, goalMovements }, goals, budgets, family] = await Promise.all([
+    loadLedger(),
+    loadGoals(),
+    loadBudgets([month]),
+    loadFamilySummary().catch(() => null),
+  ])
   const v = buildSeuMes({ month, today, profile, categories, transactions, goals, goalMovements, budgets })
 
   return (
@@ -29,7 +37,10 @@ export default async function InicioPage({ searchParams }: { searchParams: Promi
           <span className="text-sm text-muted">Seu mês até agora</span>
           <h1 className="text-2xl font-semibold tracking-tight text-ink md:text-[26px]">Oi, {profile.displayName}.</h1>
         </div>
-        <MonthNav month={month} label={v.label} />
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          {family && <ViewSwitch month={month} current="eu" />}
+          <MonthNav month={month} label={v.label} />
+        </div>
       </header>
 
       <div className="grid gap-3 md:grid-cols-3 md:gap-4">

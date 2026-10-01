@@ -1,7 +1,16 @@
 import { ConfirmAction } from '@/ui/confirm'
 import { markBillPaid } from './actions'
 
-export function PayBillButton({ id, name, back, short }: { id: string; name: string; back: string; short?: boolean }) {
+type Props = {
+  id: string
+  name: string
+  back: string
+  short?: boolean
+  // Padrão: conta pessoal. A conta da família passa a ação da família.
+  action?: (fd: FormData) => Promise<void>
+}
+
+export function PayBillButton({ id, name, back, short, action = markBillPaid }: Props) {
   return (
     <ConfirmAction
       trigger={short ? 'Paga' : 'Marcar como paga'}
@@ -10,7 +19,7 @@ export function PayBillButton({ id, name, back, short }: { id: string; name: str
       title={`Marcar ${name} como paga?`}
       confirmLabel="Marcar como paga"
       cancelLabel="Agora não"
-      action={markBillPaid}
+      action={action}
       fields={{ id, volta: back }}
     />
   )
