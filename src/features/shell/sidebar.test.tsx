@@ -19,7 +19,7 @@ test('menu lateral lista as áreas que já existem e marca a atual', () => {
   pathname = '/categorias/nova'
   render(<Sidebar displayName="Ana" />)
   const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
-  expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Seu mês', 'Extrato', 'Contas', 'Planejamento', 'Metas', 'Cartões', 'Relatórios', 'Categorias', 'Configurações'])
+  expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Seu mês', 'Extrato', 'Contas', 'Planejamento', 'Metas', 'Cartões', 'Relatórios', 'Família', 'Categorias', 'Configurações'])
   expect(screen.getByRole('link', { name: 'Categorias' }).getAttribute('aria-current')).toBe('page')
   expect(screen.getByRole('link', { name: 'Seu mês' }).getAttribute('aria-current')).toBeNull()
 })
@@ -32,4 +32,20 @@ test('Sair da Íris pede confirmação: Sair ou Ficar', () => {
   expect(within(dialog).getByRole('button', { name: 'Sair' }).getAttribute('type')).toBe('submit')
   fireEvent.click(within(dialog).getByRole('button', { name: 'Ficar' }))
   expect(screen.queryByRole('alertdialog')).toBeNull()
+})
+
+test('Família: link com o nome exato, para /familia, marcado também nas subpáginas', () => {
+  pathname = '/familia/contas'
+  render(<Sidebar displayName="Ana" />)
+  const link = screen.getByRole('link', { name: 'Família' })
+  expect(link.getAttribute('href')).toBe('/familia')
+  expect(link.getAttribute('aria-current')).toBe('page')
+  expect(screen.getByRole('link', { name: 'Seu mês' }).getAttribute('aria-current')).toBeNull()
+})
+
+test('o mês da família marca Seu mês, não Família', () => {
+  pathname = '/inicio/familia'
+  render(<Sidebar displayName="Ana" />)
+  expect(screen.getByRole('link', { name: 'Seu mês' }).getAttribute('aria-current')).toBe('page')
+  expect(screen.getByRole('link', { name: 'Família' }).getAttribute('aria-current')).toBeNull()
 })

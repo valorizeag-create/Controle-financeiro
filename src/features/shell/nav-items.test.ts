@@ -22,7 +22,7 @@ test('isActive reconhece a página e as subpáginas, sem confundir prefixos', ()
 })
 
 test('Contas: menu lateral depois de Extrato; no celular fica dentro de Mais', () => {
-  expect(SIDEBAR_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/contas', '/planejamento', '/metas', '/cartoes', '/relatorios', '/categorias', '/configuracoes'])
+  expect(SIDEBAR_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/contas', '/planejamento', '/metas', '/cartoes', '/relatorios', '/familia', '/categorias', '/configuracoes'])
   expect(BOTTOM_NAV_ITEMS.map((i) => i.href)).toEqual(['/inicio', '/extrato', '/metas', '/mais'])
   const mais = BOTTOM_NAV_ITEMS.find((i) => i.href === '/mais')!
   expect(isActive('/contas', mais)).toBe(true)
@@ -65,4 +65,22 @@ test('Planejamento e Relatórios: menu lateral na ordem do protótipo; no celula
   expect(isActive('/planejamento/editar', planejamento)).toBe(true)
   expect(isActive('/planejamentos', planejamento)).toBe(false)
   for (const p of ['/planejamento', '/planejamento/editar', '/relatorios']) expect(isSheetRoute(p)).toBe(false)
+})
+
+test('menu lateral na ordem do protótipo Desktop, com Família depois de Relatórios', () => {
+  expect(SIDEBAR_ITEMS.map((i) => i.label)).toEqual(['Seu mês', 'Extrato', 'Contas', 'Planejamento', 'Metas', 'Cartões', 'Relatórios', 'Família', 'Categorias', 'Configurações'])
+})
+
+test('Família e as subpáginas marcam Mais no celular; o mês da família marca Seu mês', () => {
+  const mais = BOTTOM_NAV_ITEMS.find((i) => i.label === 'Mais')!
+  const seuMes = BOTTOM_NAV_ITEMS.find((i) => i.label === 'Seu mês')!
+  for (const p of ['/familia', '/familia/contas', '/familia/gastos/x']) expect(isActive(p, mais)).toBe(true)
+  expect(isActive('/inicio/familia', seuMes)).toBe(true)
+  expect(isActive('/inicio/familia', mais)).toBe(false)
+  expect(isActive('/inicio/familia', SIDEBAR_ITEMS.find((i) => i.label === 'Família')!)).toBe(false)
+})
+
+test('a barra inferior continua com as mesmas quatro áreas e as páginas da família não são painéis', () => {
+  expect(BOTTOM_NAV_ITEMS.map((i) => i.label)).toEqual(['Seu mês', 'Extrato', 'Metas', 'Mais'])
+  for (const p of ['/familia', '/familia/contas', '/inicio/familia']) expect(isSheetRoute(p)).toBe(false)
 })
