@@ -6,6 +6,7 @@ import { env } from '@/lib/env'
 import { setFlash } from '@/lib/flash'
 import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/forms'
 import { UNEXPECTED, passwordUpdateMessage } from './errors'
+import { inviteReturn } from './routes'
 import { newPasswordSchema, resetSchema, signInSchema, signUpSchema } from './schemas'
 
 export async function signUp(_: FormState, fd: FormData): Promise<FormState> {
@@ -24,7 +25,7 @@ export async function signUp(_: FormState, fd: FormData): Promise<FormState> {
     return errorState({ message: 'Esse e-mail já tem um cadastro. Quer entrar?', values })
   }
   if (error) return errorState({ message: UNEXPECTED, values })
-  redirect('/boas-vindas')
+  redirect(inviteReturn(String(fd.get('next') ?? '')) ?? '/boas-vindas')
 }
 
 export async function signIn(_: FormState, fd: FormData): Promise<FormState> {
@@ -39,14 +40,15 @@ export async function signIn(_: FormState, fd: FormData): Promise<FormState> {
     return errorState({ message: 'E-mail ou senha não conferem. Tente de novo ou crie uma nova senha.', values })
   }
   if (error) return errorState({ message: UNEXPECTED, values })
-  redirect('/inicio')
+  redirect(inviteReturn(String(fd.get('next') ?? '')) ?? '/inicio')
 }
 
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(fd?: FormData): Promise<void> {
+  const back = inviteReturn(String(fd?.get('next') ?? ''))
   const supabase = await createClient()
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: `${env.siteUrl}/auth/callback` },
+    options: { redirectTo: `${env.siteUrl}/auth/callback${back ? `?next=${encodeURIComponent(back)}` : ''}` },
   })
   redirect(error || !data.url ? '/entrar?erro=1' : data.url)
 }

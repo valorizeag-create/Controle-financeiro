@@ -23,10 +23,11 @@ function useForm(action: (s: FormState, fd: FormData) => Promise<FormState>) {
   }
 }
 
-export function SignUpForm() {
+export function SignUpForm({ next }: { next?: string }) {
   const f = useForm(signUp)
   return (
     <form key={f.key} action={f.formAction} noValidate className="flex flex-col gap-4">
+      {next && <input type="hidden" name="next" value={next} />}
       <TextField name="displayName" label="Como podemos te chamar?" autoComplete="given-name" defaultValue={f.values.displayName} error={f.errors.displayName} />
       <TextField name="email" type="email" label="Seu e-mail" autoComplete="email" defaultValue={f.values.email} error={f.errors.email} />
       <TextField name="password" type="password" label="Crie uma senha" autoComplete="new-password" hint="Pelo menos 8 caracteres." error={f.errors.password} />
@@ -36,10 +37,11 @@ export function SignUpForm() {
   )
 }
 
-export function SignInForm() {
+export function SignInForm({ next }: { next?: string }) {
   const f = useForm(signIn)
   return (
     <form key={f.key} action={f.formAction} noValidate className="flex flex-col gap-4">
+      {next && <input type="hidden" name="next" value={next} />}
       <TextField name="email" type="email" label="E-mail" autoComplete="email" defaultValue={f.values.email} error={f.errors.email} />
       <TextField name="password" type="password" label="Senha" autoComplete="current-password" error={f.errors.password} />
       {f.message && <FormAlert>{f.message}</FormAlert>}

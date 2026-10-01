@@ -1,8 +1,9 @@
 import { signInWithGoogle } from './actions'
 
-export function GoogleButton() {
+export function GoogleButton({ next }: { next?: string }) {
   return (
     <form action={signInWithGoogle} className="flex flex-col gap-4">
+      {next && <input type="hidden" name="next" value={next} />}
       <button type="submit" className="flex h-[50px] items-center justify-center gap-2.5 rounded-panel border border-control bg-card font-semibold text-ink">
         <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />

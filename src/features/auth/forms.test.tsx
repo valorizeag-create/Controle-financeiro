@@ -11,7 +11,7 @@ vi.mock('react', async (orig) => {
   return { ...react, useActionState: vi.fn(() => [{ status: 'idle' }, vi.fn(), false]) }
 })
 
-const { NewPasswordForm } = await import('./forms')
+const { NewPasswordForm, SignInForm, SignUpForm } = await import('./forms')
 
 const mockUseActionState = vi.mocked(useActionState)
 
@@ -49,4 +49,19 @@ test('outros erros não oferecem "Sair da Íris"', () => {
   ])
   render(<NewPasswordForm />)
   expect(screen.queryByText('Sair da Íris')).toBeNull()
+})
+
+test('entrar e criar cadastro levam o convite escondido; sem convite, nenhum campo de volta', () => {
+  const next = `/convite/${'a'.repeat(32)}`
+  const { unmount } = render(<SignInForm next={next} />)
+  expect((document.querySelector('input[type="hidden"][name="next"]') as HTMLInputElement).value).toBe(next)
+  unmount()
+  render(<SignUpForm next={next} />)
+  expect((document.querySelector('input[type="hidden"][name="next"]') as HTMLInputElement).value).toBe(next)
+  cleanup()
+  render(<SignInForm />)
+  expect(document.querySelector('input[name="next"]')).toBeNull()
+  cleanup()
+  render(<SignUpForm />)
+  expect(document.querySelector('input[name="next"]')).toBeNull()
 })

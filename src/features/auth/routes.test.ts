@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { isAnonOnlyPath, isPublicPath, safeNext } from './routes'
+import { inviteReturn, isAnonOnlyPath, isPublicPath, safeNext, withNext } from './routes'
 
 test('rotas públicas e rotas só para quem não entrou', () => {
   expect(isPublicPath('/entrar')).toBe(true)
@@ -19,4 +19,26 @@ test('safeNext só aceita caminhos internos', () => {
   expect(safeNext('/\t/malicioso.com')).toBe('/inicio')
   expect(safeNext('/a\\b')).toBe('/inicio')
   expect(safeNext('/%0a')).toBe('/%0a')
+})
+
+const CODE = 'a'.repeat(32)
+
+test('o convite é público; outras rotas parecidas não', () => {
+  expect(isPublicPath('/convite/abc')).toBe(true)
+  expect(isPublicPath(`/convite/${CODE}`)).toBe(true)
+  expect(isPublicPath('/convitex')).toBe(false)
+  expect(isPublicPath('/convite/')).toBe(false)
+  expect(isPublicPath('/convite/a/b')).toBe(false)
+  expect(isPublicPath('/familia')).toBe(false)
+  expect(safeNext('/convite/abc')).toBe('/convite/abc')
+})
+
+test('volta ao convite: só o formato exato, só caminho interno', () => {
+  expect(inviteReturn(`/convite/${CODE}`)).toBe(`/convite/${CODE}`)
+  for (const bad of [null, undefined, '', '/convite/abc', `/convite/${CODE}x`, `/convite/${CODE}?x=1`, '/extrato', '//evil.com', `//convite/${CODE}`, 'https://evil.com', `/convite/${'a'.repeat(31)}/`]) {
+    expect(inviteReturn(bad)).toBeNull()
+  }
+  expect(withNext('/criar-cadastro', `/convite/${CODE}`)).toBe(`/criar-cadastro?next=%2Fconvite%2F${CODE}`)
+  expect(withNext('/criar-cadastro', undefined)).toBe('/criar-cadastro')
+  expect(withNext('/criar-cadastro', '/extrato')).toBe('/criar-cadastro')
 })
