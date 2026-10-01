@@ -7,25 +7,21 @@ import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/
 import { setFlash } from '@/lib/flash'
 import { refreshMoneyViews } from '@/lib/refresh'
 import { amountField } from '@/features/registro/schemas'
-import { UNEXPECTED } from '@/features/auth/errors'
 import { myFamilyId } from '@/features/familia/queries'
 import { crossedMilestone } from '@/domain/goals'
 import { formatBRL } from '@/domain/money'
 import { todayInSaoPaulo } from '@/domain/dates'
 import { makeGoalSchema, makeUseSchema } from './schemas'
+import { GOAL_CHANGED, SAVE_FAILED, UNDO_BLOCKED, familyGoalFailure, isFinalFailure } from './family-goal-errors'
 
-const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
-const UNDO_BLOCKED = 'Não dá para desfazer este uso porque alguém que participou saiu da família.'
 const GOAL_FIELDS = ['name', 'target', 'deadline'] as const
 
 const recordId = z.uuid()
 
-type DbError = { message?: string; code?: string }
+const says = (e: { message?: string }, part: string) => (e.message ?? '').includes(part)
 
 // As regras de quem pode (administrador, quem criou) e a família vêm do banco (auth.uid()):
-// daqui só vai o que a pessoa digitou. Impasse entre gravações ao mesmo tempo (40P01): tentar de novo funciona.
-const says = (e: DbError, part: string) => (e.message ?? '').includes(part)
-const failure = (e: DbError) => (e.code === '40P01' ? UNEXPECTED : SAVE_FAILED)
+// daqui só vai o que a pessoa digitou. Os textos de cada erro ficam em family-goal-errors.ts.
 
 export async function updateFamilyGoal(_: FormState, fd: FormData): Promise<FormState> {
   await requireUser()
@@ -42,7 +38,7 @@ export async function updateFamilyGoal(_: FormState, fd: FormData): Promise<Form
     p_target_cents: d.targetCents,
     p_deadline: d.deadline ? `${d.deadline}-01` : null,
   })
-  if (error) return errorState({ message: failure(error), values })
+  if (error) return errorState({ message: familyGoalFailure(error), values })
   await setFlash('Alterações salvas.')
   refreshMoneyViews()
   redirect(`/metas/${parsedId.data}`)
@@ -55,7 +51,15 @@ export async function deleteFamilyGoal(fd: FormData): Promise<void> {
   const id = parsedId.data
   const supabase = await createClient()
   const { error } = await supabase.rpc('delete_family_goal', { p_goal_id: id })
-  if (error) redirect(`/metas/${id}/editar?erro=1`)
+  if (error) {
+    // Erro que tentar de novo não resolve: o texto certo vai no aviso, de volta à meta (ou à lista, se ela sumiu).
+    const message = familyGoalFailure(error)
+    if (isFinalFailure(message)) {
+      await setFlash(message)
+      redirect(message === GOAL_CHANGED ? '/metas' : `/metas/${id}`)
+    }
+    redirect(`/metas/${id}/editar?erro=1`)
+  }
   await setFlash('Meta excluída.')
   refreshMoneyViews()
   redirect('/metas')
@@ -74,26 +78,29 @@ export async function depositToFamilyGoal(_: FormState, fd: FormData): Promise<F
   try {
     familyId = await myFamilyId(supabase, user.id)
   } catch {
-    familyId = null
+    return errorState({ message: SAVE_FAILED, values })
   }
-  if (!familyId) return errorState({ message: SAVE_FAILED, values })
+  if (!familyId) return errorState({ message: GOAL_CHANGED, values })
   // O aviso de marco é sobre o total da família (A4 B: o total é de todos; a parte de cada um é só dele).
+  // O total é lido antes de guardar: se outro membro guardar ao mesmo tempo, o aviso pode variar. É só o aviso.
   const [goalRes, totalsRes] = await Promise.all([
     supabase
       .from('goals')
       .select('name, target_cents')
       .eq('id', id)
       .eq('family_id', familyId)
+      .eq('status', 'active')
       .is('deleted_on', null)
       .maybeSingle<{ name: string; target_cents: number }>(),
     supabase.rpc('family_goal_totals'),
   ])
+  if (goalRes.error || totalsRes.error) return errorState({ message: SAVE_FAILED, values })
   const goal = goalRes.data
-  if (!goal || totalsRes.error) return errorState({ message: SAVE_FAILED, values })
+  if (!goal) return errorState({ message: GOAL_CHANGED, values })
   const totals = (totalsRes.data ?? []) as { goal_id: string; saved_cents: number | string }[]
   const before = Number(totals.find((t) => t.goal_id === id)?.saved_cents ?? 0)
   const { error } = await supabase.rpc('deposit_family_goal', { p_goal_id: id, p_amount_cents: parsed.data.amount })
-  if (error) return errorState({ message: failure(error), values })
+  if (error) return errorState({ message: familyGoalFailure(error), values })
   const after = before + parsed.data.amount
   const milestone = crossedMilestone(before, after, Number(goal.target_cents))
   const message =
@@ -120,13 +127,14 @@ export async function withdrawFromFamilyGoal(_: FormState, fd: FormData): Promis
   if (error) {
     if (says(error, 'Valor maior que o guardado.')) {
       // goal_balance devolve só a parte de quem pede.
-      const { data: balance } = await supabase.rpc('goal_balance', { p_goal_id: id })
+      const { data: balance, error: balanceError } = await supabase.rpc('goal_balance', { p_goal_id: id })
+      if (balanceError || balance === null || balance === undefined) return errorState({ message: SAVE_FAILED, values })
       return errorState({
         fieldErrors: { amount: `Sua parte nesta meta é ${formatBRL(Number(balance))}. Tire até esse valor.` },
         values,
       })
     }
-    return errorState({ message: failure(error), values })
+    return errorState({ message: familyGoalFailure(error), values })
   }
   await setFlash('Pronto. O valor voltou para o seu mês.')
   refreshMoneyViews()
@@ -152,7 +160,7 @@ export async function spendFromFamilyGoal(_: FormState, fd: FormData): Promise<F
     if (says(error, 'Categoria não encontrada.')) {
       return errorState({ fieldErrors: { categoryId: 'Escolha uma categoria para esse gasto.' }, values })
     }
-    return errorState({ message: failure(error), values })
+    return errorState({ message: familyGoalFailure(error), values })
   }
   await setFlash('Anotado. Seu mês já está atualizado.')
   refreshMoneyViews()
@@ -162,18 +170,25 @@ export async function spendFromFamilyGoal(_: FormState, fd: FormData): Promise<F
 export async function deleteFamilyGoalUse(fd: FormData): Promise<void> {
   await requireUser()
   const parsedTx = recordId.safeParse(String(fd.get('transactionId') ?? ''))
+  if (!parsedTx.success) redirect('/metas')
+  // A meta do formulário só serve para voltar na falha; sem ela, volta para a lista.
   const parsedGoal = recordId.safeParse(String(fd.get('goalId') ?? ''))
-  if (!parsedTx.success || !parsedGoal.success) redirect('/metas')
-  const goalId = parsedGoal.data
+  const back = parsedGoal.success ? `/metas/${parsedGoal.data}` : '/metas'
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('delete_family_goal_use', { p_transaction_id: parsedTx.data })
   if (error) {
-    // O banco recusa com "Gasto não encontrado." quando alguém do uso já saiu; a tela não tem como saber antes.
+    // "Gasto não encontrado." vale para uso já desfeito (toque duplo), de outra família ou de quem saiu:
+    // o banco não distingue, então o texto não afirma a causa.
     if (says(error, 'Gasto não encontrado.')) {
       await setFlash(UNDO_BLOCKED)
-      redirect(`/metas/${goalId}`)
+      redirect(back)
     }
-    redirect(`/metas/${goalId}?erro=1`)
+    const message = familyGoalFailure(error)
+    if (isFinalFailure(message)) {
+      await setFlash(message)
+      redirect(message === GOAL_CHANGED ? '/metas' : back)
+    }
+    redirect(`${back}?erro=1`)
   }
   await setFlash('Excluído. Seu mês já está atualizado.')
   refreshMoneyViews()

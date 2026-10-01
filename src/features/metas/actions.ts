@@ -7,7 +7,7 @@ import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/
 import { setFlash } from '@/lib/flash'
 import { refreshMoneyViews } from '@/lib/refresh'
 import { todayInSaoPaulo } from '@/domain/dates'
-import { UNEXPECTED } from '@/features/auth/errors'
+import { familyGoalFailure } from './family-goal-errors'
 import { makeGoalSchema } from './schemas'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
@@ -30,7 +30,7 @@ export async function createGoal(_: FormState, fd: FormData): Promise<FormState>
       p_target_cents: d.targetCents,
       p_deadline: d.deadline ? `${d.deadline}-01` : null,
     })
-    if (familyError) return errorState({ message: familyError.code === '40P01' ? UNEXPECTED : SAVE_FAILED, values })
+    if (familyError) return errorState({ message: familyGoalFailure(familyError), values })
     await setFlash('Meta criada. O primeiro passo já foi dado.')
     refreshMoneyViews()
     redirect('/metas')

@@ -34,6 +34,9 @@ const UUID = '3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
 const UUID2 = '9b1c2d3e-4f5a-4b6c-8d7e-0f1a2b3c4d5e'
 const UUID3 = '5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d'
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
+const ADMIN_ONLY = 'Só quem administra a família pode fazer isso.'
+const CHANGED = 'Esta meta mudou. Atualize a página para ver como ela está.'
+const EMPTY = 'Esta meta não tem dinheiro guardado.'
 const UNEXPECTED = 'Algo não saiu como esperado do nosso lado. Tente novamente em instantes.'
 const NBSP = String.fromCharCode(0xa0)
 const idle = { status: 'idle' } as const
@@ -131,7 +134,7 @@ describe('updateFamilyGoal', () => {
 
   test('sem permissão (nem quem criou nem administrador): aviso calmo; impasse: tente de novo', async () => {
     h.supabase = fakeSupabase({ rpc: { update_family_goal: { error: { code: '42501', message: 'Só quem administra a família pode fazer isso.' } } } })
-    expect(await actions.updateFamilyGoal(idle, form({ id: UUID, name: 'Reforma', target: '10', deadline: '' }))).toMatchObject({ message: SAVE_FAILED, values: { name: 'Reforma' } })
+    expect(await actions.updateFamilyGoal(idle, form({ id: UUID, name: 'Reforma', target: '10', deadline: '' }))).toMatchObject({ message: ADMIN_ONLY, values: { name: 'Reforma' } })
     h.supabase = fakeSupabase({ rpc: { update_family_goal: { error: { code: '40P01', message: 'deadlock detected' } } } })
     expect(await actions.updateFamilyGoal(idle, form({ id: UUID, name: 'Reforma', target: '10', deadline: '' }))).toMatchObject({ message: UNEXPECTED })
     expect(h.setFlash).not.toHaveBeenCalled()
@@ -147,8 +150,15 @@ describe('deleteFamilyGoal', () => {
     expect(h.refresh).toHaveBeenCalled()
   })
 
-  test('falha (ex.: não é administrador) volta para editar com aviso', async () => {
+  test('não é administrador: aviso próprio de volta à meta; meta que sumiu: aviso na lista; impasse: volta para editar', async () => {
     h.supabase = fakeSupabase({ rpc: { delete_family_goal: { error: { code: '42501', message: 'Só quem administra a família pode fazer isso.' } } } })
+    expect(await redirectOf(actions.deleteFamilyGoal(form({ id: UUID })))).toBe(`/metas/${UUID}`)
+    expect(h.setFlash).toHaveBeenLastCalledWith(ADMIN_ONLY)
+    h.supabase = fakeSupabase({ rpc: { delete_family_goal: { error: { message: 'Meta inválida.' } } } })
+    expect(await redirectOf(actions.deleteFamilyGoal(form({ id: UUID })))).toBe('/metas')
+    expect(h.setFlash).toHaveBeenLastCalledWith(CHANGED)
+    h.setFlash.mockClear()
+    h.supabase = fakeSupabase({ rpc: { delete_family_goal: { error: { code: '40P01', message: 'deadlock' } } } })
     expect(await redirectOf(actions.deleteFamilyGoal(form({ id: UUID })))).toBe(`/metas/${UUID}/editar?erro=1`)
     expect(h.setFlash).not.toHaveBeenCalled()
   })
@@ -160,7 +170,7 @@ describe('depositToFamilyGoal', () => {
     expect(await redirectOf(actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '100,00' })))).toBe(`/metas/${UUID}`)
     expect(rpcCalls().at(-1)).toEqual({ op: 'rpc:deposit_family_goal', filters: {}, payload: { p_goal_id: UUID, p_amount_cents: 10000 } })
     expect(h.setFlash).toHaveBeenCalledWith('Metade do caminho até Reforma da cozinha.')
-    expect(calls.find((c) => c.op.startsWith('select:goals'))?.filters).toEqual({ 'eq:id': UUID, 'eq:family_id': 'f1', 'is:deleted_on': null })
+    expect(calls.find((c) => c.op.startsWith('select:goals'))?.filters).toEqual({ 'eq:id': UUID, 'eq:family_id': 'f1', 'eq:status': 'active', 'is:deleted_on': null })
     expect(h.refresh).toHaveBeenCalled()
   })
 
@@ -175,9 +185,9 @@ describe('depositToFamilyGoal', () => {
 
   test('sem família, meta de fora da família ou erro do banco: não grava e mantém o valor', async () => {
     h.supabase = fakeSupabase({ family: null })
-    expect(await actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: SAVE_FAILED, values: { amount: '20' } })
+    expect(await actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: CHANGED, values: { amount: '20' } })
     h.supabase = fakeSupabase({ goal: null })
-    expect(await actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: SAVE_FAILED })
+    expect(await actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: CHANGED })
     expect(rpcCalls().map((c) => c.op)).not.toContain('rpc:deposit_family_goal')
     h.supabase = fakeSupabase({ rpc: { deposit_family_goal: { error: { code: '40P01', message: 'deadlock' } } } })
     expect(await actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: UNEXPECTED })
@@ -205,9 +215,32 @@ describe('withdrawFromFamilyGoal', () => {
 
   test('outras falhas: aviso calmo; impasse: tente de novo', async () => {
     h.supabase = fakeSupabase({ rpc: { withdraw_family_goal: { error: { message: 'Meta não encontrada.' } } } })
-    expect(await actions.withdrawFromFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: SAVE_FAILED })
+    expect(await actions.withdrawFromFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: CHANGED })
     h.supabase = fakeSupabase({ rpc: { withdraw_family_goal: { error: { code: '40P01', message: 'deadlock' } } } })
     expect(await actions.withdrawFromFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: UNEXPECTED })
+  })
+})
+
+describe('textos por tipo de erro do banco', () => {
+  test('uso: meta mudou, meta inválida e meta sem dinheiro guardado', async () => {
+    for (const [message, text] of [['Meta não encontrada.', CHANGED], ['Meta inválida.', CHANGED], ['Meta sem dinheiro guardado.', EMPTY]]) {
+      h.supabase = fakeSupabase({ rpc: { use_family_goal: { error: { message } } } })
+      expect(await actions.spendFromFamilyGoal(idle, form({ id: UUID, amount: '10', categoryId: UUID3 }))).toMatchObject({ message: text, values: { amount: '10' } })
+    }
+  })
+
+  test('guardar: meta já usada (fora do filtro de ativa) mostra que a meta mudou e não chama o banco', async () => {
+    h.supabase = fakeSupabase({ goal: null })
+    expect(await actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: CHANGED })
+    expect(rpcCalls().map((c) => c.op)).not.toContain('rpc:deposit_family_goal')
+    h.supabase = fakeSupabase()
+    await redirectOf(actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '20' })))
+    expect(calls.find((c) => c.op.startsWith('select:goals'))?.filters).toMatchObject({ 'eq:status': 'active' })
+  })
+
+  test('tirar: erro ao ler a própria parte não mostra R$ 0,00', async () => {
+    h.supabase = fakeSupabase({ rpc: { withdraw_family_goal: { error: { message: 'Valor maior que o guardado.' } }, goal_balance: { error: { message: 'x' } } } })
+    expect(await actions.withdrawFromFamilyGoal(idle, form({ id: UUID, amount: '20' }))).toMatchObject({ message: SAVE_FAILED })
   })
 })
 
@@ -228,7 +261,7 @@ describe('spendFromFamilyGoal', () => {
     h.supabase = fakeSupabase({ rpc: { use_family_goal: { error: { message: 'Categoria não encontrada.' } } } })
     expect(await actions.spendFromFamilyGoal(idle, form({ id: UUID, amount: '10', categoryId: UUID3 }))).toMatchObject({ fieldErrors: { categoryId: 'Escolha uma categoria para esse gasto.' }, values: { amount: '10' } })
     h.supabase = fakeSupabase({ rpc: { use_family_goal: { error: { code: '42501', message: 'Só quem administra a família pode fazer isso.' } } } })
-    expect(await actions.spendFromFamilyGoal(idle, form({ id: UUID, amount: '10', categoryId: UUID3 }))).toMatchObject({ message: SAVE_FAILED })
+    expect(await actions.spendFromFamilyGoal(idle, form({ id: UUID, amount: '10', categoryId: UUID3 }))).toMatchObject({ message: ADMIN_ONLY })
     h.supabase = fakeSupabase({ rpc: { use_family_goal: { error: { code: '40P01', message: 'deadlock' } } } })
     expect(await actions.spendFromFamilyGoal(idle, form({ id: UUID, amount: '10', categoryId: UUID3 }))).toMatchObject({ message: UNEXPECTED })
     expect(h.setFlash).not.toHaveBeenCalled()
@@ -244,14 +277,25 @@ describe('deleteFamilyGoalUse', () => {
     expect(h.refresh).toHaveBeenCalled()
   })
 
-  test('alguém do uso saiu da família: texto próprio, sem dizer que desfez', async () => {
+  test('uso que o banco não acha (toque duplo, outra família ou quem saiu): texto neutro, sem afirmar a causa', async () => {
     h.supabase = fakeSupabase({ rpc: { delete_family_goal_use: { error: { message: 'Gasto não encontrado.' } } } })
     expect(await redirectOf(actions.deleteFamilyGoalUse(form({ transactionId: UUID2, goalId: UUID })))).toBe(`/metas/${UUID}`)
-    expect(h.setFlash).toHaveBeenCalledWith('Não dá para desfazer este uso porque alguém que participou saiu da família.')
+    expect(h.setFlash).toHaveBeenCalledWith('Este uso não pode mais ser desfeito.')
     expect(h.setFlash).toHaveBeenCalledTimes(1)
   })
 
-  test('outras falhas voltam com aviso', async () => {
+  test('só administrador e meta mudada têm texto próprio; sem goalId válido a falha volta para a lista', async () => {
+    h.supabase = fakeSupabase({ rpc: { delete_family_goal_use: { error: { code: '42501', message: 'x' } } } })
+    expect(await redirectOf(actions.deleteFamilyGoalUse(form({ transactionId: UUID2, goalId: UUID })))).toBe(`/metas/${UUID}`)
+    expect(h.setFlash).toHaveBeenLastCalledWith(ADMIN_ONLY)
+    h.supabase = fakeSupabase({ rpc: { delete_family_goal_use: { error: { message: 'Meta não encontrada.' } } } })
+    expect(await redirectOf(actions.deleteFamilyGoalUse(form({ transactionId: UUID2, goalId: UUID })))).toBe('/metas')
+    expect(h.setFlash).toHaveBeenLastCalledWith(CHANGED)
+    h.supabase = fakeSupabase({ rpc: { delete_family_goal_use: { error: { message: 'Gasto não encontrado.' } } } })
+    expect(await redirectOf(actions.deleteFamilyGoalUse(form({ transactionId: UUID2 })))).toBe('/metas')
+  })
+
+  test('impasse e erro inesperado voltam com o aviso calmo de tentar de novo', async () => {
     h.supabase = fakeSupabase({ rpc: { delete_family_goal_use: { error: { code: '40P01', message: 'deadlock' } } } })
     expect(await redirectOf(actions.deleteFamilyGoalUse(form({ transactionId: UUID2, goalId: UUID })))).toBe(`/metas/${UUID}?erro=1`)
     expect(h.setFlash).not.toHaveBeenCalled()
@@ -262,6 +306,5 @@ test('ações com id que não é uuid não chegam ao banco', async () => {
   h.supabase = fakeSupabase()
   expect(await redirectOf(actions.deleteFamilyGoal(form({ id: 'x' })))).toBe('/metas')
   expect(await redirectOf(actions.deleteFamilyGoalUse(form({ transactionId: 'x', goalId: UUID })))).toBe('/metas')
-  expect(await redirectOf(actions.deleteFamilyGoalUse(form({ transactionId: UUID2, goalId: 'x' })))).toBe('/metas')
   expect(calls).toEqual([])
 })
