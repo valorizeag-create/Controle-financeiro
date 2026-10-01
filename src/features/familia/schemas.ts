@@ -1,4 +1,7 @@
 import { z } from 'zod'
+import type { ISODate } from '@/domain/dates'
+import { amountField, resolveWhen } from '@/features/registro/schemas'
+import { dayField, nameField } from '@/features/contas/schemas'
 
 export const familyNameSchema = z.object({
   name: z
@@ -26,3 +29,32 @@ export function familyPatch(input: {
   if (input.existingFamilyId) return {}
   return input.myFamilyId ? { family_id: input.myFamilyId } : {}
 }
+
+// Para onde voltar depois de pagar uma conta da família: só as duas telas da família.
+const FAMILY_RETURN = /^\/(inicio\/familia|familia\/contas)(\?mes=20\d{2}-(0[1-9]|1[0-2]))?$/
+
+export function familyReturnPath(raw: string): string {
+  return FAMILY_RETURN.test(raw) ? raw : '/familia/contas'
+}
+
+// Edição do administrador: valor, data e nota (a categoria continua a de quem registrou).
+export const makeFamilyExpenseSchema = (today: ISODate) =>
+  z
+    .object({
+      amount: amountField,
+      note: z.string().trim().max(140, { error: 'Use até 140 caracteres.' }).transform((s) => (s === '' ? null : s)),
+      when: z.string(),
+      date: z.string(),
+    })
+    .transform((raw, ctx) => {
+      const occurredOn = resolveWhen(raw.when, raw.date, today)
+      if (!occurredOn) {
+        ctx.addIssue({ code: 'custom', path: ['date'], message: 'Escolha o dia.' })
+        return z.NEVER
+      }
+      return { amountCents: raw.amount, occurredOn, note: raw.note }
+    })
+
+export const familyBillSchema = z
+  .object({ name: nameField, amount: amountField, dueDay: dayField })
+  .transform((raw) => ({ name: raw.name, amountCents: raw.amount, dueDay: raw.dueDay }))

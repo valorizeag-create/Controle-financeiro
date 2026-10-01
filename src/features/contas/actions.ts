@@ -10,13 +10,15 @@ import { formatBRL } from '@/domain/money'
 import { monthOf, todayInSaoPaulo } from '@/domain/dates'
 import { amountField } from '@/features/registro/schemas'
 import { nextDueOnOrAfter } from '@/domain/recurrence'
+import { UNEXPECTED } from '@/features/auth/errors'
+import { myFamilyId } from '@/features/familia/queries'
 import { safeReturnPath } from './return-path'
 import { billSchema, makeRecurrenceEditSchema } from './schemas'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
 
 const recordId = z.uuid()
-const BILL_FIELDS = ['name', 'amount', 'categoryId', 'frequency', 'dueDay', 'dueMonth'] as const
+const BILL_FIELDS = ['name', 'amount', 'categoryId', 'frequency', 'dueDay', 'dueMonth', 'family'] as const
 const EDIT_FIELDS = ['name', 'amount', 'categoryId', 'source', 'dueDay'] as const
 
 export async function markBillPaid(fd: FormData): Promise<void> {
@@ -74,6 +76,16 @@ export async function createBill(_: FormState, fd: FormData): Promise<FormState>
   if (!parsed.success) return errorState({ fieldErrors: firstFieldErrors(parsed.error), values })
   const d = parsed.data
   const supabase = await createClient()
+  // "Conta da família": a família vem do banco, pela pessoa logada; o formulário só diz "sim" ou "não".
+  let familyId: string | null = null
+  if (values.family === 'on') {
+    try {
+      familyId = await myFamilyId(supabase, user.id)
+    } catch {
+      familyId = null
+    }
+    if (!familyId) return errorState({ message: SAVE_FAILED, values })
+  }
   const { error } = await supabase.from('recurrences').insert({
     user_id: user.id,
     kind: 'expense',
@@ -84,8 +96,9 @@ export async function createBill(_: FormState, fd: FormData): Promise<FormState>
     due_day: d.dueDay,
     due_month: d.dueMonth,
     starts_on: nextDueOnOrAfter({ frequency: d.frequency, dueDay: d.dueDay, dueMonth: d.dueMonth }, today),
+    ...(familyId ? { family_id: familyId } : {}),
   })
-  if (error) return errorState({ message: SAVE_FAILED, values })
+  if (error) return errorState({ message: error.code === '40P01' ? UNEXPECTED : SAVE_FAILED, values })
   await setFlash('Conta criada.')
   refreshMoneyViews()
   redirect('/contas')

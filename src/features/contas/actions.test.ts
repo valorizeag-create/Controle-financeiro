@@ -30,7 +30,7 @@ type Call = { op: string; filters: Record<string, unknown>; payload?: unknown }
 const calls: Call[] = []
 
 // Fake encadeável: cada `.eq`/`.is` registra o filtro; `.select()` ou `.maybeSingle()` resolvem.
-function fakeSupabase(s: { rows?: number; error?: unknown; kind?: 'income' | 'expense' | null; rpcError?: unknown; insertError?: unknown } = {}) {
+function fakeSupabase(s: { rows?: number; error?: unknown; kind?: 'income' | 'expense' | null; rpcError?: unknown; insertError?: unknown; family?: string | null } = {}) {
   function builder(op: string, table: string, payload?: unknown) {
     const filters: Record<string, unknown> = {}
     const b = {
@@ -49,6 +49,7 @@ function fakeSupabase(s: { rows?: number; error?: unknown; kind?: 'income' | 'ex
       },
       maybeSingle: async () => {
         calls.push({ op: `read:${table}`, filters })
+        if (table === 'family_members') return { data: s.family ? { family_id: s.family } : null, error: null }
         return { data: s.kind ? { kind: s.kind } : null, error: null }
       },
     }
@@ -197,6 +198,24 @@ describe('createBill', () => {
     h.supabase = fakeSupabase()
     await redirectOf(actions.createBill({ status: 'idle' }, form({ name: 'IPVA', amount: '500', categoryId: CAT, frequency: 'yearly', dueDay: '29', dueMonth: '2' })))
     expect(calls[0].payload).toMatchObject({ frequency: 'yearly', due_day: 29, due_month: 2, starts_on: '2027-02-28' })
+  })
+
+  test('"Conta da família" grava a família de quem cria, lida do banco pela pessoa (RN-18)', async () => {
+    h.supabase = fakeSupabase({ family: 'f1' })
+    await redirectOf(actions.createBill({ status: 'idle' }, form({ name: 'Luz', amount: '180', categoryId: CAT, frequency: 'monthly', dueDay: '25', dueMonth: '', family: 'on' })))
+    expect(calls.find((c) => c.op === 'read:family_members')?.filters).toEqual({ user_id: 'u1', left_at: null })
+    expect(calls.find((c) => c.op === 'insert:recurrences')?.payload).toMatchObject({ user_id: 'u1', family_id: 'f1' })
+  })
+
+  test('"Conta da família" sem família: não salva e mantém o que foi digitado; sem o campo, nem lê a família', async () => {
+    h.supabase = fakeSupabase({ family: null })
+    const state = await actions.createBill({ status: 'idle' }, form({ name: 'Luz', amount: '180', categoryId: CAT, frequency: 'monthly', dueDay: '25', dueMonth: '', family: 'on' }))
+    expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { family: 'on', name: 'Luz' } })
+    expect(calls.some((c) => c.op === 'insert:recurrences')).toBe(false)
+    calls.length = 0
+    await redirectOf(actions.createBill({ status: 'idle' }, form({ name: 'Luz', amount: '180', categoryId: CAT, frequency: 'monthly', dueDay: '25', dueMonth: '' })))
+    expect(calls.map((c) => c.op)).toEqual(['insert:recurrences'])
+    expect(calls[0].payload).not.toHaveProperty('family_id')
   })
 
   test('erro de campo não grava nada e mantém o que foi digitado', async () => {

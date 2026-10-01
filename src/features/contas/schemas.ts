@@ -2,9 +2,9 @@ import { z } from 'zod'
 import { amountField } from '@/features/registro/schemas'
 import type { Frequency } from '@/domain/recurrence'
 
-const nameField = z.string().trim().min(1, { error: 'Falta o nome.' }).max(40, { error: 'Use até 40 caracteres.' })
+export const nameField = z.string().trim().min(1, { error: 'Falta o nome.' }).max(40, { error: 'Use até 40 caracteres.' })
 
-const dayField = z
+export const dayField = z
   .string()
   .transform((raw, ctx) => {
     if (!/^\d{1,2}$/.test(raw)) {

@@ -61,6 +61,8 @@ function fakeSupabase(s: {
   deleteFails?: boolean
   installment?: boolean
   goalFunded?: boolean
+  existingFamilyId?: string | null
+  family?: string | null
 }) {
   return {
     from: (table: string) => ({
@@ -73,10 +75,20 @@ function fakeSupabase(s: {
             filters[col] = val
             return builder
           },
-          maybeSingle: async () => ({
-            data: s.kind ? { kind: s.kind, status: s.status ?? 'confirmed', paid_on: s.paidOn ?? null } : null,
-            error: null,
-          }),
+          is(col: string, val: unknown) {
+            filters[col] = val
+            return builder
+          },
+          maybeSingle: async () => {
+            if (table === 'family_members') {
+              calls.push({ op: 'read:family_members', filters })
+              return { data: s.family ? { family_id: s.family } : null, error: null }
+            }
+            return {
+              data: s.kind ? { kind: s.kind, status: s.status ?? 'confirmed', paid_on: s.paidOn ?? null, family_id: s.existingFamilyId ?? null } : null,
+              error: null,
+            }
+          },
         }
         return builder
       },
@@ -273,9 +285,27 @@ describe('deleteTransaction', () => {
   })
 })
 
-function fakeCreate(s: { rpcError?: unknown } = {}) {
+function fakeCreate(s: { rpcError?: unknown; family?: string | null } = {}) {
   return {
     from: (table: string) => ({
+      select: () => {
+        const filters: Record<string, unknown> = {}
+        const b = {
+          eq(col: string, val: unknown) {
+            filters[`eq:${col}`] = val
+            return b
+          },
+          is(col: string, val: unknown) {
+            filters[`is:${col}`] = val
+            return b
+          },
+          maybeSingle: async () => {
+            calls.push({ op: `read:${table}`, filters })
+            return { data: s.family ? { family_id: s.family } : null, error: null }
+          },
+        }
+        return b
+      },
       insert: async (payload: unknown) => {
         calls.push({ op: `insert:${table}`, filters: {}, payload })
         return { error: null }
@@ -460,5 +490,88 @@ describe('gasto pago com meta não é editado nem excluído pelo Extrato (Review
     expect(await redirectOf(deleteTransaction(form({ id: ID })))).toBe('/extrato')
     expect(calls[0].filters).toMatchObject({ goal_id: null })
     expect(h.setFlash).not.toHaveBeenCalled()
+  })
+})
+
+describe('"Gasto da família" (RN-18)', () => {
+  const base = { kind: 'expense', amount: '12,50', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '' }
+  const idle = { status: 'idle' } as const
+  const edit = { id: ID, amount: '10', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: '' }
+
+  test('avulso grava a família de quem anota, lida do banco pela pessoa', async () => {
+    h.supabase = fakeCreate({ family: 'f1' })
+    await redirectOf(createTransaction(idle, form({ ...base, family: 'on' })))
+    expect(calls.find((c) => c.op === 'read:family_members')?.filters).toEqual({ 'eq:user_id': 'u1', 'is:left_at': null })
+    expect(calls.find((c) => c.op === 'insert:transactions')?.payload).toMatchObject({ user_id: 'u1', family_id: 'f1' })
+  })
+
+  test('a família nunca vem do formulário: um family_id forjado é ignorado', async () => {
+    h.supabase = fakeCreate({ family: 'f1' })
+    await redirectOf(createTransaction(idle, form({ ...base, family: 'on', familyId: 'forjada', family_id: 'forjada' })))
+    expect(calls.find((c) => c.op === 'insert:transactions')?.payload).toMatchObject({ family_id: 'f1' })
+  })
+
+  test('sem família: não salva e mantém o que foi digitado', async () => {
+    h.supabase = fakeCreate({ family: null })
+    const state = await createTransaction(idle, form({ ...base, family: 'on' }))
+    expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { family: 'on', amount: '12,50' } })
+    expect(calls.some((c) => c.op.startsWith('insert') || c.op.startsWith('rpc'))).toBe(false)
+  })
+
+  test('sem o campo: nenhuma leitura a mais e nenhum family_id', async () => {
+    h.supabase = fakeCreate({ family: 'f1' })
+    await redirectOf(createTransaction(idle, form(base)))
+    expect(calls.map((c) => c.op)).toEqual(['insert:transactions'])
+    expect(calls[0].payload).not.toHaveProperty('family_id')
+  })
+
+  test('parcelado e conta que se repete levam p_family; entrada nunca', async () => {
+    h.supabase = fakeCreate()
+    await redirectOf(createTransaction(idle, form({ ...base, family: 'on', parcelado: 'on', installments: '3' })))
+    expect(calls.at(-1)).toMatchObject({ op: 'rpc:create_installment_purchase', payload: { p_family: true } })
+    await redirectOf(createTransaction(idle, form({ ...base, family: 'on', repeats: 'on', frequency: 'monthly' })))
+    expect(calls.at(-1)).toMatchObject({ op: 'rpc:create_recurring_transaction', payload: { p_family: true } })
+    calls.length = 0
+    await redirectOf(createTransaction(idle, form({ kind: 'income', amount: '10', source: 'x', when: 'today', date: '', family: 'on' })))
+    expect(calls).toHaveLength(1)
+    expect(calls[0].payload).not.toHaveProperty('family_id')
+  })
+
+  test('impasse (40P01) vira o aviso calmo de tentar de novo', async () => {
+    h.supabase = fakeCreate({ rpcError: { message: 'deadlock detected', code: '40P01' } })
+    const state = await createTransaction(idle, form({ ...base, family: 'on', repeats: 'on', frequency: 'monthly' }))
+    expect(state).toMatchObject({ status: 'error', message: 'Algo não saiu como esperado do nosso lado. Tente novamente em instantes.' })
+  })
+
+  test('editar: aplica a família e mantém todos os filtros de dono (nunca remover)', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense', existingFamilyId: null, family: 'f1' })
+    await redirectOf(updateTransaction(idle, form({ ...edit, family: 'on' })))
+    const upd = calls.find((c) => c.op === 'update:transactions')!
+    expect(upd.payload).toMatchObject({ family_id: 'f1' })
+    expect(upd.filters).toEqual({ id: ID, user_id: 'u1', status: 'confirmed', installment_plan_id: null, goal_id: null })
+  })
+
+  test('editar: gasto que já é da família não troca de família; desmarcar tira', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense', existingFamilyId: 'f0', family: 'f1' })
+    await redirectOf(updateTransaction(idle, form({ ...edit, family: 'on' })))
+    expect(calls.find((c) => c.op === 'update:transactions')!.payload).not.toHaveProperty('family_id')
+    expect(calls.some((c) => c.op === 'read:family_members')).toBe(false)
+    calls.length = 0
+    await redirectOf(updateTransaction(idle, form(edit)))
+    expect(calls.find((c) => c.op === 'update:transactions')!.payload).toMatchObject({ family_id: null })
+  })
+
+  test('editar sem família: recusa e mantém o que foi digitado', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense', existingFamilyId: null, family: null })
+    const state = await updateTransaction(idle, form({ ...edit, family: 'on' }))
+    expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED, values: { family: 'on' } })
+    expect(calls.some((c) => c.op === 'update:transactions')).toBe(false)
+  })
+
+  test('editar gasto pago com meta: o filtro de meta continua e nada muda', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense', goalFunded: true, existingFamilyId: null, family: 'f1' })
+    const state = await updateTransaction(idle, form({ ...edit, family: 'on' }))
+    expect(state).toMatchObject({ status: 'error', message: SAVE_FAILED })
+    expect(calls.find((c) => c.op === 'update:transactions')!.filters).toMatchObject({ goal_id: null, installment_plan_id: null })
   })
 })

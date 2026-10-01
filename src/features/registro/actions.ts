@@ -8,15 +8,32 @@ import { setFlash } from '@/lib/flash'
 import { formatBRL } from '@/domain/money'
 import { monthOf, todayInSaoPaulo, type ISODate } from '@/domain/dates'
 import { refreshMoneyViews } from '@/lib/refresh'
+import { UNEXPECTED } from '@/features/auth/errors'
+import { myFamilyId } from '@/features/familia/queries'
+import { familyPatch } from '@/features/familia/schemas'
 import { INSTALLMENT_MESSAGES, makeExpenseSchema, makeIncomeSchema, parseRepeat, readInstallments } from './schemas'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
-const EXPENSE_FIELDS = ['amount', 'categoryId', 'when', 'date', 'note', 'paymentMethod', 'cardId'] as const
+const EXPENSE_FIELDS = ['amount', 'categoryId', 'when', 'date', 'note', 'paymentMethod', 'cardId', 'family'] as const
 const INCOME_FIELDS = ['amount', 'source', 'when', 'date'] as const
 const REPEAT_FIELDS = ['repeats', 'frequency'] as const
 const INSTALLMENT_FIELDS = ['parcelado', 'installments'] as const
-const ALL_FIELDS = ['amount', 'categoryId', 'source', 'when', 'date', 'note', 'paymentMethod', 'cardId'] as const
+const ALL_FIELDS = ['amount', 'categoryId', 'source', 'when', 'date', 'note', 'paymentMethod', 'cardId', 'family'] as const
 const recordId = z.uuid()
+
+// Impasse entre duas gravações ao mesmo tempo (40P01): tentar de novo funciona.
+const saveFailure = (error: { code?: string }) => (error.code === '40P01' ? UNEXPECTED : SAVE_FAILED)
+
+type Supabase = Awaited<ReturnType<typeof createClient>>
+
+// A família de quem anota vem sempre do banco, pela pessoa logada: o formulário só diz "sim" ou "não".
+async function familyOf(supabase: Supabase, userId: string): Promise<{ ok: true; id: string | null } | { ok: false }> {
+  try {
+    return { ok: true, id: await myFamilyId(supabase, userId) }
+  } catch {
+    return { ok: false }
+  }
+}
 
 export async function createTransaction(_: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser()
@@ -32,6 +49,7 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
     const { count: installmentCount, error: installmentError } = readInstallments(values)
     if (installmentError) return errorState({ fieldErrors: { installments: installmentError }, values })
     const frequency = parseRepeat(values.repeats, values.frequency)
+    const wantsFamily = values.family === 'on'
     if (installmentCount !== null) {
       if (frequency) return errorState({ fieldErrors: { installments: INSTALLMENT_MESSAGES.oneOption }, values })
       if (d.amountCents < installmentCount) return errorState({ fieldErrors: { installments: INSTALLMENT_MESSAGES.tooSmall }, values })
@@ -44,8 +62,9 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
         p_card_id: d.cardId,
         p_payment_method: d.paymentMethod,
         p_purchased_on: d.occurredOn,
+        ...(wantsFamily ? { p_family: true } : {}),
       })
-      if (error) return errorState({ message: SAVE_FAILED, values })
+      if (error) return errorState({ message: saveFailure(error), values })
     } else if (frequency) {
       const { error } = await supabase.rpc('create_recurring_transaction', {
         p_kind: kind,
@@ -57,9 +76,16 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
         p_occurred_on: d.occurredOn,
         p_frequency: frequency,
         p_card_id: d.cardId,
+        ...(wantsFamily ? { p_family: true } : {}),
       })
-      if (error) return errorState({ message: SAVE_FAILED, values })
+      if (error) return errorState({ message: saveFailure(error), values })
     } else {
+      let familyId: string | null = null
+      if (wantsFamily) {
+        const mine = await familyOf(supabase, user.id)
+        if (!mine.ok || !mine.id) return errorState({ message: SAVE_FAILED, values })
+        familyId = mine.id
+      }
       const { error } = await supabase.from('transactions').insert({
         user_id: user.id,
         kind,
@@ -69,8 +95,9 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
         payment_method: d.paymentMethod,
         card_id: d.cardId,
         occurred_on: d.occurredOn,
+        ...(familyId ? { family_id: familyId } : {}),
       })
-      if (error) return errorState({ message: SAVE_FAILED, values })
+      if (error) return errorState({ message: saveFailure(error), values })
     }
     await setFlash('Anotado. Seu mês já está atualizado.')
   } else {
@@ -122,10 +149,10 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     ? (
         await supabase
           .from('transactions')
-          .select('kind, status, paid_on')
+          .select('kind, status, paid_on, family_id')
           .eq('id', id)
           .eq('user_id', user.id)
-          .maybeSingle<{ kind: string; status: string; paid_on: ISODate | null }>()
+          .maybeSingle<{ kind: string; status: string; paid_on: ISODate | null; family_id: string | null }>()
       ).data
     : null
   if (!id || !existing || existing.status !== 'confirmed') return errorState({ message: SAVE_FAILED, values: readFields(fd, ALL_FIELDS) })
@@ -161,11 +188,23 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     // Um pagamento não pode ter acontecido no futuro: se a data editada é a de pagamento
     // (paid_on), ela não pode passar de hoje, mesmo que gasto permita datas futuras.
     if (dateColumn === 'paid_on' && d.occurredOn > today) return errorState({ fieldErrors: { date: 'Escolha o dia.' }, values })
+    // "Gasto da família": só em gasto confirmado, nunca pago com meta (o filtro goal_id abaixo
+    // também barra). A família vem do banco; sem família, o aviso é o de sempre.
+    const wantsFamily = values.family === 'on'
+    let patch: { family_id?: string | null } = {}
+    if (wantsFamily && !existing.family_id) {
+      const mine = await familyOf(supabase, user.id)
+      if (!mine.ok || !mine.id) return errorState({ message: SAVE_FAILED, values })
+      patch = familyPatch({ existingFamilyId: null, wantsFamily, myFamilyId: mine.id })
+    } else {
+      patch = familyPatch({ existingFamilyId: existing.family_id ?? null, wantsFamily, myFamilyId: null })
+    }
     const { data, error } = await supabase
       .from('transactions')
       .update({
         amount_cents: d.amountCents,
         category_id: d.categoryId,
+        ...patch,
         note: d.note,
         payment_method: d.paymentMethod,
         card_id: d.cardId,
@@ -178,7 +217,8 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
       .is('installment_plan_id', null)
       .is('goal_id', null)
       .select('id')
-    if (error || !data || data.length !== 1) return errorState({ message: SAVE_FAILED, values })
+    if (error) return errorState({ message: saveFailure(error), values })
+    if (!data || data.length !== 1) return errorState({ message: SAVE_FAILED, values })
     occurredOn = d.occurredOn
   }
 
