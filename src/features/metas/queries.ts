@@ -1,6 +1,7 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient, requireUser } from '@/lib/supabase/server'
+import { myFamilyId } from '@/features/familia/queries'
 import { fetchAllPages } from '@/features/registro/paging'
 import type { ISODate } from '@/domain/dates'
 import {
@@ -80,5 +81,16 @@ export async function loadGoalLabel(id: string): Promise<{ name: string; deleted
     .eq('user_id', user.id)
     .maybeSingle<{ name: string; deleted_on: string | null }>()
   if (error) throw error
-  return data ? { name: data.name, deletedOn: data.deleted_on } : null
+  if (data) return { name: data.name, deletedOn: data.deleted_on }
+  // Não é pessoal: pode ser meta da família de quem pede (um gasto pago com ela).
+  const familyId = await myFamilyId(supabase, user.id)
+  if (!familyId) return null
+  const family = await supabase
+    .from('goals')
+    .select('name, deleted_on')
+    .eq('id', id)
+    .eq('family_id', familyId)
+    .maybeSingle<{ name: string; deleted_on: string | null }>()
+  if (family.error) throw family.error
+  return family.data ? { name: family.data.name, deletedOn: family.data.deleted_on } : null
 }

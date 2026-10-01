@@ -19,7 +19,7 @@ let seq = 0
 const row = (p: Partial<TxRow> & Pick<TxRow, 'amountCents' | 'occurredOn'>): TxRow => ({
   id: `t${++seq}`, kind: 'expense', categoryId: 'c3', source: null, note: null, paymentMethod: null, status: 'confirmed', dueOn: null, paidOn: null,
   goalFundedCents: 0, createdAt: `${p.occurredOn}T12:00:00Z`, cardId: null, cardDeleted: false, installmentPlanId: null,
-  installmentNumber: null, installmentCount: null, goalId: null, ...p,
+  installmentNumber: null, installmentCount: null, goalId: null, familyId: null, ...p,
 })
 const income = (occurredOn: string) => row({ kind: 'income', categoryId: null, source: 'Salário', amountCents: 500000, occurredOn })
 const move = (p: Pick<GoalMovementRow, 'kind' | 'amountCents' | 'occurredOn'>): GoalMovementRow => ({

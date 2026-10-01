@@ -8,7 +8,7 @@ const brl = (s: string) => `R$${NBSP}${s}`
 const row = (p: Partial<TxRow> & Pick<TxRow, 'id' | 'kind' | 'amountCents' | 'occurredOn'>): TxRow => ({
   categoryId: null, source: null, note: null, paymentMethod: null, status: 'confirmed', dueOn: null, paidOn: null,
   goalFundedCents: 0, createdAt: `${p.occurredOn}T12:00:00Z`,
-  cardId: null, cardDeleted: false, installmentPlanId: null, installmentNumber: null, installmentCount: null, goalId: null, ...p,
+  cardId: null, cardDeleted: false, installmentPlanId: null, installmentNumber: null, installmentCount: null, goalId: null, familyId: null, ...p,
 })
 const bill = (id: string, note: string, cents: number, dueOn: string, extra: Partial<TxRow> = {}) =>
   row({ id, kind: 'expense', amountCents: cents, occurredOn: dueOn, dueOn, status: 'pending', note, categoryId: 'c1', ...extra })

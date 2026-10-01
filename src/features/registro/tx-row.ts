@@ -12,6 +12,7 @@ export interface TxRow extends CategorizedTx {
   installmentNumber: number | null
   installmentCount: number | null
   goalId: string | null
+  familyId: string | null
 }
 
 export type TxRawRow = {
@@ -34,10 +35,11 @@ export type TxRawRow = {
   installment_count: number | null
   goal_id: string | null
   goal_funded_cents: number | string
+  family_id: string | null
 }
 
 export const TX_COLUMNS =
-  'id, kind, amount_cents, category_id, source, note, payment_method, occurred_on, status, due_on, paid_on, created_at, card_id, card_deleted, installment_plan_id, installment_number, installment_count, goal_id, goal_funded_cents'
+  'id, kind, amount_cents, category_id, source, note, payment_method, occurred_on, status, due_on, paid_on, created_at, card_id, card_deleted, installment_plan_id, installment_number, installment_count, goal_id, goal_funded_cents, family_id'
 
 export function toTxRow(t: TxRawRow): TxRow {
   return {
@@ -60,5 +62,6 @@ export function toTxRow(t: TxRawRow): TxRow {
     installmentNumber: t.installment_number === null ? null : Number(t.installment_number),
     installmentCount: t.installment_count === null ? null : Number(t.installment_count),
     goalId: t.goal_id,
+    familyId: t.family_id,
   }
 }

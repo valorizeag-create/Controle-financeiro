@@ -2,6 +2,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import { fetchAllPages } from './paging'
+import { personalLedger } from '@/domain/family'
 import { orderCategories } from '@/features/categorias/names'
 import { ensureOccurrences } from '@/features/contas/occurrences'
 import { fetchGoalMovements } from '@/features/metas/queries'
@@ -13,10 +14,10 @@ export type { TxRow } from './tx-row'
 export type Profile = { displayName: string; initialBalanceCents: number }
 export type Category = { id: string; name: string; defaultKey: string | null }
 
-async function fetchCategories(supabase: SupabaseClient): Promise<Category[]> {
+async function fetchCategories(supabase: SupabaseClient, userId: string): Promise<Category[]> {
   // O `.order('sort_order')` aqui é só para a página vir com uma ordem razoável;
   // orderCategories() abaixo é quem decide a ordem final (Outros sempre por último).
-  const { data, error } = await supabase.from('categories').select('id, name, default_key, sort_order').order('sort_order')
+  const { data, error } = await supabase.from('categories').select('id, name, default_key, sort_order').eq('user_id', userId).order('sort_order')
   if (error) throw error
   const rows = data.map((c) => ({
     id: c.id as string,
@@ -28,9 +29,9 @@ async function fetchCategories(supabase: SupabaseClient): Promise<Category[]> {
 }
 
 export async function loadCategories(): Promise<Category[]> {
-  await requireUser()
+  const user = await requireUser()
   const supabase = await createClient()
-  return fetchCategories(supabase)
+  return fetchCategories(supabase, user.id)
 }
 
 export async function loadTransaction(id: string): Promise<TxRow | null> {
@@ -55,7 +56,7 @@ export async function loadLedger(): Promise<{
   const occurrencesReady = ensureOccurrences(supabase)
   const [profile, categories, goalMovements] = await Promise.all([
     supabase.from('profiles').select('display_name, initial_balance_cents').single(),
-    fetchCategories(supabase),
+    fetchCategories(supabase, user.id),
     fetchGoalMovements(supabase, user.id),
   ])
   await occurrencesReady
@@ -63,6 +64,7 @@ export async function loadLedger(): Promise<{
     const { data, error } = await supabase
       .from('transactions')
       .select(TX_COLUMNS)
+      .eq('user_id', user.id)
       .order('occurred_on', { ascending: false })
       .order('created_at', { ascending: false })
       .order('id')
@@ -73,7 +75,8 @@ export async function loadLedger(): Promise<{
   return {
     profile: { displayName: profile.data.display_name, initialBalanceCents: Number(profile.data.initial_balance_cents) },
     categories,
-    transactions: rawTxs.map(toTxRow),
+    // Conta da família ainda a pagar não é de ninguém: fica fora do livro pessoal (RNF-11).
+    transactions: personalLedger(rawTxs.map(toTxRow)),
     goalMovements,
   }
 }

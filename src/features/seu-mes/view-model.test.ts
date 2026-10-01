@@ -13,7 +13,7 @@ const move = (p: Pick<GoalMovementRow, 'id' | 'goalId' | 'kind' | 'amountCents' 
 const row = (p: Partial<TxRow> & Pick<TxRow, 'id' | 'kind' | 'amountCents' | 'occurredOn'>): TxRow => ({
   categoryId: null, source: null, note: null, paymentMethod: null, status: 'confirmed', dueOn: null, paidOn: null,
   goalFundedCents: 0, createdAt: `${p.occurredOn}T12:00:00Z`,
-  cardId: null, cardDeleted: false, installmentPlanId: null, installmentNumber: null, installmentCount: null, goalId: null, ...p,
+  cardId: null, cardDeleted: false, installmentPlanId: null, installmentNumber: null, installmentCount: null, goalId: null, familyId: null, ...p,
 })
 const categories = [
   { id: 'c1', name: 'Mercado', defaultKey: 'mercado' },

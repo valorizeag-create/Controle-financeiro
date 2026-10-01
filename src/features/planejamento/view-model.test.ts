@@ -20,7 +20,7 @@ const categories = [
 const row = (p: Partial<TxRow> & Pick<TxRow, 'id' | 'amountCents' | 'categoryId'>): TxRow => ({
   kind: 'expense', occurredOn: '2026-09-10', source: null, note: null, paymentMethod: null, status: 'confirmed', dueOn: null, paidOn: null,
   goalFundedCents: 0, createdAt: '2026-09-10T12:00:00Z', cardId: null, cardDeleted: false, installmentPlanId: null,
-  installmentNumber: null, installmentCount: null, goalId: null, ...p,
+  installmentNumber: null, installmentCount: null, goalId: null, familyId: null, ...p,
 })
 const budget = (categoryId: string, amountCents: number, month = '2026-09'): BudgetRow => ({ month, categoryId, amountCents })
 
