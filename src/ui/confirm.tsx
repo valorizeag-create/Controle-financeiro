@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useFormStatus } from 'react-dom'
 import { Button } from './button'
@@ -13,7 +13,12 @@ type PanelProps = {
   children: ReactNode
 }
 
+// Sem `document` no servidor: o painel só existe no navegador (false no HTML do servidor e na hidratação).
+const noopSubscribe = () => () => {}
+const useMounted = () => useSyncExternalStore(noopSubscribe, () => true, () => false)
+
 export function ConfirmPanel({ title, body, cancelLabel, onCancel, children }: PanelProps) {
+  const mounted = useMounted()
   const titleId = useId()
   const bodyId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -48,6 +53,8 @@ export function ConfirmPanel({ title, body, cancelLabel, onCancel, children }: P
     }
   }, [])
 
+  if (!mounted) return null
+
   return createPortal(
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-[rgba(18,40,1,.32)] md:items-center">
       <div
@@ -71,7 +78,7 @@ export function ConfirmPanel({ title, body, cancelLabel, onCancel, children }: P
   )
 }
 
-function ConfirmSubmit({ children }: { children: ReactNode }) {
+export function ConfirmSubmit({ children }: { children: ReactNode }) {
   // Desativa enquanto a ação roda: dois toques não excluem duas vezes.
   const { pending } = useFormStatus()
   return <Button type="submit" disabled={pending} className="w-full md:w-auto">{children}</Button>

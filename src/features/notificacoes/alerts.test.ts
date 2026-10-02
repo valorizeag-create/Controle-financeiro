@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
   lines: [] as { categoryId: string; state: 'within' | 'near' | 'over' }[],
@@ -27,6 +27,8 @@ vi.mock('@/features/planejamento/view-model', () => ({
 }))
 
 const { queueBudgetAlerts, queueGoalAlert } = await import('./alerts')
+
+afterEach(() => vi.useRealTimers())
 
 beforeEach(() => {
   vi.useFakeTimers()

@@ -45,6 +45,8 @@ export interface ContasView {
   aPagarCents: number
   disponivelDepoisCents: number
   bills: ContasItem[]
+  // Contas ainda a pagar (a pagar + vencidas), qualquer que seja a aba: é o que a notificação pode abrir.
+  payable: { id: string; name: string }[]
   incomes: ContasItem[]
   recurringBills: RecurringItem[]
   recurringIncomes: RecurringItem[]
@@ -138,6 +140,7 @@ export function buildContas(input: {
     aPagarCents: summary.contasAPagarCents,
     disponivelDepoisCents: summary.disponivelDepoisContasCents,
     bills: listByTab[tab],
+    payable: [...listByTab.vencidas, ...listByTab['a-pagar']].map(({ id, name }) => ({ id, name })),
     incomes,
     recurringBills,
     recurringIncomes,

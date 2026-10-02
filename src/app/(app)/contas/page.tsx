@@ -23,8 +23,8 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
   const [{ profile, categories, transactions, goalMovements }, recurrences] = await Promise.all([loadLedger(), loadRecurrences()])
   const v = buildContas({ month, today, tab, profile, categories, transactions, recurrences, goalMovements })
   const back = contasHref(month, tab)
-  // Aberto por uma notificação: só uma conta a pagar que esta tela já lista (a aba das pagas não tem botão de pagar).
-  const target = payTarget(pagar, tab === 'pagas' ? [] : v.bills)
+  // Aberto por uma notificação: só uma conta ainda a pagar do mês (a pagar ou vencida), em qualquer aba.
+  const target = payTarget(pagar, v.payable)
   return (
     <main className="mx-auto flex max-w-[720px] flex-col gap-4 px-4 pt-4 md:px-9 md:pt-7">
       {target && <PayFromNotification id={target.id} name={target.name} back={back} action={markBillPaid} />}

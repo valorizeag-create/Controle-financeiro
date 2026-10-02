@@ -1,5 +1,8 @@
 import { expect, test } from 'vitest'
+import { notificationMessage } from '@/features/notificacoes/messages'
 import { inviteReturn, isAnonOnlyPath, loginPath, isPublicPath, safeNext, withNext } from './routes'
+
+const ID = '3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
 
 test('rotas públicas e rotas só para quem não entrou', () => {
   expect(isPublicPath('/entrar')).toBe(true)
@@ -34,7 +37,6 @@ test('o convite é público; outras rotas parecidas não', () => {
 })
 
 test('volta da notificação de conta a pagar: só os dois formatos exatos', () => {
-  const ID = '3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
   const personal = `/contas?mes=2026-10&pagar=${ID}`
   const family = `/familia/contas?pagar=${ID}`
   expect(inviteReturn(personal)).toBe(personal)
@@ -42,9 +44,17 @@ test('volta da notificação de conta a pagar: só os dois formatos exatos', () 
   expect(loginPath(personal)).toBe(`/entrar?next=${encodeURIComponent(personal)}`)
   expect(loginPath('/contas')).toBe('/entrar')
   for (const bad of [`/contas?mes=2026-13&pagar=${ID}`, `/contas?pagar=${ID}`, `/contas?mes=2026-10&pagar=${ID}&x=1`, `/contas?mes=2026-10&pagar=${ID.toUpperCase()}`, '/contas?mes=2026-10&pagar=abc', `/familia/contas?pagar=${ID}
-`, `/familia/contas/${ID}`, `/extrato?pagar=${ID}`, `//familia/contas?pagar=${ID}`]) {
+`, `/contas?pagar=${ID}&mes=2026-10`, `/contas?mes=2026-10&mes=2026-09&pagar=${ID}`, `/contas?mes=2026-10&pagar=${ID}&pagar=${ID}`, `/contas?mes=2026-10&pagar=${ID}#x`, `/contas?mes=2026-10&pagar=${ID}@evil.com`, `/contas%3Fmes=2026-10&pagar=${ID}`, `/familia/contas%3Fpagar=${ID}`, `/familia/contas/${ID}`, `/extrato?pagar=${ID}`, `//familia/contas?pagar=${ID}`]) {
     expect(inviteReturn(bad), bad).toBeNull()
     expect(loginPath(bad), bad).toBe('/entrar')
+  }
+  expect(inviteReturn([personal])).toBeNull()
+})
+
+test('os dois formatos de retorno são exatamente os links que o aviso de conta gera', () => {
+  for (const family of [false, true]) {
+    const url = notificationMessage('bill_today', { name: 'Luz', id: ID, due_on: '2026-10-01', family })?.url
+    expect(inviteReturn(url), String(url)).toBe(url)
   }
 })
 
