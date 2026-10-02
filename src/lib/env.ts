@@ -16,4 +16,6 @@ export const env = {
   supabaseUrl: parsed.NEXT_PUBLIC_SUPABASE_URL,
   supabaseKey: parsed.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   siteUrl: parsed.NEXT_PUBLIC_SITE_URL,
+  // Service worker só no build de produção (ou com a variável ligada, para testar à mão): em desenvolvimento atrapalha o HMR.
+  registerServiceWorker: process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_REGISTER_SW === '1',
 }
