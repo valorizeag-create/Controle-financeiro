@@ -12,6 +12,17 @@ import { emailChangeSchema, SAME_EMAIL, TOKEN_HASH } from './schemas'
 import { endLocalSession } from './session'
 import { CONFIRM_HINT, REAUTH_DELETE, REAUTH_EMAIL, type ConfirmEmailState } from './state'
 
+// A sessão acabou entre a conferência e a chamada: nada foi apagado, a pessoa só precisa entrar de novo.
+function sessionEnded(error: { code?: string; message?: string; status?: number }): boolean {
+  const message = error.message ?? ''
+  return (
+    error.code === 'PGRST301' ||
+    error.status === 401 ||
+    message.includes('Sessão necessária') ||
+    message.startsWith('permission denied for function')
+  )
+}
+
 export async function deleteAccount(_: FormState, fd: FormData): Promise<FormState> {
   await requireUser()
   if (!isDeleteConfirmed(String(fd.get('confirm') ?? ''))) return errorState({ fieldErrors: { confirm: CONFIRM_HINT } })
@@ -22,9 +33,14 @@ export async function deleteAccount(_: FormState, fd: FormData): Promise<FormSta
   if (result.error?.code === '40P01') result = await supabase.rpc('delete_my_account')
   if (result.error) {
     if ((result.error.message ?? '').includes('Entrada recente necessária')) return errorState({ message: REAUTH_DELETE, code: 'reauth' })
+    if (sessionEnded(result.error)) {
+      await endLocalSession(supabase)
+      redirect('/entrar')
+    }
     return errorState({ message: UNEXPECTED })
   }
-  // true: excluído agora. false: já estava excluído. Nos dois casos a sessão termina aqui.
+  // A função responde true (excluído agora) ou false (já estava excluído). Outra coisa não prova nada.
+  if (typeof result.data !== 'boolean') return errorState({ message: UNEXPECTED })
   await endLocalSession(supabase)
   redirect('/cadastro-excluido')
 }

@@ -5,7 +5,7 @@ import { ForgetDevice } from './forget-device'
 
 afterEach(() => {
   cleanup()
-  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
   Reflect.deleteProperty(navigator, 'serviceWorker')
 })
 
@@ -21,9 +21,22 @@ test('apaga a inscrição de push deste navegador e o que a Íris guardou nele',
   expect(window.localStorage.getItem('iris:lembretes:depois')).toBeNull()
 })
 
-test('sem service worker, ou com erro, não mostra nada e não lança', async () => {
+test('sem service worker: não mostra nada, não lança e ainda apaga o que foi guardado', async () => {
+  window.localStorage.setItem('iris:lembretes:depois', '1')
   const { container } = render(<ForgetDevice />)
   expect(container.innerHTML).toBe('')
-  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { getRegistration: async () => { throw new Error('x') } } })
+  expect(window.localStorage.getItem('iris:lembretes:depois')).toBeNull()
+})
+
+test('erro no navegador (service worker ou armazenamento) não vira erro na página', async () => {
+  const unhandled = vi.fn()
+  process.on('unhandledRejection', unhandled)
+  const getRegistration = vi.fn(async () => { throw new Error('x') })
+  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { getRegistration } })
+  vi.spyOn(Storage.prototype, 'clear').mockImplementation(() => { throw new Error('bloqueado') })
   expect(() => render(<ForgetDevice />)).not.toThrow()
+  await waitFor(() => expect(getRegistration).toHaveBeenCalledTimes(1))
+  await new Promise((r) => setTimeout(r, 10))
+  process.off('unhandledRejection', unhandled)
+  expect(unhandled).not.toHaveBeenCalled()
 })

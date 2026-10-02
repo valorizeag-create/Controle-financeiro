@@ -12,13 +12,18 @@ const h = vi.hoisted(() => {
     RedirectSignal,
     supabase: null as unknown,
     user: { id: 'u1', email: 'ana@teste.iris.dev' },
+    anonymous: false,
     endLocalSession: vi.fn(async (_s: unknown) => {}),
     hasPassword: true,
     stateless: null as unknown,
   }
 })
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/supabase/server', () => ({ createClient: async () => h.supabase, requireUser: async () => h.user }))
+vi.mock('@/lib/supabase/server', () => ({ createClient: async () => h.supabase, requireUser: async () => {
+    if (h.anonymous) throw new h.RedirectSignal('/entrar')
+    return h.user
+  },
+}))
 vi.mock('./queries', () => ({ loadSignIn: async () => ({ hasPassword: h.hasPassword, pendingEmail: null, sessionRecent: true }) }))
 vi.mock('@/lib/supabase/stateless', () => ({ createStatelessClient: () => h.stateless }))
 vi.mock('./session', () => ({ endLocalSession: h.endLocalSession }))
@@ -62,10 +67,34 @@ beforeEach(() => {
   h.endLocalSession.mockClear()
   h.hasPassword = true
   updateUser = vi.fn(async () => ({ error: null }))
+  h.anonymous = false
   h.supabase = fake()
 })
 
 describe('deleteAccount', () => {
+  test('sem sessão nenhuma função é chamada', async () => {
+    h.anonymous = true
+    await expect(actions.deleteAccount(idle, form({ confirm: 'EXCLUIR' }))).rejects.toMatchObject({ url: '/entrar' })
+    expect(rpcCalls).toEqual([])
+  })
+
+  test.each([
+    [{ code: '42501', message: 'Sessão necessária.' }],
+    [{ code: '42501', message: 'permission denied for function delete_my_account' }],
+    [{ code: 'PGRST301', message: 'JWT expired' }],
+    [{ status: 401, message: 'x' }],
+  ])('sessão que acabou no meio (%j): encerra neste aparelho e leva a /entrar', async (error) => {
+    rpcQueue.delete_my_account = [{ data: null, error }]
+    await expect(actions.deleteAccount(idle, form({ confirm: 'EXCLUIR' }))).rejects.toMatchObject({ url: '/entrar' })
+    expect(h.endLocalSession).toHaveBeenCalledTimes(1)
+  })
+
+  test('resposta sem erro mas que não é verdadeiro/falso não é tratada como excluído', async () => {
+    rpcQueue.delete_my_account = [{ data: null, error: null }]
+    expect(await actions.deleteAccount(idle, form({ confirm: 'EXCLUIR' }))).toMatchObject({ status: 'error', message: UNEXPECTED })
+    expect(h.endLocalSession).not.toHaveBeenCalled()
+  })
+
   test.each(['', 'excluir', 'Excluir', 'EXCLUIR!', 'sim'])('sem a palavra EXCLUIR nada é chamado: %j', async (typed) => {
     const state = await actions.deleteAccount(idle, form({ confirm: typed }))
     expect(state).toMatchObject({ status: 'error', fieldErrors: { confirm: HINT } })
