@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Confirme a troca de e-mail na Íris</title>
+  </head>
+  <body>
+    <h1>Confirme a troca de e-mail.</h1>
+    <p>Recebemos um pedido para trocar o e-mail do seu cadastro na Íris para {{ .NewEmail }}.</p>
+    <p>A troca só vale depois de confirmar pelos dois links: o enviado ao e-mail atual e o enviado ao novo.</p>
+    <p><a href="{{ .SiteURL }}/confirmar-email?token_hash={{ .TokenHash }}">Confirmar troca de e-mail</a></p>
+    <p>Se o link não abrir, copie este endereço no navegador:</p>
+    <p>{{ .SiteURL }}/confirmar-email?token_hash={{ .TokenHash }}</p>
+    <p>Se não foi você, é só ignorar este e-mail. O e-mail do cadastro continua o mesmo.</p>
+    <p>Íris — Veja para onde seu dinheiro vai</p>
+  </body>
+</html>

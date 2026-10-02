@@ -195,7 +195,7 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+email_sent = 20
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -250,6 +250,14 @@ otp_expiry = 3600
 [auth.email.template.recovery]
 subject = "Crie uma nova senha na Íris"
 content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirme a troca de e-mail na Íris"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.confirmation]
+subject = "Confirme seu e-mail na Íris"
+content_path = "./supabase/templates/confirmation.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

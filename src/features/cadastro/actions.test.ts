@@ -13,10 +13,14 @@ const h = vi.hoisted(() => {
     supabase: null as unknown,
     user: { id: 'u1', email: 'ana@teste.iris.dev' },
     endLocalSession: vi.fn(async (_s: unknown) => {}),
+    hasPassword: true,
+    stateless: null as unknown,
   }
 })
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => h.supabase, requireUser: async () => h.user }))
+vi.mock('./queries', () => ({ loadSignIn: async () => ({ hasPassword: h.hasPassword, pendingEmail: null, sessionRecent: true }) }))
+vi.mock('@/lib/supabase/stateless', () => ({ createStatelessClient: () => h.stateless }))
 vi.mock('./session', () => ({ endLocalSession: h.endLocalSession }))
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
@@ -32,11 +36,13 @@ const HINT = 'Digite EXCLUIR para confirmar.'
 const idle = { status: 'idle' } as const
 type Result = { data?: unknown; error?: { message?: string; code?: string; status?: number } | null }
 
+let updateUser = vi.fn(async (_a: unknown) => ({ error: null as unknown }))
 let rpcCalls: { fn: string; args: unknown }[] = []
 let rpcQueue: Record<string, Result[]> = {}
 
 function fake() {
   return {
+    auth: { updateUser: (a: unknown) => updateUser(a) },
     rpc: async (fn: string, args?: unknown) => {
       rpcCalls.push({ fn, args })
       return rpcQueue[fn]?.shift() ?? { data: null, error: { message: `sem resposta para ${fn}` } }
@@ -54,6 +60,8 @@ beforeEach(() => {
   rpcCalls = []
   rpcQueue = {}
   h.endLocalSession.mockClear()
+  h.hasPassword = true
+  updateUser = vi.fn(async () => ({ error: null }))
   h.supabase = fake()
 })
 
@@ -109,5 +117,120 @@ describe('deleteAccount', () => {
     rpcQueue.delete_my_account = [{ data: false, error: null }]
     await expect(actions.deleteAccount(idle, form({ confirm: 'EXCLUIR' }))).rejects.toMatchObject({ url: '/cadastro-excluido' })
     expect(h.endLocalSession).toHaveBeenCalledTimes(1)
+  })
+})
+
+const SENT = { status: 'sent' }
+const REAUTH_EMAIL = 'Por segurança, saia e entre de novo antes de trocar o e-mail.'
+const recent = (value: boolean) => (rpcQueue.session_is_recent = [{ data: value, error: null }])
+
+describe('requestEmailChange', () => {
+  test('e-mail que não parece e-mail: erro no campo, nada é pedido', async () => {
+    const state = await actions.requestEmailChange(idle, form({ email: 'sem-arroba' }))
+    expect(state).toMatchObject({ status: 'error', fieldErrors: { email: 'Confira o e-mail. Parece que falta alguma coisa.' }, values: { email: 'sem-arroba' } })
+    expect(updateUser).not.toHaveBeenCalled()
+  })
+
+  test('o mesmo e-mail (maiúsculas não contam): nada é pedido', async () => {
+    const state = await actions.requestEmailChange(idle, form({ email: 'ANA@teste.iris.dev' }))
+    expect(state).toMatchObject({ status: 'error', fieldErrors: { email: 'Esse já é o seu e-mail.' } })
+    expect(updateUser).not.toHaveBeenCalled()
+    expect(rpcCalls).toEqual([])
+  })
+
+  test('cadastro sem senha (entra com o Google): nada é pedido', async () => {
+    h.hasPassword = false
+    expect(await actions.requestEmailChange(idle, form({ email: 'nova@teste.iris.dev' }))).toMatchObject({ status: 'error', message: UNEXPECTED })
+    expect(updateUser).not.toHaveBeenCalled()
+  })
+
+  test('entrada antiga: pede para sair e entrar de novo, e nada é pedido', async () => {
+    recent(false)
+    const state = await actions.requestEmailChange(idle, form({ email: 'nova@teste.iris.dev' }))
+    expect(state).toMatchObject({ status: 'error', message: REAUTH_EMAIL, code: 'reauth', values: { email: 'nova@teste.iris.dev' } })
+    expect(updateUser).not.toHaveBeenCalled()
+  })
+
+  test('pedido aceito: só o e-mail vai para o Supabase Auth, e nada é escrito em log', async () => {
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
+    recent(true)
+    expect(await actions.requestEmailChange(idle, form({ email: ' Nova@teste.iris.dev ', user_id: 'outra' }))).toEqual(SENT)
+    expect(updateUser).toHaveBeenCalledTimes(1)
+    expect(updateUser).toHaveBeenCalledWith({ email: 'nova@teste.iris.dev' })
+    for (const spy of spies) expect(spy).not.toHaveBeenCalled()
+    spies.forEach((spy) => spy.mockRestore())
+  })
+
+  test.each([
+    ['endereço de outro cadastro', { code: 'email_exists', status: 422 }],
+    ['limite de envio', { code: 'over_email_send_rate_limit', status: 429 }],
+    ['limite de pedidos', { code: 'over_request_rate_limit', status: 429 }],
+    ['endereço recusado pelo serviço', { code: 'email_address_invalid', status: 400 }],
+  ])('mesma resposta para %s', async (_name, error) => {
+    recent(true)
+    updateUser = vi.fn(async () => ({ error }))
+    expect(await actions.requestEmailChange(idle, form({ email: 'nova@teste.iris.dev' }))).toEqual(SENT)
+  })
+
+  test.each([
+    ['servidor', { status: 500 }],
+    ['rede', { message: 'fetch failed' }],
+    ['sessão vencida', { status: 401 }],
+    ['sem permissão', { status: 403 }],
+  ])('falha de %s: aviso genérico (não depende do endereço)', async (_name, error) => {
+    recent(true)
+    updateUser = vi.fn(async () => ({ error }))
+    expect(await actions.requestEmailChange(idle, form({ email: 'nova@teste.iris.dev' }))).toMatchObject({ status: 'error', message: UNEXPECTED })
+  })
+})
+
+describe('confirmEmailChange', () => {
+  const TOKEN = `pkce_${'a'.repeat(56)}`
+  const confirmIdle = { status: 'idle' } as const
+  let verifyOtp = vi.fn(async (_a: unknown) => ({ data: { session: null as unknown, user: null as unknown }, error: null as unknown }))
+  beforeEach(() => {
+    verifyOtp = vi.fn(async () => ({ data: { session: null, user: null }, error: null }))
+    h.stateless = { auth: { verifyOtp: (a: unknown) => verifyOtp(a) } }
+    h.supabase = {
+      get auth(): never {
+        throw new Error('a sessão do navegador não é usada')
+      },
+      rpc: () => {
+        throw new Error('sem banco')
+      },
+    }
+  })
+
+  test('código fora do formato: nem consulta', async () => {
+    for (const bad of ['', 'curto', '../x'.repeat(8)]) {
+      expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: bad }))).toEqual({ status: 'invalid' })
+    }
+    expect(verifyOtp).not.toHaveBeenCalled()
+  })
+
+  test('primeira confirmação: falta o outro endereço', async () => {
+    expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'half' })
+    expect(verifyOtp).toHaveBeenCalledWith({ type: 'email_change', token_hash: TOKEN })
+  })
+
+  test('segunda confirmação: e-mail alterado', async () => {
+    verifyOtp = vi.fn(async () => ({ data: { session: { access_token: 'x' }, user: { id: 'u1' } }, error: null }))
+    expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'done' })
+  })
+
+  test('link vencido, usado ou inventado: a mesma resposta', async () => {
+    verifyOtp = vi.fn(async () => ({ data: { session: null, user: null }, error: { code: 'otp_expired', status: 403 } }))
+    expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'invalid' })
+  })
+
+  test('falha ao consultar: também vira link que não vale, sem lançar', async () => {
+    verifyOtp = vi.fn(async () => {
+      throw new Error('fetch failed')
+    })
+    expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'invalid' })
+  })
+
+  test('confirmar não usa a sessão do navegador (o beforeEach faz qualquer uso dela lançar)', async () => {
+    await expect(actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).resolves.toEqual({ status: 'half' })
   })
 })
