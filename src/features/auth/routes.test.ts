@@ -67,3 +67,12 @@ test('volta ao convite: só o formato exato, só caminho interno', () => {
   expect(withNext('/criar-cadastro', undefined)).toBe('/criar-cadastro')
   expect(withNext('/criar-cadastro', '/extrato')).toBe('/criar-cadastro')
 })
+
+test('páginas públicas do Plano 9: só o caminho exato', () => {
+  for (const path of ['/termos', '/privacidade', '/confirmar-email', '/cadastro-excluido']) expect(isPublicPath(path), path).toBe(true)
+  for (const path of ['/termos/', '/privacidade/x', '/confirmar-email/abc', '/cadastro-excluido/1', '/configuracoes/excluir', '/configuracoes/dados/exportar', '/configuracoes/e-mail']) {
+    expect(isPublicPath(path), path).toBe(false)
+  }
+  expect(isAnonOnlyPath('/confirmar-email')).toBe(false)
+  expect(isAnonOnlyPath('/cadastro-excluido')).toBe(false)
+})

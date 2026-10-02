@@ -1,4 +1,4 @@
-const PUBLIC = new Set(['/', '/entrar', '/criar-cadastro', '/recuperar-senha', '/auth/callback', '/termos', '/privacidade'])
+const PUBLIC = new Set(['/', '/entrar', '/criar-cadastro', '/recuperar-senha', '/auth/callback', '/termos', '/privacidade', '/confirmar-email', '/cadastro-excluido'])
 const ANON_ONLY = new Set(['/entrar', '/criar-cadastro', '/recuperar-senha'])
 
 // O convite é público só para chegar até a tela (quem não entrou é levado a entrar e volta); a página confere a sessão.
