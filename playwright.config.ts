@@ -2,6 +2,9 @@ import { defineConfig, devices } from '@playwright/test'
 import { config } from 'dotenv'
 
 config({ path: '.env.local' })
+// Em desenvolvimento o service worker só registra com esta variável. Os testes de "Sem conexão" e de lembretes
+// precisam dele; o servidor que o Playwright sobe herda o valor.
+process.env.NEXT_PUBLIC_REGISTER_SW ||= '1'
 
 export default defineConfig({
   testDir: 'tests/e2e',

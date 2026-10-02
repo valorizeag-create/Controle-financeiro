@@ -183,6 +183,66 @@ Decisões do controlador ao longo da execução:
 - **Revisão final: o aviso verde também aparece quando a ação volta para a mesma tela.** O aviso passou a acompanhar o próprio cookie (na hora em que muda e por uma conferida a cada meio segundo com a aba visível), além da troca de tela. Continua texto simples, some em 4 segundos, é apagado ao ser lido e aparece uma vez só.
 - **Revisão final: limitação conhecida.** Depois de passar a administração, o novo administrador sem parte numa meta da família não vê nem desfaz os usos feitos pelo anterior; corrigir pede uma função nova do banco (decisão de segurança à parte), adiada. Nenhum valor fica errado.
 
+## Plano 8
+
+Decisões 112 a 136 como ficaram depois da revisão de segurança do SQL (ela alterou as decisões 129, 130, 133 e 134 e o conflito 15 do plano; as alterações estão marcadas em cada linha).
+
+| # | Decisão | Motivo |
+|---|---|---|
+| 112 | Manifest: nome e nome curto "Íris", abre em "Seu mês" (`/inicio`), tela cheia sem barra do navegador, cores do fundo do app (`#F8F8F8`); ícones do logo provisório em 192 e 512, versões adaptáveis (fundo verde de ponta a ponta) e ícone do iPhone. O ícone padrão do modelo do Next sai. | RNF-03; decisão 11; tokens da etapa 5. |
+| 113 | O service worker não guarda nenhuma tela, dado ou arquivo do app: só a página "Sem conexão" e um ícone. Por isso atualiza direto, sem perguntar. | Dado financeiro nunca velho nem de outra pessoa no mesmo aparelho; offline está fora da v1. |
+| 114 | Sem rede: faixa "Sem conexão no momento. Assim que voltar, a gente tenta de novo." em qualquer tela aberta, e uma página estática com o mesmo texto e "Tentar de novo" quando a navegação falha. Nada é anotado sem rede. | RNF-09; etapa-2 §6. |
+| 115 | "Instalar a Íris": tela do onboarding entre o saldo inicial e o primeiro gasto (pulada se a Íris já está na tela de início) e em Configurações → App. O botão "Adicionar à tela de início" aparece só onde o navegador oferece a instalação; no iPhone, a instrução do protótipo; nos outros, a instrução pelo menu. "Agora não" sempre disponível. | RF-07; etapa-3 §6; protótipo `Instalar`; conflito 11. |
+| 116 | A permissão de notificação só é pedida quando a pessoa toca em "Ativar lembretes": em Configurações → Lembretes e num cartão em Contas (para quem tem contas e ainda não decidiu; "Agora não" esconde o cartão naquele navegador). No iPhone fora da tela de início, a Íris explica que é preciso adicionar antes. | RF-08. |
+| 117 | Inscrição por aparelho: guarda só o endereço e as duas chaves do navegador (sem nome nem modelo do aparelho); ninguém lê pela API; um aparelho = uma pessoa (quem ativa por último fica; abrir o app com a inscrição de outra pessoa a apaga); sair da Íris desativa naquele aparelho; até 10 aparelhos por pessoa; some com o cadastro. | LGPD; pedido de segurança; conflito 8. |
+| 118 | Oito chaves em Lembretes: Contas perto do vencimento, Entradas a receber, Planejado quase no limite, Meta perto de ser concluída, Resumo do mês, Depois de alguns dias sem registro, Avisos da família (só para quem tem família) e Lembrete para anotar. Todas ligadas por padrão, menos a última. Desligar vale para push e e-mail daquele tipo. | RF-47, RF-50; protótipo `Configuracoes`; conflito 4. |
+| 119 | Horários (Brasília): 9h para contas, entradas, retomada e resumo; 21h para o lembrete para anotar. (interpretação — confirme) | A8; protótipo "Todo dia às 21h"; conflito 2. |
+| 120 | Contas: aviso na véspera ("vence amanhã") e no dia ("Hoje é o dia de…"). Conta vencida não gera aviso. Conta da família avisa todos que participam. Conta do dia 1 só tem o aviso do dia. | RF-46; copy; RN-20; decisão 27; tom calmo. |
+| 121 | Entrada a receber: no dia previsto, "Hoje é o dia de receber {entrada}.", abrindo Contas. (texto novo — confirme) | RF-46; conflito 3. |
+| 122 | Planejado quase no limite: quando, depois de um gasto, uma categoria fica "perto do limite" (de 90% a 100%, decisão 77) no mês atual; uma vez por categoria por mês. Passar do planejado não gera push. Só há aviso se o mês tem planejamento. | Etapa-3 §5; RNF-11; copy (sem alarme). |
+| 123 | Meta perto: quando, depois de guardar, falta até um décimo do valor (e a meta não está completa); uma vez por meta por mês. Na meta da família avisa todos, só com o total. Na hora do envio o banco confere de novo que a meta ainda está perto (uma retirada ou a saída de um membro no meio do caminho cancela o aviso). | Etapa-3 §5; A4 B. |
+| 124 | Retomada: quando o último registro foi há 5 dias (até 30), uma vez por intervalo; quem nunca registrou não recebe; quem voltou a registrar antes do envio também não. | RF-48; etapa-3 §5 (quantidade de dias em aberto). |
+| 125 | Lembrete para anotar: só para quem ligou, e só nos dias em que ainda não anotou nada. | RF-47; não lembrar quem já fez. |
+| 126 | Resumo do mês: dia 1 às 9h, para quem teve algum registro no mês que fechou; push e e-mail com "Seu mês de {mês} está fechado. Quer ver como foi?" e o caminho para Relatórios → Mês passado. O e-mail não traz valores. (interpretação — confirme) | RF-46, RF-49; conflito 6. |
+| 127 | Tocar num aviso abre só destinos de uma lista fixa (Seu mês, Anotar, Contas, Família, Planejamento, a meta, Relatórios), conferida no servidor e de novo no service worker. "Marcar como paga" no aviso abre a confirmação na Íris; nada é pago sem confirmar, e quem toca sem ter entrado volta à confirmação depois de entrar. | RF-16; pedido de segurança; conflito 10. |
+| 128 | Avisos da família (alguém saiu; cadastro excluído) também chegam por push a quem continua, com as mesmas frases da decisão 108. Sem e-mail. | RN-22d, RN-22e; pendência do Plano 7. |
+| 129 | **Alterada pela revisão de segurança.** Convite por e-mail: o administrador digita o e-mail e a Íris envia o link (mesmas regras do link: 7 dias, uma pessoa, um por vez). O pendente mostra o e-mail, "Convite enviado · aguardando", "Reenviar" e "Cancelar convite". O e-mail fica guardado só enquanto o convite está pendente e só o administrador vê. **Limites** (qualquer um recusa com a mesma mensagem, sem dizer qual): 5 por dia por família ou por pessoa que convida (somados, então recriar a família não zera), 3 por endereço em 7 dias somando todas as famílias, e 100 por dia no total do app. **O assunto é sempre o mesmo e sem nome de ninguém**; os nomes só aparecem no corpo, entre aspas, e se parecem link, endereço, e-mail ou número longo são trocados por "uma família". A Íris não diz se o e-mail já tem cadastro. Se o e-mail não sair (inclusive sem servidor de e-mail configurado), a pessoa recebe o link para enviar. O convite por link continua. | RF-42; protótipo `Familia`; LGPD; decisão 95; revisão de segurança C2. |
+| 130 | **Alterada.** Agendador: `pg_cron` do Supabase (gratuito), com **cinco** tarefas: 00h05 (contas), 00h15 (limpeza, separada para que um erro nela não desfaça as contas do dia), 9h, 21h e a entrega a cada 10 minutos (só chama o app quando há algo na fila). Escolhido em vez das funções agendadas da Netlify porque roda e é testado localmente, sem publicar nada; a tarefa das contas é SQL puro e não depende de rede; e há um agendador só. A rota do app é neutra: outro agendador pode chamá-la no futuro. | Pedido do projeto (gratuito, local, sem deploy); etapa-2 §5; revisão de segurança (M5). |
+| 131 | As contas do mês nascem pela tarefa das 00h05 e, como antes, ao abrir o app. O marcador "até que mês já gerou" deixa de ser alterável pela API. | Etapa-3 §5; pendências do Plano 3. |
+| 132 | E-mail por SMTP, atrás de uma interface: local = caixa de e-mail do Supabase local; produção = qualquer provedor SMTP (sempre cifrado fora da máquina local). O e-mail de recuperação de senha continua sendo enviado pelo Supabase, com modelo próprio da Íris. E-mails em HTML simples e em texto, sem imagem nem rastreio. | Pedido do projeto; RF-49. |
+| 133 | **Substituída pela revisão de segurança (no plano: "a chave de serviço é usada no app só pela rota da tarefa").** O app **não usa a chave de serviço em lugar nenhum** e ela não vai para a Netlify (`SUPABASE_SECRET_KEY` fica só para testes de banco, e2e e scripts locais; um teste confere que nenhum arquivo do app a cita). A rota da tarefa usa a chave pública e chama funções do banco que exigem o segredo da tarefa (`JOB_SECRET`) e devolvem só o que a entrega precisa. O banco guarda só o resumo (SHA-256) do segredo. Quem chama a rota (o agendador do banco) leva um código de disparo derivado do segredo, do qual não se volta ao segredo e que só pede à rota para entregar um lote. A rota compara em tempo constante, ignora sessão e cookies e responde só números (401 sem o código, 503 se a tarefa não estiver configurada). | Pedido de segurança; revisão de segurança C1 e I2; conflito 15 (alterado). |
+| 134 | **Ampliada.** A fila guarda só o tipo e uma referência; o texto é montado no envio, depois de o banco conferir de novo a chave e se quem recebe ainda pode ver aquilo. Cada pedaço de entrega leva um número de lote; cada linha é encerrada logo depois de enviada, push e e-mail separadamente, e um canal que já saiu não se repete na nova tentativa. Até 3 tentativas, com 15 minutos entre elas; o que não saiu em 2 dias é abandonado; linhas com mais de 90 dias são apagadas. A entrega respeita um orçamento de tempo (cerca de 6 segundos enviando) e nunca deixa uma linha pega sem encerrar. | LGPD; Review Focus 2 e 5; revisão de segurança I1, I3 e I4. |
+| 135 | Não há tela de avisos dentro do app nesta versão. (interpretação — confirme) | Etapa-3 §6 e protótipo não têm; conflito 9. |
+| 136 | O servidor só envia push para serviços conhecidos (Google, Mozilla, Apple, Microsoft), por HTTPS, sem porta nem usuário no endereço; a mesma lista vale no banco, que recusa outros endereços ao salvar; o aviso viaja cifrado até o navegador; o título é sempre "Íris". | Review Focus 3; protótipo "Notificação no celular"; revisão de segurança M1. |
+
+**Conflitos com a especificação resolvidos neste plano** (os que pedem sua atenção; a lista completa está no plano): 2 (lembretes às 9h × protótipo "Todo dia às 21h" → decisão 119); 3 (RF-46 lista "entrada a receber", a copy não tem a frase → decisão 121); 6 (resumo "push + e-mail" × copy com valores → e-mail sem valores, decisão 126); 9 (estado vazio "Tudo tranquilo por aqui." supõe uma tela de avisos que não existe → decisão 135); **15 (alterado pela revisão de segurança):** o plano dizia que a chave de serviço passaria a ser usada no servidor por um módulo só, na rota da tarefa; agora a regra "`SUPABASE_SECRET_KEY` nunca no código do app" continua valendo sem exceção (decisão 133).
+
+**Para você confirmar (interpretações):**
+- **119**: tudo às 9h (A8), menos o "Lembrete para anotar", às 21h, como no protótipo aprovado depois de A8; às 9h a pergunta "Teve algum gasto hoje?" não faria sentido.
+- **121**: o aviso de entrada a receber é texto novo ("Hoje é o dia de receber {entrada}.").
+- **126**: o e-mail do resumo do mês não traz valores (e-mail é canal menos privado, e recalcular o mês fora da sessão da pessoa abriria uma segunda porta para os números); o push traz só a frase e leva para Relatórios.
+- **135**: sem tela de avisos dentro do app.
+- **O assunto do e-mail de convite é fixo** ("Você recebeu um convite na Íris") e os nomes entram só no corpo, entre aspas ("“Camila” convidou você…"). Citar o nome entre aspas soa um pouco formal; uma alternativa é citar só o nome da família.
+- **O convite por e-mail não fica preso ao endereço digitado** (M9): como o convite por link, vale para quem tiver o link (uso único, 7 dias). Um endereço digitado errado dá a um desconhecido um link que funciona. Prender ao endereço é uma troca de uma função do banco e de um teste, se você quiser.
+
+**Limites conhecidos, aceitos (para registro):**
+- O limite de 100 convites por e-mail por dia, no total do app, pode ser esgotado por cerca de 20 contas; o convite por link continua funcionando.
+- A recusa por endereço (3 convites em 7 dias, somando todas as famílias) diz a um administrador que aquele endereço foi convidado por outras famílias 3 vezes na semana. Não diz se o endereço tem cadastro.
+- O resumo por e-mail é entregue "pelo menos uma vez": se a Íris enviar e o banco não registrar a confirmação, o mesmo resumo pode chegar duas vezes (raro; no push o aviso novo substitui o antigo).
+- O banco guarda um resumo (SHA-256, sem sal) do endereço convidado por 7 dias, mesmo se o convite for cancelado, para que cancelar não zere o limite. Ninguém o lê pela API. A política de privacidade (Plano 9) precisa citar.
+- O código de disparo continua valendo até o `JOB_SECRET` ser trocado; tudo que ele permite é pedir à rota que entregue um lote.
+- Quem tiver o `JOB_SECRET` pode pegar linhas da fila (endereços de push, chaves e e-mails do resumo), encerrar as que pegou e disparar as três tarefas: é a capacidade que a rota precisa e é bem menor que a da chave de serviço, mas é o segredo mais sensível do app depois da senha do banco.
+
+Decisões do controlador ao longo da execução:
+- **Revisão de segurança antes de implementar (2 críticos e 6 importantes, todos corrigidos).** Uma revisão independente do SQL do plano achou: (C1) a rota da tarefa precisaria da chave de serviço do Supabase na Netlify, uma chave que abre todos os dados de todas as pessoas, quando só precisava de três operações; (C2) o convite por e-mail virava um canal aberto para mandar e-mail com a marca da Íris a qualquer endereço, porque o limite era por família (e dava para recriar a família) e o assunto levava texto escolhido por quem convida; (I1) a entrega só encerrava as linhas no fim, então um corte por tempo mandava tudo de novo, até três vezes; (I2) o segredo guardado e enviado em texto recuperável podia vazar com um endereço digitado errado; (I3) a função de encerrar podia marcar qualquer linha como enviada e apagar qualquer inscrição; (I4) a função de pegar o lote devolvia mais que o necessário e podia estourar o tempo; (I5) faltavam testes que provassem os casos negativos do pedido de segurança; (I6) vários arquivos do plano ainda carregavam a chave de serviço. Correções: nenhuma chave de serviço no app (funções do banco protegidas por segredo, que o banco só conhece pelo resumo, com um código de disparo derivado no caminho do agendador); limites por pessoa, por endereço e no total, e assunto fixo; número de lote, encerramento por linha e por canal, orçamento de tempo; trava do endereço convidado entre famílias; testes de banco para cada caso. Junto, foram aplicados os menores baratos: lista de serviços de push também no banco, aviso de família sem revelar quantos aparelhos existem, limpeza separada das contas, limpeza do histórico do agendador, pausa do agendador durante os testes de banco, e as conferências de "retomada" e "meta perto" na hora do envio.
+- **Rota da tarefa: 401 e 503, não 404.** O plano mandava responder 404 a quem não tem o segredo; a rota responde 401 (igual para ausente e errado) e 503 quando `JOB_SECRET` não está configurado (só revela que a tarefa está desligada).
+- **Entrega "pelo menos uma vez"** aceita (ver limites acima).
+- **Convite por e-mail: depois de criado o convite, nenhuma falha vira erro.** Se o envio falha, a pessoa recebe o link e o aviso calmo (nunca um erro que convide a tentar de novo e gaste o limite). O mesmo aviso vale para "e-mail não configurado" e para "falhou", para não revelar se o envio funcionou.
+- **A tarefa só chama endereços https** (ou a própria máquina, em desenvolvimento), e o banco só aceita esses endereços para a rota.
+- **Avisos de planejado e de meta saem depois da resposta** (`after()`), sem atrasar a pessoa; a entrega acontece na próxima passada da fila (até 10 minutos).
+- **`job_set_paused`** (pausar o agendador) é uma função de produção usada pelos testes de banco; só o papel de serviço a chama e também serve de chave de emergência.
+- **Revisão da Task 11:** o botão do aviso "Marcar como paga" abre uma confirmação que não existia no servidor (a página quebrava ao renderizar com o painel aberto) e não aparecia para conta vencida; ambos corrigidos, com testes das duas páginas com o destino do aviso.
+
 ## Textos novos usados (fora da copy oficial)
 
 Aprovados antes: "Falta o seu nome.", "Falta a senha.", "Use até {n} caracteres.", "Escolha o dia.", "Crie uma nova senha.", "Salvar nova senha", "Voltar", formas de pagamento (Pix, Dinheiro, Boleto, Débito, Crédito, Outra forma, Não informar).
@@ -202,3 +262,56 @@ Plano 7: ver a seção "Textos novos" do plano `docs/superpowers/plans/2026-09-3
 - "Um membro" (texto de reserva no aviso de saída quando o nome de quem saiu não pôde ser lido; desde a revisão final só aparece dentro das frases já aprovadas da decisão 108, "Um membro saiu da família." e "Um membro saiu da família, e a meta {meta} foi atualizada.", nunca como "voltaram para Um membro")
 - "Oi." (saudação de reserva no mês da família quando o nome da própria pessoa não pôde ser lido, em `src/app/(app)/inicio/familia/page.tsx`)
 
+Plano 8: 39 textos novos, para aprovação, exatamente como estão no código (a lista do plano `docs/superpowers/plans/2026-10-01-iris-plano-8-pwa-notificacoes.md` tinha 38; os textos 18 a 21 do e-mail de convite foram trocados pela revisão de segurança por 1 assunto fixo e 4 frases de abertura). `{…}` são valores. Todos em tom calmo, sem exclamação e sem urgência.
+
+*Instalar e sem conexão*
+- "No menu do navegador, escolha "Instalar" ou "Adicionar à tela de início"." (navegador sem botão de instalar)
+- "A Íris já está na sua tela de início." (Configurações → App, já instalada)
+- "Sem conexão" (título da página estática) e "Íris — Sem conexão" (título da aba)
+
+*Lembretes (Configurações e Contas)*
+- "Entradas a receber", "Depois de alguns dias sem registro", "Avisos da família" (chaves)
+- "Lembretes neste aparelho" (linha)
+- "Ativar lembretes", "Desativar neste aparelho" (botões)
+- "Os lembretes estão ativos neste aparelho."
+- "Lembretes ativados."
+- "No iPhone, os lembretes funcionam depois de adicionar a Íris à tela de início."
+- "Os lembretes estão bloqueados neste navegador. Para receber, libere as notificações da Íris nas configurações do navegador."
+- "Este navegador não recebe lembretes."
+- "Não conseguimos ativar os lembretes agora. Tente de novo em instantes."
+- "Quer um lembrete antes de cada conta vencer?" (cartão em Contas)
+
+*Aviso (push)*
+- "Hoje é o dia de receber {entrada}."
+
+*E-mail de convite da família* (substitui os textos 18 a 21 do plano)
+- Assunto, sempre o mesmo: "Você recebeu um convite na Íris"
+- Abertura, quatro variantes conforme os nomes passem ou não pela conferência de nome simples (sem link, endereço, e-mail, barra ou 4 dígitos seguidos): "“{nome}” convidou você para participar da família “{família}” na Íris." · "Há um convite para você participar da família “{família}” na Íris." · "“{nome}” convidou você para participar de uma família na Íris." · "Há um convite para você participar de uma família na Íris."
+- "A família vê só os gastos que cada pessoa marca como da família, as contas da casa e as metas da família. O que é seu continua privado."
+- "Ver o convite" (link)
+- "O convite vale até {dia} e serve para uma pessoa."
+- "Se o link não abrir, copie este endereço no navegador:" (também nos outros e-mails)
+- "Se você não esperava este convite, é só ignorar este e-mail."
+
+*E-mail do resumo do mês*
+- Assunto: "Seu mês de {mês} está fechado"
+- Título: "Resumo do mês" (rótulo já aprovado, reaproveitado como título; o plano não nomeava um)
+- "Você recebe este e-mail porque o resumo do mês está ligado. Para desligar, abra Configurações na Íris."
+
+*E-mail de recuperação de senha* (modelo do Supabase)
+- Assunto: "Crie uma nova senha na Íris"
+- "Recebemos um pedido para criar uma nova senha para o seu cadastro na Íris."
+- "Criar nova senha" (link)
+- "Se não foi você, é só ignorar este e-mail. Sua senha continua a mesma."
+
+*Convite por e-mail (tela Família)*
+- "E-mail de quem vai participar" (rótulo do campo)
+- "Enviar convite" (botão)
+- "Convite enviado para {e-mail}. Vale até {dia}."
+- "Convite reenviado."
+- "Você já enviou alguns convites hoje. Dá para enviar de novo amanhã, ou compartilhar o link." (qualquer um dos quatro limites; nunca diz qual)
+- "Não conseguimos enviar o e-mail agora. Você pode enviar o link abaixo." (usado quando o envio falha, quando o servidor de e-mail não está configurado e quando os nomes não puderam ser lidos; o mesmo texto nos três casos, para não revelar se o envio funcionou)
+
+Reaproveitados (já aprovados; não contam como novos): "Instalar a Íris", "Adicione a Íris à sua tela de início para abrir com um toque e receber lembretes.", "No iPhone: toque em Compartilhar e depois em "Adicionar à Tela de Início".", "Adicionar à tela de início", "Agora não", "Lembretes", "App", "Contas perto do vencimento", "Planejado quase no limite", "Meta perto de ser concluída", "Resumo do mês", "Lembrete para anotar", "Todo dia às 21h", "Tentar de novo", "Convite enviado · aguardando", "Reenviar", "Cancelar convite", "Confira o e-mail. Parece que falta alguma coisa.", "Voltar", as sete frases de "Notificações" da copy (por exemplo "{conta} vence amanhã. Quer marcar como paga?" e "Hoje é o dia de {conta}."), "Sem conexão no momento. Assim que voltar, a gente tenta de novo.", "Marcar {conta} como paga?", "Marcar como paga", "Conta marcada como paga.", "Alterações salvas.", "Ver meu mês", "Você recebeu um convite", "Crie uma nova senha.", "A família já está completa.", "Só quem administra a família pode fazer isso.", as frases da decisão 108 (também usadas no push de aviso da família) e "Íris — Veja para onde seu dinheiro vai".
+
+Ainda sem texto (pendência do ajuste final): quando o aviso de push chega com dados que não servem, o service worker hoje não mostra nada; está decidido mostrar um aviso neutro no lugar, e o texto dele será mais um item para aprovação.
