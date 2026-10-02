@@ -35,7 +35,7 @@ export function BillsReminderCard({ vapidPublicKey }: { vapidPublicKey: string }
     setBusy(false)
     if (result === 'on') setView('done')
     else if (result === 'blocked') setView('hidden')
-    else setFailed(true)
+    else if (result === 'failed') setFailed(true)
   }
 
   function later() {
@@ -52,7 +52,7 @@ export function BillsReminderCard({ vapidPublicKey }: { vapidPublicKey: string }
   return (
     <section aria-label="Lembretes" className="flex flex-col gap-3 rounded-card border border-line bg-card p-4">
       <p className="text-[15px] text-ink">Quer um lembrete antes de cada conta vencer?</p>
-      {failed && <p role="alert" className="text-[15px] text-[#7f1d1d]">Não conseguimos ativar os lembretes agora. Tente de novo em instantes.</p>}
+      {failed && <p role="alert" className="text-[15px] text-error-ink">Não conseguimos ativar os lembretes agora. Tente de novo em instantes.</p>}
       <div className="flex flex-wrap gap-2">
         <Button type="button" disabled={busy} onClick={enable} className="min-h-11 text-sm">Ativar lembretes</Button>
         <Button type="button" variant="ghost" onClick={later} className="min-h-11 text-sm">Agora não</Button>

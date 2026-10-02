@@ -33,3 +33,19 @@ test('se apagar a inscrição falhar, a pessoa sai do mesmo jeito', async () => 
   fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sair' }))
   await waitFor(() => expect(h.signOut).toHaveBeenCalled())
 })
+
+test('limpeza do push que nunca termina não prende a saída: passa de 4 s e sai', async () => {
+  vi.useFakeTimers()
+  try {
+    h.disable.mockImplementation(() => new Promise<void>(() => {}))
+    render(<SignOutButton variant="row" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sair da Íris' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sair' }))
+    await vi.advanceTimersByTimeAsync(3900)
+    expect(h.signOut).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(200)
+    expect(h.signOut).toHaveBeenCalled()
+  } finally {
+    vi.useRealTimers()
+  }
+})

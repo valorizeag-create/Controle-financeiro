@@ -113,3 +113,35 @@ describe('enablePush / disablePush', () => {
     expect(h.remove).not.toHaveBeenCalled()
   })
 })
+
+describe('service worker ausente ou ainda ativando', () => {
+  const sw = (value: unknown) => {
+    browser({ permission: 'granted' })
+    Object.defineProperty(window.navigator, 'serviceWorker', { configurable: true, value })
+  }
+  afterEach(() => { vi.useRealTimers() })
+
+  test('sem registro: "unsupported" na hora, sem esperar', async () => {
+    sw({ ready: new Promise(() => {}), getRegistration: async () => undefined })
+    expect(await deviceState()).toBe('unsupported')
+  })
+  test('registrado mas ainda ativando: depois de 3 s fica "checking" (nunca "unsupported")', async () => {
+    vi.useFakeTimers()
+    sw({ ready: new Promise(() => {}), getRegistration: async () => ({}) })
+    const result = deviceState()
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(await result).toBe('checking')
+  })
+  test('desativar com service worker que nunca fica pronto termina em ~3 s sem apagar nada', async () => {
+    vi.useFakeTimers()
+    sw({ ready: new Promise(() => {}), getRegistration: async () => ({}) })
+    const done = disablePush()
+    await vi.advanceTimersByTimeAsync(3100)
+    await done
+    expect(h.remove).not.toHaveBeenCalled()
+  })
+  test('permissão fechada sem decidir: "dismissed", não "failed"', async () => {
+    browser({ permission: 'default' })
+    expect(await enablePush(`B${'A'.repeat(86)}`)).toBe('dismissed')
+  })
+})

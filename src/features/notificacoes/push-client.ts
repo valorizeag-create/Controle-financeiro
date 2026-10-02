@@ -2,7 +2,7 @@
 // vai apenas para as ações do servidor.
 import { removePushSubscription, savePushSubscription, syncPushSubscription } from './actions'
 
-export type DeviceState = 'unsupported' | 'needs-install' | 'blocked' | 'off' | 'on'
+export type DeviceState = 'unsupported' | 'needs-install' | 'blocked' | 'off' | 'on' | 'checking'
 
 export function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false
@@ -20,15 +20,19 @@ function supportsPush(): boolean {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
-// Sem service worker registrado (por exemplo em desenvolvimento), "ready" nunca resolve: não espera para sempre.
-async function pushManager(): Promise<PushManager | null> {
+// 'none': não há service worker registrado (por exemplo em desenvolvimento), então não há inscrição.
+// 'slow': registrado, mas ainda ativando; "ready" não é esperado para sempre.
+export const READY_WAIT_MS = 3000
+async function pushManager(): Promise<PushManager | 'none' | 'slow'> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), 3000) })
+    const registered = await navigator.serviceWorker.getRegistration?.()
+    if (registered === undefined && typeof navigator.serviceWorker.getRegistration === 'function') return 'none'
+    const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), READY_WAIT_MS) })
     const registration = await Promise.race([navigator.serviceWorker.ready, timeout])
-    return registration?.pushManager ?? null
+    return registration ? registration.pushManager : 'slow'
   } catch {
-    return null
+    return 'none'
   } finally {
     clearTimeout(timer)
   }
@@ -39,7 +43,8 @@ export async function deviceState(): Promise<DeviceState> {
     if (!supportsPush()) return isIOS() && !isStandalone() ? 'needs-install' : 'unsupported'
     if (Notification.permission === 'denied') return 'blocked'
     const manager = await pushManager()
-    if (!manager) return 'unsupported'
+    if (manager === 'none') return 'unsupported'
+    if (manager === 'slow') return 'checking'
     const current = await manager.getSubscription()
     if (!current) return 'off'
     // Inscrição que sobrou de outra pessoa neste aparelho: o banco diz de quem é.
@@ -61,15 +66,15 @@ function toKey(base64Url: string): Uint8Array<ArrayBuffer> {
 }
 
 // Só chamar depois de um toque da pessoa: é aqui que o navegador pergunta.
-export async function enablePush(vapidPublicKey: string): Promise<'on' | 'blocked' | 'failed'> {
+export async function enablePush(vapidPublicKey: string): Promise<'on' | 'blocked' | 'dismissed' | 'failed'> {
   let created: PushSubscription | null = null
   try {
     if (!supportsPush()) return 'failed'
     const permission = await Notification.requestPermission()
     if (permission === 'denied') return 'blocked'
-    if (permission !== 'granted') return 'failed'
+    if (permission !== 'granted') return 'dismissed'
     const manager = await pushManager()
-    if (!manager) return 'failed'
+    if (typeof manager === 'string') return 'failed'
     created = (await manager.getSubscription()) ?? (await manager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(vapidPublicKey) }))
     const json = created.toJSON()
     const saved = await savePushSubscription({ endpoint: json.endpoint, keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth } })
@@ -87,7 +92,7 @@ export async function disablePush(): Promise<void> {
   try {
     if (!supportsPush()) return
     const manager = await pushManager()
-    const current = await manager?.getSubscription()
+    const current = typeof manager === 'string' ? null : await manager.getSubscription()
     if (!current) return
     await removePushSubscription(current.endpoint).catch(() => {})
     await current.unsubscribe().catch(() => false)

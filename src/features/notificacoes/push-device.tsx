@@ -28,7 +28,7 @@ export function PushDevice({ vapidPublicKey }: { vapidPublicKey: string | null }
     setBusy(false)
     if (result === 'on') { setView('on'); setMessage('enabled') }
     else if (result === 'blocked') setView('blocked')
-    else setMessage('failed')
+    else if (result === 'failed') setMessage('failed')
   }
 
   async function disable() {
@@ -40,7 +40,7 @@ export function PushDevice({ vapidPublicKey }: { vapidPublicKey: string | null }
     setView('off')
   }
 
-  if (view === 'loading') return null
+  if (view === 'loading' || view === 'checking') return null
   return (
     <div className="flex flex-col gap-2 pb-3">
       {view === 'unsupported' && <p className="text-[15px] text-muted">Este navegador não recebe lembretes.</p>}
@@ -72,7 +72,7 @@ export function PushDevice({ vapidPublicKey }: { vapidPublicKey: string | null }
       {view === 'off' && (
         <>
           {message === 'failed' && (
-            <p role="alert" className="text-[15px] text-[#7f1d1d]">Não conseguimos ativar os lembretes agora. Tente de novo em instantes.</p>
+            <p role="alert" className="text-[15px] text-error-ink">Não conseguimos ativar os lembretes agora. Tente de novo em instantes.</p>
           )}
           <Button type="button" disabled={busy} onClick={enable} className="min-h-11 self-start text-sm">
             Ativar lembretes

@@ -65,3 +65,20 @@ describe('PushDevice (RF-08: a permissão só é pedida por um toque)', () => {
     expect(screen.getByRole('button', { name: 'Ativar lembretes' })).toBeTruthy()
   })
 })
+
+test('permissão fechada sem decidir: sem alerta de falha', async () => {
+  h.enable.mockResolvedValue('dismissed' as never)
+  render(<PushDevice vapidPublicKey={KEY} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Ativar lembretes' }))
+  await waitFor(() => expect(h.enable).toHaveBeenCalled())
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Ativar lembretes' })).toBeTruthy()
+})
+
+test('service worker ainda ativando: nada de "não recebe lembretes"', async () => {
+  h.state = 'checking'
+  render(<PushDevice vapidPublicKey={KEY} />)
+  await new Promise((r) => setTimeout(r, 10))
+  expect(screen.queryByText('Este navegador não recebe lembretes.')).toBeNull()
+  expect(screen.queryByRole('button')).toBeNull()
+})
