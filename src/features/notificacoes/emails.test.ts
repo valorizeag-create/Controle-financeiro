@@ -82,6 +82,25 @@ describe('e-mail de convite', () => {
     expect(plainName(42 as unknown as string)).toBeNull()
   })
 
+  test('plainName: o que parece link é recusado mesmo disfarçado (letras de largura inteira, hífen opcional, caracteres de largura zero)', () => {
+    const c = (...codes: number[]) => String.fromCharCode(...codes)
+    const SHY = c(0x00ad), ZWSP = c(0x200b), ZWNJ = c(0x200c), ZWJ = c(0x200d), WJ = c(0x2060), BOM = c(0xfeff)
+    const fullwidth = (s: string) => Array.from(s).map((ch) => c(ch.charCodeAt(0) + 0xfee0)).join('')
+    for (const bad of [
+      fullwidth('evil.dev'), `evil${fullwidth('.')}dev`, `a${fullwidth('@')}b`, `a${fullwidth('/')}b`, fullwidth('2026'),
+      `evil${c(0x2024)}dev`, // ponto de uma letra só (one dot leader)
+      `evil${SHY}.dev`, `evil.${SHY}dev`, `www${ZWSP}.evil`, `www.${ZWNJ}evil`, `ht${ZWJ}tps://x`, `evil${WJ}.${BOM}dev`,
+      `20${ZWSP}26`, `a${SHY}@${SHY}b`,
+    ]) {
+      expect(plainName(bad), JSON.stringify(bad)).toBeNull()
+    }
+    // Um nome de verdade continua nome: sai sem os caracteres invisíveis e na forma composta.
+    expect(plainName(`Cami${SHY}la`)).toBe('Camila')
+    expect(plainName(`Jo${ZWSP}ão`)).toBe('João')
+    expect(plainName(`${fullwidth('A')}na`)).toBe('Ana')
+    expect(plainName(`Joa${c(0x0303)}o`)).toBe('João')
+  })
+
   test('escapa nomes no HTML; nenhuma quebra de linha passa', () => {
     const x = invite({ inviterName: '<img src=x onerror=alert(1)>', familyName: 'A & B\r\nC' })
     expect(x.html).not.toContain('<img')

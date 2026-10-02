@@ -4,15 +4,16 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
   state: 'off' as string,
+  recheck: vi.fn(() => new Promise<string>(() => {})),
   enable: vi.fn(async (_k: string) => 'on' as 'on' | 'blocked' | 'failed'),
   disable: vi.fn(async () => {}),
 }))
-vi.mock('./push-client', () => ({ deviceState: async () => h.state, enablePush: h.enable, disablePush: h.disable }))
+vi.mock('./push-client', () => ({ deviceState: async () => h.state, recheckWhenReady: h.recheck, enablePush: h.enable, disablePush: h.disable }))
 
 const { PushDevice } = await import('./push-device')
 const KEY = `B${'A'.repeat(86)}`
 
-beforeEach(() => { h.state = 'off'; h.enable.mockClear(); h.disable.mockClear(); h.enable.mockResolvedValue('on') })
+beforeEach(() => { h.state = 'off'; h.recheck.mockReset().mockImplementation(() => new Promise<string>(() => {})); h.enable.mockClear(); h.disable.mockClear(); h.enable.mockResolvedValue('on') })
 afterEach(() => cleanup())
 
 describe('PushDevice (RF-08: a permissão só é pedida por um toque)', () => {
@@ -81,4 +82,28 @@ test('service worker ainda ativando: nada de "não recebe lembretes"', async () 
   await new Promise((r) => setTimeout(r, 10))
   expect(screen.queryByText('Este navegador não recebe lembretes.')).toBeNull()
   expect(screen.queryByRole('button')).toBeNull()
+})
+
+test('service worker ainda registrando: confere de novo, uma vez, quando ele fica pronto, e então oferece "Ativar lembretes"', async () => {
+  h.state = 'checking'
+  let ready: (state: string) => void = () => {}
+  h.recheck.mockImplementation(() => new Promise<string>((resolve) => { ready = resolve }))
+  render(<PushDevice vapidPublicKey={KEY} />)
+  await waitFor(() => expect(h.recheck).toHaveBeenCalledTimes(1))
+  expect(screen.queryByRole('button')).toBeNull()
+  ready('off')
+  await screen.findByRole('button', { name: 'Ativar lembretes' })
+  expect(screen.queryByText('Este navegador não recebe lembretes.')).toBeNull()
+  expect(h.recheck).toHaveBeenCalledTimes(1)
+  expect(h.enable).not.toHaveBeenCalled()
+})
+
+test('estado já conhecido ou sem chave configurada: não há nova conferência', async () => {
+  render(<PushDevice vapidPublicKey={KEY} />)
+  await screen.findByRole('button', { name: 'Ativar lembretes' })
+  cleanup()
+  h.state = 'checking'
+  render(<PushDevice vapidPublicKey={null} />)
+  await screen.findByText('Este navegador não recebe lembretes.')
+  expect(h.recheck).not.toHaveBeenCalled()
 })

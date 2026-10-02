@@ -48,6 +48,12 @@ function safeUrl(raw) {
   return TARGETS.some((re) => re.test(raw)) ? raw : START
 }
 
+// Aviso que chega sem conteúdo que sirva. O navegador exige que todo push mostre
+// alguma coisa (senão mostra um aviso dele, "o site foi atualizado em segundo
+// plano"). Mostra a frase calma da retomada, igual à de messages.ts ('comeback'):
+// texto fixo, sem botões, e nada do que chegou é usado. sw.test.ts compara as duas.
+const FALLBACK = { body: 'Seu mês continua aqui. Quer atualizar?', url: START, tag: 'comeback', pay: false }
+
 self.addEventListener('push', (event) => {
   let data = null
   try {
@@ -55,7 +61,7 @@ self.addEventListener('push', (event) => {
   } catch {
     data = null
   }
-  if (!data || typeof data.body !== 'string' || data.body.length === 0 || data.body.length > 300) return
+  if (!data || typeof data.body !== 'string' || data.body.length === 0 || data.body.length > 300) data = FALLBACK
   event.waitUntil(
     self.registration.showNotification('Íris', {
       body: data.body,
@@ -71,8 +77,26 @@ self.addEventListener('push', (event) => {
   )
 })
 
+// Uma janela da Íris já aberta exatamente no destino só recebe o foco. Senão,
+// o destino abre em outra: uma janela aberta em outra tela nunca é trocada de
+// lugar (a pessoa pode estar no meio de um registro).
+async function openTarget(url) {
+  try {
+    const target = new URL(url, self.location.origin).href
+    const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    const same = open.find((client) => client.url === target)
+    if (same) {
+      await same.focus()
+      return
+    }
+  } catch {
+    // sem lista de janelas ou sem foco: abre o destino
+  }
+  await self.clients.openWindow(url)
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   if (event.action === 'later') return
-  event.waitUntil(self.clients.openWindow(safeUrl(event.notification.data && event.notification.data.url)))
+  event.waitUntil(openTarget(safeUrl(event.notification.data && event.notification.data.url)))
 })

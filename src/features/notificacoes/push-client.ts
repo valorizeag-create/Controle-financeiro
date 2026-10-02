@@ -1,5 +1,6 @@
 // Só no navegador. Nenhuma função lança. O endereço da inscrição nunca é mostrado nem registrado:
 // vai apenas para as ações do servidor.
+import { env } from '@/lib/env'
 import { removePushSubscription, savePushSubscription, syncPushSubscription } from './actions'
 
 export type DeviceState = 'unsupported' | 'needs-install' | 'blocked' | 'off' | 'on' | 'checking'
@@ -20,14 +21,17 @@ function supportsPush(): boolean {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
-// 'none': não há service worker registrado (por exemplo em desenvolvimento), então não há inscrição.
-// 'slow': registrado, mas ainda ativando; "ready" não é esperado para sempre.
+// 'none': não há service worker registrado e o app não registra um neste ambiente (desenvolvimento): não há inscrição.
+// 'slow': registrado, mas ainda ativando ("ready" não é esperado para sempre); ou ainda não registrado num
+// ambiente em que o app registra (a primeira abertura): é cedo para dizer que o navegador não recebe lembretes.
 export const READY_WAIT_MS = 3000
 async function pushManager(): Promise<PushManager | 'none' | 'slow'> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     const registered = await navigator.serviceWorker.getRegistration?.()
-    if (registered === undefined && typeof navigator.serviceWorker.getRegistration === 'function') return 'none'
+    if (registered === undefined && typeof navigator.serviceWorker.getRegistration === 'function') {
+      return env.registerServiceWorker ? 'slow' : 'none'
+    }
     const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), READY_WAIT_MS) })
     const registration = await Promise.race([navigator.serviceWorker.ready, timeout])
     return registration ? registration.pushManager : 'slow'
@@ -55,6 +59,18 @@ export async function deviceState(): Promise<DeviceState> {
   } catch {
     return 'unsupported'
   }
+}
+
+// Depois de um 'checking': espera o service worker ficar pronto (sem prazo; se nunca ficar, nada acontece)
+// e confere de novo. Nunca lança.
+export async function recheckWhenReady(): Promise<DeviceState> {
+  try {
+    if (!supportsPush()) return 'unsupported'
+    await navigator.serviceWorker.ready
+  } catch {
+    return 'unsupported'
+  }
+  return deviceState()
 }
 
 function toKey(base64Url: string): Uint8Array<ArrayBuffer> {

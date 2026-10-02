@@ -2,11 +2,13 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import { describe, expect, test, vi } from 'vitest'
 import { isAllowedTarget } from '@/domain/notifications'
+import { notificationMessage } from '@/features/notificacoes/messages'
 
 const source = readFileSync('public/sw.js', 'utf8')
 const ID = '3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
 
 type Handler = (event: Record<string, unknown>) => void
+type OpenWindow = { url: string; focus: () => Promise<unknown> }
 
 function load() {
   const handlers: Record<string, Handler> = {}
@@ -20,7 +22,11 @@ function load() {
   const self = {
     addEventListener: (type: string, h: Handler) => { handlers[type] = h },
     skipWaiting: vi.fn(async () => {}),
-    clients: { claim: vi.fn(async () => {}), openWindow: vi.fn(async (_url: string) => null) },
+    clients: {
+      claim: vi.fn(async () => {}),
+      openWindow: vi.fn(async (_url: string) => null),
+      matchAll: vi.fn(async (_options: Record<string, unknown>): Promise<OpenWindow[]> => []),
+    },
     registration: { showNotification: vi.fn(async (_title: string, _options: Record<string, unknown>) => {}) },
     location: { origin: 'https://iris.app' },
   }
@@ -107,10 +113,33 @@ describe('service worker: aviso', () => {
     await sw.run('push', pushEvent({ body: 'Seu mês continua aqui. Quer atualizar?', url: '/inicio', tag: 'comeback', pay: false }))
     expect(sw.self.registration.showNotification.mock.calls[0][1].actions).toEqual([])
   })
-  test.each(['quebrado', null, {}, { body: '' }, { body: 12 }, { body: 'x'.repeat(301) }])('conteúdo que não serve (%j): não mostra nada e não lança', async (data) => {
+  // O navegador exige que todo push mostre um aviso (senão mostra o dele, "o site foi atualizado em segundo plano").
+  // Conteúdo que não serve vira o aviso calmo da retomada: texto fixo e já aprovado, nada vindo de fora, sem botões.
+  test.each([
+    'quebrado', null, {}, { body: '' }, { body: 12 }, { body: 'x'.repeat(301) },
+    { body: 12, url: 'https://evil.dev', tag: 'x'.repeat(500), pay: true }, { url: `/contas?mes=2026-10&pagar=${ID}`, tag: 'bill', pay: true },
+  ])('conteúdo que não serve (%j): mostra o aviso calmo e fixo, sem nada do que chegou, e não lança', async (data) => {
     const sw = load()
     await sw.run('push', pushEvent(data))
-    expect(sw.self.registration.showNotification).not.toHaveBeenCalled()
+    expect(sw.self.registration.showNotification).toHaveBeenCalledTimes(1)
+    expect(sw.self.registration.showNotification).toHaveBeenCalledWith('Íris', {
+      body: 'Seu mês continua aqui. Quer atualizar?', icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', lang: 'pt-BR',
+      tag: 'comeback', data: { url: '/inicio' }, actions: [],
+    })
+  })
+  test('push sem conteúdo nenhum: o mesmo aviso calmo', async () => {
+    const sw = load()
+    await sw.run('push', { data: null })
+    expect(sw.self.registration.showNotification.mock.calls.map((c) => [c[0], c[1].body, c[1].data, c[1].actions]))
+      .toEqual([['Íris', 'Seu mês continua aqui. Quer atualizar?', { url: '/inicio' }, []]])
+  })
+  test('o aviso calmo é o texto aprovado da retomada (messages.ts), palavra por palavra', async () => {
+    const approved = notificationMessage('comeback', null)
+    expect(approved).toEqual({ body: 'Seu mês continua aqui. Quer atualizar?', url: '/inicio', tag: 'comeback', pay: false })
+    const sw = load()
+    await sw.run('push', pushEvent({}))
+    const shown = sw.self.registration.showNotification.mock.calls[0][1]
+    expect({ body: shown.body, url: (shown.data as { url: string }).url, tag: shown.tag, pay: (shown.actions as unknown[]).length > 0 }).toEqual(approved)
   })
   test.each([
     '//evil.dev', 'https://evil.dev/inicio', '/\\evil.dev', 'javascript:alert(1)', '/configuracoes', '/entrar', '/inicio\n/x', 12, undefined,
@@ -132,6 +161,57 @@ describe('service worker: aviso', () => {
     expect(later.notification.close).toHaveBeenCalled()
     expect(sw.self.clients.openWindow).toHaveBeenCalledTimes(2)
   })
+  test('janela da Íris já aberta no destino: recebe o foco, e nenhuma outra é aberta', async () => {
+    const sw = load()
+    const target = `/contas?mes=2026-10&pagar=${ID}`
+    const other = { url: 'https://iris.app/extrato', focus: vi.fn(async () => {}) }
+    const same = { url: `https://iris.app${target}`, focus: vi.fn(async () => {}) }
+    sw.self.clients.matchAll.mockResolvedValue([other, same])
+    await sw.run('notificationclick', click(target))
+    expect(sw.self.clients.matchAll).toHaveBeenCalledWith({ type: 'window', includeUncontrolled: true })
+    expect(same.focus).toHaveBeenCalledTimes(1)
+    expect(other.focus).not.toHaveBeenCalled()
+    expect(sw.self.clients.openWindow).not.toHaveBeenCalled()
+  })
+  test('janela aberta em outra tela: não é trocada de lugar (a pessoa pode estar no meio de um registro); o destino abre em outra', async () => {
+    const sw = load()
+    const anotar = { url: 'https://iris.app/anotar', focus: vi.fn(async () => {}), navigate: vi.fn(async () => {}) }
+    sw.self.clients.matchAll.mockResolvedValue([anotar])
+    await sw.run('notificationclick', click('/inicio'))
+    expect(anotar.focus).not.toHaveBeenCalled()
+    expect(anotar.navigate).not.toHaveBeenCalled()
+    expect(sw.self.clients.openWindow).toHaveBeenCalledWith('/inicio')
+  })
+  test('janela de outro endereço com o mesmo caminho, foco que falha ou lista de janelas que falha: abre o destino', async () => {
+    const sw = load()
+    const foreign = { url: 'https://evil.dev/inicio', focus: vi.fn(async () => {}) }
+    sw.self.clients.matchAll.mockResolvedValueOnce([foreign])
+    await sw.run('notificationclick', click('/inicio'))
+    expect(foreign.focus).not.toHaveBeenCalled()
+    expect(sw.self.clients.openWindow).toHaveBeenCalledTimes(1)
+    const broken = { url: 'https://iris.app/inicio', focus: vi.fn(async () => { throw new Error('sem foco') }) }
+    sw.self.clients.matchAll.mockResolvedValueOnce([broken])
+    await sw.run('notificationclick', click('/inicio'))
+    expect(sw.self.clients.openWindow).toHaveBeenCalledTimes(2)
+    sw.self.clients.matchAll.mockRejectedValueOnce(new Error('x'))
+    await sw.run('notificationclick', click('/inicio'))
+    expect(sw.self.clients.openWindow).toHaveBeenCalledTimes(3)
+    expect(sw.self.clients.openWindow).toHaveBeenLastCalledWith('/inicio')
+  })
+  test('destino adulterado: nem com uma janela aberta nesse endereço ele é usado; vale /inicio', async () => {
+    const sw = load()
+    const settings = { url: 'https://iris.app/configuracoes', focus: vi.fn(async () => {}) }
+    sw.self.clients.matchAll.mockResolvedValue([settings])
+    await sw.run('notificationclick', click('/configuracoes'))
+    expect(settings.focus).not.toHaveBeenCalled()
+    expect(sw.self.clients.openWindow).toHaveBeenCalledWith('/inicio')
+  })
+  test('"Agora não" só fecha: nem procura janela, nem abre', async () => {
+    const sw = load()
+    await sw.run('notificationclick', click('/inicio', 'later'))
+    expect(sw.self.clients.matchAll).not.toHaveBeenCalled()
+    expect(sw.self.clients.openWindow).not.toHaveBeenCalled()
+  })
   test('destino adulterado no aviso guardado também vira /inicio ao tocar', async () => {
     const sw = load()
     await sw.run('notificationclick', click('https://evil.dev'))
@@ -152,6 +232,18 @@ describe('service worker: aviso', () => {
       sw.self.clients.openWindow.mockClear()
       await sw.run('notificationclick', click(url))
       expect(sw.self.clients.openWindow, JSON.stringify(url)).toHaveBeenLastCalledWith(isAllowedTarget(url) ? url : '/inicio')
+    }
+    // O foco numa janela já aberta segue a mesma lista: só um destino permitido é procurado entre as janelas.
+    for (const url of amostras) {
+      const expected = isAllowedTarget(url) ? url : '/inicio'
+      const right = { url: `https://iris.app${expected}`, focus: vi.fn(async () => {}) }
+      const wrong = { url: `https://iris.app${expected}x`, focus: vi.fn(async () => {}) }
+      sw.self.clients.matchAll.mockResolvedValueOnce([wrong, right])
+      sw.self.clients.openWindow.mockClear()
+      await sw.run('notificationclick', click(url))
+      expect(right.focus, JSON.stringify(url)).toHaveBeenCalledTimes(1)
+      expect(wrong.focus, JSON.stringify(url)).not.toHaveBeenCalled()
+      expect(sw.self.clients.openWindow, JSON.stringify(url)).not.toHaveBeenCalled()
     }
   })
 })

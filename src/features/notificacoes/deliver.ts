@@ -66,6 +66,10 @@ function errorCode(error: unknown): string {
   return typeof code === 'string' && /^[A-Za-z0-9]{1,10}$/.test(code) ? code : 'erro'
 }
 
+// Erros do banco que passam sozinhos (tempo do comando esgotado, conflito entre gravações,
+// impasse): repetir a chamada costuma funcionar. Qualquer outro código é uma recusa.
+const TRANSIENT = new Set(['57014', '40001', '40P01'])
+
 function within<T>(work: PromiseLike<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timeout')), Math.max(0, ms))
@@ -147,11 +151,14 @@ export async function deliverBatch(deps: DeliverDeps): Promise<DeliverResult> {
         const { data, error } = await within(deps.db.rpc('job_finish_notification', args), left)
         // false: a linha já não era deste lote (encerramento atrasado). Não se repete.
         if (!error) return data === true
-        refused = errorCode(error) !== 'erro'
+        const code = errorCode(error)
+        refused = code !== 'erro' && !TRANSIENT.has(code)
       } catch {
         // rede ou tempo: vale a segunda tentativa
       }
-      // Recusa do banco não muda numa segunda chamada; depois do limite, também não se insiste.
+      // Erro passageiro do banco também vale a segunda tentativa: sem o encerramento, a linha já
+      // enviada seria enviada de novo em 15 minutos. Se continuar, a linha fica aberta e o banco
+      // tenta depois. Recusa do banco não muda numa segunda chamada; depois do limite, não se insiste.
       if (refused || now() >= deadline) return false
     }
     return false

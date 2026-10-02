@@ -7,8 +7,11 @@ const h = vi.hoisted(() => ({
   remove: vi.fn(async (_e: unknown) => {}),
 }))
 vi.mock('./actions', () => ({ savePushSubscription: h.save, syncPushSubscription: h.sync, removePushSubscription: h.remove }))
+// registerServiceWorker: o app registra o service worker neste ambiente (produção, ou a variável ligada).
+const flags = vi.hoisted(() => ({ registerServiceWorker: false }))
+vi.mock('@/lib/env', () => ({ env: flags }))
 
-const { deviceState, disablePush, enablePush } = await import('./push-client')
+const { deviceState, disablePush, enablePush, recheckWhenReady } = await import('./push-client')
 
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/abc123'
 const subscription = () => ({
@@ -41,7 +44,7 @@ function browser(opts: { permission?: string; current?: Sub | null; created?: Su
   return manager
 }
 
-beforeEach(() => { h.save.mockClear(); h.sync.mockClear(); h.remove.mockClear(); h.save.mockResolvedValue({ ok: true }); h.sync.mockResolvedValue({ mine: true }) })
+beforeEach(() => { flags.registerServiceWorker = false; h.save.mockClear(); h.sync.mockClear(); h.remove.mockClear(); h.save.mockResolvedValue({ ok: true }); h.sync.mockResolvedValue({ mine: true }) })
 afterEach(() => { vi.restoreAllMocks() })
 
 describe('deviceState', () => {
@@ -121,9 +124,45 @@ describe('service worker ausente ou ainda ativando', () => {
   }
   afterEach(() => { vi.useRealTimers() })
 
-  test('sem registro: "unsupported" na hora, sem esperar', async () => {
+  test('sem registro, num ambiente que não registra o service worker (desenvolvimento): "unsupported" na hora, sem esperar', async () => {
     sw({ ready: new Promise(() => {}), getRegistration: async () => undefined })
     expect(await deviceState()).toBe('unsupported')
+  })
+  test('sem registro ainda, mas o app registra o service worker (primeira abertura): "checking" na hora, nunca "unsupported"', async () => {
+    flags.registerServiceWorker = true
+    sw({ ready: new Promise(() => {}), getRegistration: async () => undefined })
+    expect(await deviceState()).toBe('checking')
+    expect(h.sync).not.toHaveBeenCalled()
+    // Ativar e desativar não ficam presos nem apagam nada enquanto isso.
+    expect(await enablePush(`B${'A'.repeat(86)}`)).toBe('failed')
+    await disablePush()
+    expect(h.save).not.toHaveBeenCalled()
+    expect(h.remove).not.toHaveBeenCalled()
+  })
+  test('recheckWhenReady: espera o service worker ficar pronto e confere de novo', async () => {
+    flags.registerServiceWorker = true
+    let registered = false
+    let ready: (registration: unknown) => void = () => {}
+    const current = subscription()
+    const manager = { getSubscription: vi.fn(async () => current) }
+    sw({ ready: new Promise((resolve) => { ready = resolve }), getRegistration: async () => (registered ? {} : undefined) })
+    expect(await deviceState()).toBe('checking')
+    let settled: string | null = null
+    const again = recheckWhenReady().then((s) => { settled = s; return s })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(settled).toBeNull()
+    expect(manager.getSubscription).not.toHaveBeenCalled()
+    registered = true
+    ready({ pushManager: manager })
+    expect(await again).toBe('on')
+    expect(h.sync).toHaveBeenCalledWith(ENDPOINT)
+  })
+  test('recheckWhenReady num navegador sem service worker: "unsupported", sem lançar', async () => {
+    browser({ push: false })
+    expect(await recheckWhenReady()).toBe('unsupported')
+    sw({ get ready() { throw new Error('bloqueado') }, getRegistration: async () => undefined })
+    expect(await recheckWhenReady()).toBe('unsupported')
   })
   test('registrado mas ainda ativando: depois de 3 s fica "checking" (nunca "unsupported")', async () => {
     vi.useFakeTimers()

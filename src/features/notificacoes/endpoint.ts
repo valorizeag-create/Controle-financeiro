@@ -12,8 +12,10 @@ const SUFFIXES = ['.push.services.mozilla.com', '.notify.windows.com', '.push.ap
 export function isAllowedPushEndpoint(url: unknown): boolean {
   if (typeof url !== 'string' || url.length < 20 || url.length > 2048) return false
   if (!RULE.test(url)) return false
-  // Segunda leitura, pelo mesmo analisador que quem envia usa: o que vale é o
-  // servidor para onde a chamada realmente iria.
+  // Segunda leitura, por um analisador de endereços. Quem envia (web-push) usa
+  // outro analisador (url.parse), então a proteção de verdade é a regra acima,
+  // sobre o texto cru: ela não deixa espaço para os dois lerem o endereço de
+  // jeitos diferentes. Não afrouxe a regra confiando nesta conferência.
   let parsed: URL
   try {
     parsed = new URL(url)

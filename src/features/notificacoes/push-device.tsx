@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/ui/button'
-import { deviceState, disablePush, enablePush, type DeviceState } from './push-client'
+import { deviceState, disablePush, enablePush, recheckWhenReady, type DeviceState } from './push-client'
 
 type View = 'loading' | DeviceState
 
@@ -14,8 +14,11 @@ export function PushDevice({ vapidPublicKey }: { vapidPublicKey: string | null }
 
   useEffect(() => {
     let alive = true
+    const show = (s: DeviceState) => { if (alive) setView(s) }
     void (vapidPublicKey ? deviceState() : Promise.resolve<DeviceState>('unsupported')).then((s) => {
-      if (alive) setView(s)
+      show(s)
+      // Service worker ainda registrando ou ativando: confere de novo, uma vez, quando ele ficar pronto.
+      if (s === 'checking' && alive) void recheckWhenReady().then(show)
     })
     return () => { alive = false }
   }, [vapidPublicKey])

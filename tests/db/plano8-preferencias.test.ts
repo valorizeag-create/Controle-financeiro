@@ -121,6 +121,37 @@ describe('inscrições de push (LGPD)', () => {
     // um aparelho = uma pessoa: o endereço nunca fica em duas linhas
     expect((await admin.from('push_subscriptions').select('user_id').eq('endpoint', ep)).data).toEqual([{ user_id: b.id }])
   })
+  test('o mesmo endereço em chamadas ao mesmo tempo (dois toques, duas abas): nenhuma falha, uma linha só', async () => {
+    const ep = endpoint('junto')
+    for (let round = 0; round < 5; round++) {
+      const results = await Promise.all([1, 2, 3].map(() =>
+        a.client.rpc('save_push_subscription', { p_endpoint: ep, p_p256dh: P256DH, p_auth: AUTH })))
+      for (const r of results) expect(r.error).toBeNull()
+      expect((await admin.from('push_subscriptions').select('user_id').eq('endpoint', ep)).data).toEqual([{ user_id: a.id }])
+    }
+  })
+  test('duas pessoas ativando o mesmo endereço ao mesmo tempo: nenhuma falha; a linha é de uma só, com as chaves dela', async () => {
+    const ep = endpoint('disputa')
+    const keyA = `B${'A'.repeat(86)}`
+    const keyB = `B${'C'.repeat(86)}`
+    for (let round = 0; round < 5; round++) {
+      const [ra, rb] = await Promise.all([
+        a.client.rpc('save_push_subscription', { p_endpoint: ep, p_p256dh: keyA, p_auth: AUTH }),
+        b.client.rpc('save_push_subscription', { p_endpoint: ep, p_p256dh: keyB, p_auth: AUTH }),
+      ])
+      expect(ra.error).toBeNull()
+      expect(rb.error).toBeNull()
+      const rows = (await admin.from('push_subscriptions').select('user_id, p256dh').eq('endpoint', ep)).data ?? []
+      // um aparelho = uma pessoa: nunca duas linhas, nunca a chave de uma na linha da outra
+      expect(rows.length).toBe(1)
+      expect([{ user_id: a.id, p256dh: keyA }, { user_id: b.id, p256dh: keyB }]).toContainEqual(rows[0])
+    }
+    // Depois da disputa, quem ativa sozinha por último fica com o endereço.
+    await subscribe(b, ep)
+    expect((await admin.from('push_subscriptions').select('user_id').eq('endpoint', ep)).data).toEqual([{ user_id: b.id }])
+    expect((await subscriptionsOf(a.id)).map((s) => s.endpoint)).not.toContain(ep)
+    await b.client.rpc('delete_push_subscription', { p_endpoint: ep })
+  })
   test('quem abre o app num aparelho com a inscrição de outra pessoa: ela é apagada e a resposta é "não é sua"', async () => {
     const ep = await subscribe(a, endpoint('sync'))
     expect((await a.client.rpc('sync_push_subscription', { p_endpoint: ep })).data).toBe(true)

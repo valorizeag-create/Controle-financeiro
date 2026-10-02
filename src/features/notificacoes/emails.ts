@@ -26,10 +26,14 @@ export function escapeHtml(s: string): string {
 // terceiros a um endereço qualquer.
 const NOT_A_NAME = /https?:|www\.|[\w-]+\.[a-z]{2,}(\/|\b)|[@/\\]|\d{4,}/i
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]+/g
+// H\u00edfen opcional e caracteres de largura zero n\u00e3o ocupam lugar na tela: somem, em vez de virar
+// espa\u00e7o. Sem isso, "evil" + h\u00edfen opcional + ".dev" passaria pela regra e seria lido como endere\u00e7o.
+const ZERO_WIDTH = /[\u00ad\u034f\u180e\u200b-\u200d\u2060-\u2064\ufeff]+/g
 
 export function plainName(raw: string | null | undefined): string | null {
   if (typeof raw !== 'string') return null
-  const clean = raw.replace(INVISIBLE, ' ').replace(/["“”„«»]/g, '').replace(/\s+/g, ' ').trim()
+  // NFKC antes de conferir: letras de largura inteira e outros s\u00f3sias viram as letras comuns.
+  const clean = raw.normalize('NFKC').replace(ZERO_WIDTH, '').replace(INVISIBLE, ' ').replace(/["“”„«»]/g, '').replace(/\s+/g, ' ').trim()
   if (clean === '' || NOT_A_NAME.test(clean)) return null
   return Array.from(clean).slice(0, 60).join('').trim()
 }

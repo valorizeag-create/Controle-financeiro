@@ -35,6 +35,20 @@ describe('manifest (RNF-03)', () => {
     expect(size('src/app/icon.png')).toEqual([192, 192])
     expect(size('src/app/apple-icon.png')).toEqual([180, 180])
   })
+  // Navegadores pedem /favicon.ico por conta própria; sem o arquivo, a resposta é 404.
+  test('favicon.ico: um arquivo .ico com o logo provisório em 48 px (PNG dentro do .ico)', () => {
+    const b = readFileSync('src/app/favicon.ico')
+    // Cabeçalho: reservado 0, tipo 1 (ícone), 1 imagem; depois a entrada de 16 bytes e a imagem.
+    expect([b.readUInt16LE(0), b.readUInt16LE(2), b.readUInt16LE(4)]).toEqual([0, 1, 1])
+    expect([b[6], b[7]]).toEqual([48, 48])
+    expect(b.readUInt16LE(12)).toBe(32)
+    expect(b.readUInt32LE(18)).toBe(22)
+    expect(b.readUInt32LE(14)).toBe(b.length - 22)
+    const png = b.subarray(22)
+    expect(png.subarray(1, 4).toString('latin1')).toBe('PNG')
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([48, 48])
+    expect(b.length).toBeLessThan(10_000)
+  })
 })
 
 describe('página "Sem conexão"', () => {

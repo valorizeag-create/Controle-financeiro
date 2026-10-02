@@ -28,8 +28,11 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'unauthorized' }, { status: 401, headers: NO_STORE })
   }
   try {
+    // Sem cliente: o endereço do banco não é https nem a própria máquina, e o segredo não sai daqui.
+    const db = createJobClient()
+    if (!db) return Response.json({ error: 'not_configured' }, { status: 503, headers: NO_STORE })
     const result = await deliverBatch({
-      db: createJobClient(), secret: config.secret, push: getPushSender(), mailer: getMailer(), siteUrl: env.siteUrl,
+      db, secret: config.secret, push: getPushSender(), mailer: getMailer(), siteUrl: env.siteUrl,
     })
     return Response.json(result, { headers: NO_STORE })
   } catch {

@@ -2,6 +2,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { monthOf, todayInSaoPaulo } from '../../src/domain/dates'
+import { inviteTestIsLocal, jobTestIsLocal, LOCAL_ONLY } from './local-only'
 
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
   auth: { persistSession: false },
@@ -372,6 +373,9 @@ test('desktop: com o código de disparo, a tarefa pega o lote e responde só nú
   test.skip(info.project.name !== 'desktop')
   const secret = process.env.JOB_SECRET
   test.skip(!secret, 'defina JOB_SECRET em .env.local (README)')
+  // Guarda de segurança, não atalho: este teste enfileira os avisos de todas as pessoas do banco e manda a rota
+  // entregar com o push e o e-mail configurados. Fora do ambiente local isso chegaria a pessoas de verdade.
+  test.skip(!jobTestIsLocal(), LOCAL_ONLY)
   const u = await makeUser('Camila')
   await seedBillDueToday(u.id, 'Luz')
   const sub = await admin.from('push_subscriptions').insert({
@@ -400,6 +404,9 @@ test('desktop: com o código de disparo, a tarefa pega o lote e responde só nú
 test('desktop: convite por e-mail — mesma resposta para qualquer endereço; chega à caixa local; o link abre o convite; o administrador vê o e-mail e "Reenviar"', async ({ page, browser, request }, info) => {
   test.skip(info.project.name !== 'desktop')
   test.skip(!process.env.SMTP_HOST, 'defina SMTP_HOST, SMTP_PORT e MAIL_FROM em .env.local (README)')
+  // Guarda de segurança, não atalho: o convite envia e-mail pelo servidor configurado, para endereços de teste
+  // de um domínio que não é nosso. Só com o banco local e a caixa de e-mail local (nada sai da máquina).
+  test.skip(!inviteTestIsLocal(), LOCAL_ONLY)
   const camila = await makeUser('Camila')
   const alex = await makeUser('Alex')
   await seedFamily(camila.id, 'Família Souza')

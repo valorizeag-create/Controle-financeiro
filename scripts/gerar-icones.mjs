@@ -1,7 +1,7 @@
 // Gera os PNG do app a partir do logo provisório (src/ui/logo.tsx).
 // Rode com `npm run icons` quando o logo mudar (decisão 11: logo definitivo).
 import sharp from 'sharp'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 
 const VERDE = '#a0e870'
 const ESCURO = '#122801'
@@ -42,3 +42,19 @@ for (const [arquivo, svg, px] of saidas) {
   await sharp(Buffer.from(svg), { density: 384 }).resize(px, px).png().toFile(arquivo)
   console.log('ok', arquivo)
 }
+
+// favicon.ico: os navegadores pedem esse endereço por conta própria. É um .ico com uma imagem só,
+// o próprio PNG de 48 px dentro (cabeçalho de 6 bytes + entrada de 16 bytes + PNG).
+const FAVICON = 48
+const png = await sharp(Buffer.from(normal(FAVICON)), { density: 384 }).resize(FAVICON, FAVICON).png().toBuffer()
+const ico = Buffer.alloc(22)
+ico.writeUInt16LE(1, 2) // tipo: ícone
+ico.writeUInt16LE(1, 4) // uma imagem
+ico.writeUInt8(FAVICON, 6)
+ico.writeUInt8(FAVICON, 7)
+ico.writeUInt16LE(1, 10) // planos
+ico.writeUInt16LE(32, 12) // bits por ponto
+ico.writeUInt32LE(png.length, 14)
+ico.writeUInt32LE(22, 18) // onde a imagem começa
+await writeFile('src/app/favicon.ico', Buffer.concat([ico, png]))
+console.log('ok', 'src/app/favicon.ico')

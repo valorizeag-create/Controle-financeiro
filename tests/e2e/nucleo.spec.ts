@@ -64,6 +64,8 @@ test('criar cadastro, passar pelo onboarding, anotar gasto e entrada, ver o mês
   await page.getByRole('link', { name: 'Pular' }).click()
   await expect(page.getByRole('heading', { name: 'Quanto você tem hoje?' })).toBeVisible()
   await page.getByRole('button', { name: 'Pular' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Instalar a Íris' })).toBeVisible()
+  await page.getByRole('link', { name: 'Agora não', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Que tal anotar seu primeiro gasto?' })).toBeVisible()
   await page.getByRole('link', { name: 'Depois' }).click()
 

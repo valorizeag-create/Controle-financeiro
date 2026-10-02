@@ -151,8 +151,14 @@ begin
     raise exception 'Inscrição inválida.';
   end if;
   delete from public.push_subscriptions ps where ps.endpoint = p_endpoint;
+  -- Duas chamadas com o mesmo endereço ao mesmo tempo (dois toques, duas
+  -- abas, duas pessoas): a que grava depois não falha com 23505, fica com a
+  -- linha. O resultado é o mesmo de apagar e inserir: uma linha só para o
+  -- endereço, de quem ativou por último, com as chaves dessa pessoa.
   insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
-    values (v_uid, p_endpoint, p_p256dh, p_auth);
+    values (v_uid, p_endpoint, p_p256dh, p_auth)
+  on conflict (endpoint) do update
+    set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth, created_at = now();
   delete from public.push_subscriptions ps
     where ps.user_id = v_uid
       and ps.id not in (
@@ -1150,8 +1156,10 @@ begin
       v_failed := true;
     end;
     if v_failed then
+      -- claim_id fica vazio: a linha não saiu neste lote, e um encerramento
+      -- atrasado de um lote anterior não pode mais alcançá-la (item 23).
       update public.notification_log nl
-        set claimed_at = now(), attempts = nl.attempts + 1
+        set claimed_at = now(), claim_id = null, attempts = nl.attempts + 1
         where nl.id = r.id;
       continue;
     end if;

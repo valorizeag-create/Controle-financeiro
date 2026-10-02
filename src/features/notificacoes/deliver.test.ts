@@ -323,6 +323,17 @@ describe('deliverBatch: toda linha pega é encerrada, dentro do tempo', () => {
     expect(finishes(down).length).toBe(2)
   })
 
+  test.each(['57014', '40001', '40P01'])('erro passageiro do banco ao encerrar (%s): tenta de novo, e a linha não fica para ser reenviada', async (code) => {
+    const ok = fakeDb([[bill()]], { finish: (_a, nth) => (nth === 0 ? { data: null, error: { code, message: 'canceling statement' } } : { data: true, error: null }) })
+    expect(await deliverBatch({ ...base, db: ok, push: pushWith() })).toEqual({ ...ZERO, claimed: 1, sent: 1 })
+    expect(finishes(ok)).toEqual([finish(nid(1), 'sent', 'none'), finish(nid(1), 'sent', 'none')])
+
+    // Continua passageiro: duas tentativas, só duas; a linha conta como não confirmada (o banco tenta de novo em 15 minutos).
+    const busy = fakeDb([[bill()]], { finish: () => ({ data: null, error: { code, message: 'canceling statement' } }) })
+    expect(await deliverBatch({ ...base, db: busy, push: pushWith() })).toEqual({ ...ZERO, claimed: 1, sent: 1, unconfirmed: 1 })
+    expect(finishes(busy).length).toBe(2)
+  })
+
   test('encerramento recusado pelo banco (segredo): não insiste', async () => {
     const db = fakeDb([[bill()]], { finish: () => ({ data: null, error: { code: '42501', message: 'permission denied' } }) })
     const result = await deliverBatch({ ...base, db, push: pushWith() })

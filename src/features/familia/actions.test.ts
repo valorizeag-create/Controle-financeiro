@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const h = vi.hoisted(() => {
@@ -362,10 +363,36 @@ describe('inviteByEmail', () => {
     expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual(ready)
     queue(familyRows)
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     h.mailer = { send: vi.fn(async () => { throw new Error('smtp jordan@email.com') }) }
     expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual(ready)
     expect(log).not.toHaveBeenCalled()
     expect(h.revalidatePath).toHaveBeenCalledWith('/familia')
+  })
+
+  test('falha depois de o convite existir: o registro leva só o código do erro — nunca a mensagem, o endereço ou o código do convite', async () => {
+    const ready = { status: 'ready', link: `https://iris.app/convite/${CODE}`, expiresOn: '2026-10-05', notice: NOTICE }
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
+    const printed = () => spies.flatMap((s) => s.mock.calls)
+    const failWith = (error: unknown) => { queue(familyRows); h.mailer = { send: vi.fn(async () => { throw error }) } }
+
+    failWith(Object.assign(new Error(`550 rejected jordan@email.com ${CODE}`), { code: 'EENVELOPE', response: '550 jordan@email.com', rejected: ['jordan@email.com'] }))
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual(ready)
+    expect(printed()).toEqual([['familia: convite por e-mail', 'EENVELOPE']])
+
+    // Sem código, ou com um "código" que não tem cara de código: só a palavra fixa.
+    for (const error of [
+      new Error('smtp jordan@email.com'), Object.assign(new Error('x'), { code: 'jordan@email.com' }), Object.assign(new Error('x'), { code: CODE }),
+      Object.assign(new Error('x'), { code: 'com espaço' }), Object.assign(new Error('x'), { code: 550 }), 'jordan@email.com', null,
+    ]) {
+      spies.forEach((s) => s.mockClear())
+      failWith(error)
+      expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual(ready)
+      expect(printed()).toEqual([['familia: convite por e-mail', 'erro']])
+    }
+    const all = JSON.stringify(spies.map((s) => s.mock.calls))
+    expect(all).not.toContain('jordan')
+    expect(all).not.toContain(CODE)
   })
 
   test('não consegui ler os nomes: o convite existe, então vem o link, não um erro', async () => {
@@ -374,12 +401,52 @@ describe('inviteByEmail', () => {
     expect(sentMail()).toEqual([])
   })
 
+  // A Íris não diz se um endereço tem cadastro. Tudo o que a ação devolve, envia e consulta é igual para
+  // dois endereços quaisquer, a não ser pelo próprio endereço digitado; e nada é consultado pelo endereço.
   test('a resposta de sucesso é a mesma, quem quer que seja o destinatário', async () => {
-    const a = await actions.inviteByEmail(idle, emailForm('quem-tem-cadastro@email.com'))
-    queue(familyRows)
-    const b = await actions.inviteByEmail(idle, emailForm('ninguem@email.com'))
-    expect(Object.keys(a)).toEqual(Object.keys(b))
-    expect(a).toMatchObject({ status: 'sent', expiresOn: '2026-10-05' })
+    const WITH = 'quem-tem-cadastro@email.com'
+    const WITHOUT = 'ninguem@email.com'
+    const run = async (email: string) => {
+      calls = []
+      rpcCalls = []
+      queue(familyRows)
+      h.mailer = { send: vi.fn(async () => {}) }
+      h.revalidatePath.mockClear()
+      const state = await actions.inviteByEmail(idle, emailForm(email))
+      const byTable = [...calls].sort((x, y) => x.table.localeCompare(y.table))
+      return { state, mail: sentMail(), calls: byTable, rpcCalls, flash: h.setFlash.mock.calls.length, revalidated: h.revalidatePath.mock.calls }
+    }
+    const a = await run(WITH)
+    const b = await run(WITHOUT)
+
+    // Trocado o endereço por um marcador, as duas execuções são idênticas: estado, e-mail enviado, consultas e chamadas.
+    const masked = (x: unknown, email: string) => JSON.parse(JSON.stringify(x).split(email).join('<destinatário>'))
+    expect(masked(a, WITH)).toEqual(masked(b, WITHOUT))
+    expect(a.state).toEqual({ status: 'sent', email: WITH, expiresOn: '2026-10-05' })
+    expect(b.state).toEqual({ status: 'sent', email: WITHOUT, expiresOn: '2026-10-05' })
+
+    for (const [r, email] of [[a, WITH], [b, WITHOUT]] as const) {
+      // O endereço aparece só em três lugares: no estado devolvido a quem digitou, no "para" do e-mail e na chamada que cria o convite.
+      expect(r.mail).toHaveLength(1)
+      expect(r.mail[0].to).toBe(email)
+      expect(JSON.stringify({ ...r.mail[0], to: '' })).not.toContain(email)
+      expect(r.rpcCalls).toEqual([{ fn: 'create_family_email_invite', args: { p_email: email } }])
+      // Nenhuma leitura pelo endereço: só a participação, a família e o nome de quem convida, pelos ids de quem convida.
+      expect(r.calls).toEqual([
+        { table: 'families', filters: { 'eq:id': 'f1' } },
+        { table: 'family_members', filters: { 'eq:user_id': 'u1', 'is:left_at': null } },
+        { table: 'profiles', filters: { 'eq:id': 'u1' } },
+      ])
+      expect(JSON.stringify(r.calls)).not.toContain(email)
+    }
+    // O e-mail em si é o mesmo, palavra por palavra.
+    expect({ ...a.mail[0], to: '' }).toEqual({ ...b.mail[0], to: '' })
+  })
+
+  test('o código da ação não procura cadastro pelo endereço (nem em auth.users, nem em profiles)', () => {
+    const source = readFileSync('src/features/familia/actions.ts', 'utf8')
+    expect(source).not.toMatch(/auth\.users|auth\.admin|listUsers|getUserByEmail|getUserById/)
+    expect(source).not.toMatch(/\.(eq|ilike|like|in|match|or|filter)\(\s*['"`][^'"`]*email/i)
   })
 })
 

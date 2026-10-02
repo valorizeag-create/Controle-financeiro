@@ -91,6 +91,19 @@ describe('POST /api/jobs/notificacoes', () => {
     nothingRan()
   })
 
+  test('endereço do banco em http fora da própria máquina: 503 "não configurada", e o segredo não vai a lugar nenhum', async () => {
+    h.jobClient.mockReturnValueOnce(null)
+    const res = await call({ 'x-iris-job-trigger': TOKEN })
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: 'not_configured' })
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    expect(h.deliver).not.toHaveBeenCalled()
+    expect(h.db.rpc).not.toHaveBeenCalled()
+    // Sem o código de disparo continua 401: quem não tem o código não fica sabendo de nada.
+    h.jobClient.mockReturnValue(null)
+    expect((await call()).status).toBe(401)
+  })
+
   test('código certo: entrega o lote com o segredo do ambiente e responde só números', async () => {
     const res = await call({ 'x-iris-job-trigger': TOKEN })
     expect(res.status).toBe(200)

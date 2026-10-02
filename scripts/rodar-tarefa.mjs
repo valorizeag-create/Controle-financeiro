@@ -33,6 +33,11 @@ if (job) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   if (!url || !key) stop('Defina NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY em .env.local.')
+  // O segredo vai como parâmetro da chamada ao banco: só por https ou para a própria máquina
+  // (a mesma regra de isSafeJobUrl, em src/lib/supabase/job.ts).
+  if (!/^(https:\/\/[^\s@\\]+|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?)$/.test(url)) {
+    stop('Confira NEXT_PUBLIC_SUPABASE_URL em .env.local: precisa ser https, ou http://localhost (banco local).')
+  }
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
   const { data, error } = await db.rpc('job_trigger', { p_secret: secret, p_job: job })
   if (error) stop(`A tarefa "${job}" não rodou (código ${error.code ?? 'desconhecido'}). O segredo está registrado no banco?`)

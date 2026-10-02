@@ -29,6 +29,11 @@ type DbError = { message?: string; code?: string }
 // Impasse entre duas gravações ao mesmo tempo: tentar de novo funciona.
 const isDeadlock = (e: DbError) => e.code === '40P01'
 const says = (e: DbError, part: string) => (e.message ?? '').includes(part)
+// Para o registro: só o código do erro (do envio ou do banco), nunca a mensagem — ela pode trazer o endereço.
+const errorCode = (e: unknown): string => {
+  const code = (e as { code?: unknown } | null)?.code
+  return typeof code === 'string' && /^[A-Za-z0-9_]{1,20}$/.test(code) ? code : 'erro'
+}
 
 export async function createFamily(_: FormState, fd: FormData): Promise<FormState> {
   await requireUser()
@@ -105,7 +110,8 @@ async function sendEmailInvite(supabase: SupabaseClient, userId: string, email: 
       expiresOn: invite.expiresOn,
     })
     await mailer.send({ to: email, ...content })
-  } catch {
+  } catch (error) {
+    console.warn('familia: convite por e-mail', errorCode(error))
     return fallback
   }
   return { status: 'sent', email, expiresOn: invite.expiresOn }
