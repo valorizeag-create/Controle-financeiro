@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
-import { categoryId, newUser, publishable, removeUsers, url, type TestUser } from './helpers'
+import { admin, categoryId, newUser, publishable, removeUsers, url, type TestUser } from './helpers'
 import { addDays, addMonths, monthOf, todayInSaoPaulo } from '../../src/domain/dates'
 import { dueDateIn } from '../../src/domain/recurrence'
 
@@ -124,7 +124,8 @@ describe('gerar ocorrências (Review Focus 1 e 2)', () => {
 
   test('quem ficou meses sem abrir recebe no máximo 3 meses de contas', async () => {
     const id = await newRecurrence(a, { due_day: 5, starts_on: period(addMonths(current, -8)) })
-    await a.client.from('recurrences').update({ generated_through: period(addMonths(current, -6)) }).eq('id', id)
+    const set = await admin.from('recurrences').update({ generated_through: period(addMonths(current, -6)) }).eq('id', id)
+    if (set.error) throw set.error
     await generate(a)
     expect((await occurrences(a, id)).map((o) => o.recurrence_period)).toEqual([
       period(addMonths(current, -2)), period(addMonths(current, -1)), period(current),
@@ -225,7 +226,8 @@ describe('alterar e encerrar (RF-18)', () => {
       { ...base, occurred_on: dueDateIn(next, day), status: 'pending', due_on: dueDateIn(next, day), recurrence_period: period(next) },
     ])
     if (error) throw error
-    await a.client.from('recurrences').update({ generated_through: period(next) }).eq('id', id)
+    const set = await admin.from('recurrences').update({ generated_through: period(next) }).eq('id', id)
+    if (set.error) throw set.error
     return { id, old, prev, next }
   }
 

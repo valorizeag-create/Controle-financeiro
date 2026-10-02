@@ -289,3 +289,266 @@ grant execute on function
   public.delete_push_subscription(text),
   public.queue_own_notification(text, uuid)
 to authenticated;
+
+-- ============================================================================
+-- Seção 2 — tarefa diária das contas (etapa-3 §5) e generated_through
+-- ============================================================================
+
+-- 9. generated_through diz até que mês as contas já foram criadas. Enquanto a
+--    geração rodava só "ao abrir o app", mexer nele só atrapalhava a própria
+--    pessoa. Com a tarefa diária e as contas da família, voltar esse marcador
+--    faria renascer contas que outro membro já pagou. Por isso:
+--    a) pela API a coluna não aceita mais UPDATE. As colunas que as telas e as
+--       funções pessoais dos planos anteriores gravam continuam como estavam
+--       (update_recurrence, end_recurrence, delete_category e delete_card são
+--       SECURITY INVOKER e só mexem em colunas desta lista; o "for update"
+--       delas pede UPDATE em pelo menos uma coluna, que continua existindo), e
+--       as guardas dos Planos 3 e 7 seguem valendo. Ficam de fora, além de
+--       generated_through, id, created_at e updated_at: nenhuma tela os grava
+--       (updated_at é do gatilho, que não depende da permissão de quem chama);
+--    b) no INSERT só vale vazio ou o dia 1 do mês em que a conta começa (é o
+--       que create_recurring_transaction grava: a primeira já existe). A
+--       guarda vale para qualquer gravação, inclusive a administrativa.
+revoke update on public.recurrences from authenticated;
+grant update (
+  user_id, kind, name, amount_cents, category_id, source, payment_method, frequency,
+  due_day, due_month, starts_on, ended_on, note, card_id, family_id
+) on public.recurrences to authenticated;
+
+create function public.recurrences_generated_guard() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if new.generated_through is not null
+     and new.generated_through <> date_trunc('month', new.starts_on)::date then
+    raise exception 'Recorrência inválida.';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger recurrences_generated_guard before insert on public.recurrences
+  for each row execute function public.recurrences_generated_guard();
+
+-- 10. Gerar as contas e entradas pessoais de uma pessoa. Corpo igual ao de
+--     generate_occurrences da migração 20261001000001 (item 17), com a pessoa
+--     por parâmetro. Interna (sem grant) e SECURITY DEFINER: a tarefa diária
+--     não tem sessão, e generated_through não aceita mais UPDATE de quem
+--     chama. Como a RLS não vale aqui, todo comando filtra por p_user: só
+--     mexe em moldes e registros dessa pessoa.
+create function public.generate_occurrences_for(p_user uuid) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_current date := make_date(extract(year from v_today)::int, extract(month from v_today)::int, 1);
+  v_oldest date := (v_current - interval '2 months')::date;
+  r record;
+  v_period date;
+  v_due date;
+  v_rows integer;
+  v_count integer := 0;
+begin
+  if p_user is null then
+    return 0;
+  end if;
+
+  for r in
+    select rc.* from public.recurrences rc
+    where rc.user_id = p_user
+      and rc.family_id is null
+      and rc.ended_on is null
+      and (rc.generated_through is null or rc.generated_through < v_current)
+      and rc.starts_on < (v_current + interval '1 month')::date
+    order by rc.id
+    for update
+  loop
+    v_period := greatest(
+      coalesce((r.generated_through + interval '1 month')::date, v_oldest),
+      make_date(extract(year from r.starts_on)::int, extract(month from r.starts_on)::int, 1),
+      v_oldest
+    );
+    while v_period <= v_current loop
+      if r.frequency = 'monthly' or extract(month from v_period)::int = r.due_month then
+        v_due := public.occurrence_due_on(v_period, r.due_day);
+        insert into public.transactions (
+          user_id, kind, amount_cents, category_id, source, note, payment_method, card_id,
+          occurred_on, status, due_on, recurrence_id, recurrence_period
+        ) values (
+          p_user, r.kind, r.amount_cents, r.category_id, r.source, r.note, r.payment_method, r.card_id,
+          v_due, 'pending', v_due, r.id, v_period
+        )
+        on conflict (recurrence_id, recurrence_period) do nothing;
+        get diagnostics v_rows = row_count;
+        v_count := v_count + v_rows;
+      end if;
+      v_period := (v_period + interval '1 month')::date;
+    end loop;
+    update public.recurrences rc set generated_through = v_current where rc.id = r.id and rc.user_id = p_user;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+-- 11. Ao abrir o app: a mesma assinatura e as mesmas permissões de antes
+--     (create or replace mantém dono e permissões). Agora SECURITY DEFINER
+--     (precisa gravar generated_through), sempre só para quem chama: a pessoa
+--     vem de auth.uid(), nunca de parâmetro.
+create or replace function public.generate_occurrences() returns integer
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  return public.generate_occurrences_for(auth.uid());
+end;
+$$;
+
+-- 12. Contas de uma família. Corpo igual ao de generate_family_occurrences da
+--     migração 20261001000001 (item 18), com a família por parâmetro e a mesma
+--     ordem de travas (a família primeiro, os moldes depois). Interna e
+--     SECURITY DEFINER (como já era a função do item 18: grava ocorrências em
+--     nome de quem criou o molde). Família encerrada não gera nada.
+create function public.generate_family_occurrences_for(p_family uuid) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_current date := make_date(extract(year from v_today)::int, extract(month from v_today)::int, 1);
+  v_oldest date := (v_current - interval '2 months')::date;
+  r record;
+  v_period date;
+  v_due date;
+  v_rows integer;
+  v_count integer := 0;
+begin
+  if p_family is null then
+    return 0;
+  end if;
+  perform 1 from public.families f where f.id = p_family and f.ended_at is null for share;
+  if not found then
+    return 0;
+  end if;
+
+  for r in
+    select rc.* from public.recurrences rc
+    where rc.family_id = p_family
+      and rc.ended_on is null
+      and (rc.generated_through is null or rc.generated_through < v_current)
+      and rc.starts_on < (v_current + interval '1 month')::date
+      and exists (
+        select 1 from public.family_members fm
+        where fm.family_id = p_family and fm.user_id = rc.user_id and fm.left_at is null
+      )
+    order by rc.id
+    for update of rc
+  loop
+    v_period := greatest(
+      coalesce((r.generated_through + interval '1 month')::date, v_oldest),
+      make_date(extract(year from r.starts_on)::int, extract(month from r.starts_on)::int, 1),
+      v_oldest
+    );
+    while v_period <= v_current loop
+      if r.frequency = 'monthly' or extract(month from v_period)::int = r.due_month then
+        v_due := public.occurrence_due_on(v_period, r.due_day);
+        insert into public.transactions (
+          user_id, kind, amount_cents, category_id, source, note, payment_method, card_id,
+          occurred_on, status, due_on, recurrence_id, recurrence_period, family_id
+        ) values (
+          r.user_id, r.kind, r.amount_cents, r.category_id, r.source, r.note, r.payment_method, r.card_id,
+          v_due, 'pending', v_due, r.id, v_period, r.family_id
+        )
+        on conflict (recurrence_id, recurrence_period) do nothing;
+        get diagnostics v_rows = row_count;
+        v_count := v_count + v_rows;
+      end if;
+      v_period := (v_period + interval '1 month')::date;
+    end loop;
+    update public.recurrences rc set generated_through = v_current where rc.id = r.id and rc.family_id = p_family;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+-- Ao abrir o app: mesma assinatura, mesmas permissões e mesmas conferências
+-- de antes (sessão, família de quem chama, trava da família e participação
+-- conferida de novo depois dela). A família vem de my_family_id(), nunca de
+-- parâmetro.
+create or replace function public.generate_family_occurrences() returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_family uuid := public.my_family_id();
+begin
+  if auth.uid() is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null then
+    return 0;
+  end if;
+  perform 1 from public.families f where f.id = v_family for share;
+  if public.my_family_id() is distinct from v_family then
+    return 0;
+  end if;
+  return public.generate_family_occurrences_for(v_family);
+end;
+$$;
+
+-- 13. A tarefa diária: todas as pessoas e famílias com algo a gerar. O erro de
+--     uma não impede as outras (vai para o log do banco só o código do erro,
+--     nunca dado de pessoa). Quem chama é o agendador (pg_cron, seção 4), que
+--     roda dentro do banco e não usa chave. SECURITY DEFINER: chama as
+--     internas dos itens 10 e 12. Não recebe parâmetro.
+create function public.job_generate_occurrences() returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_current date := make_date(extract(year from v_today)::int, extract(month from v_today)::int, 1);
+  r record;
+  v_count integer := 0;
+begin
+  for r in
+    select distinct rc.user_id from public.recurrences rc
+    where rc.family_id is null and rc.ended_on is null
+      and (rc.generated_through is null or rc.generated_through < v_current)
+      and rc.starts_on < (v_current + interval '1 month')::date
+    order by rc.user_id
+  loop
+    begin
+      v_count := v_count + public.generate_occurrences_for(r.user_id);
+    exception when others then
+      raise warning 'job_generate_occurrences (pessoa): %', sqlstate;
+    end;
+  end loop;
+
+  for r in
+    select distinct rc.family_id from public.recurrences rc
+    where rc.family_id is not null and rc.ended_on is null
+      and (rc.generated_through is null or rc.generated_through < v_current)
+      and rc.starts_on < (v_current + interval '1 month')::date
+    order by rc.family_id
+  loop
+    begin
+      v_count := v_count + public.generate_family_occurrences_for(r.family_id);
+    exception when others then
+      raise warning 'job_generate_occurrences (família): %', sqlstate;
+    end;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+revoke execute on function public.recurrences_generated_guard() from public, anon, authenticated;
+
+-- service_role aqui é só para os testes de banco e os scripts locais; o app
+-- não usa a chave de serviço (regra de ouro 3).
+revoke execute on function
+  public.generate_occurrences_for(uuid),
+  public.generate_family_occurrences_for(uuid),
+  public.job_generate_occurrences()
+from public, anon, authenticated;
+
+grant execute on function
+  public.generate_occurrences_for(uuid),
+  public.generate_family_occurrences_for(uuid),
+  public.job_generate_occurrences()
+to service_role;
