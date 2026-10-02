@@ -1,15 +1,22 @@
 import { formatBRL } from '@/domain/money'
+import { loadFamilySummaryOrNull } from '@/features/familia/queries'
+import { loadNotificationPrefs } from '@/features/notificacoes/queries'
+import { RemindersSection } from '@/features/notificacoes/reminders-section'
 import { loadProfile } from '@/features/perfil/queries'
+import { env } from '@/lib/env'
+import { FormAlert } from '@/ui/form-alert'
 import { ListCard, ListRow, ListSection, RowLink, RowStatic } from '@/ui/list'
 import { PageHeader } from '@/ui/page-header'
 
-// Seções que chegam depois: Cartões (Plano 4), Lembretes e App (Plano 8),
-// Seus dados e troca de e-mail (Plano 9).
-export default async function ConfiguracoesPage() {
-  const p = await loadProfile()
+// Seções que chegam depois: Cartões (Plano 4), App (Plano 8, instalar),
+// Seus dados e troca de e-mail (Plano 9). Lembretes já está aqui (Plano 8).
+export default async function ConfiguracoesPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
+  const { erro } = await searchParams
+  const [p, prefs, family] = await Promise.all([loadProfile(), loadNotificationPrefs(), loadFamilySummaryOrNull()])
   return (
     <main className="mx-auto flex max-w-[720px] flex-col gap-[18px] px-4 pt-4 md:px-9 md:pt-7">
       <PageHeader title="Configurações" backHref="/mais" backOnMobileOnly />
+      {erro && <FormAlert>Algo não saiu como esperado do nosso lado. Tente novamente em instantes.</FormAlert>}
       <ListSection title="Seu cadastro">
         <ListCard>
           <ListRow><RowLink href="/configuracoes/nome" caption="Nome" title={p.displayName} /></ListRow>
@@ -23,6 +30,7 @@ export default async function ConfiguracoesPage() {
           <ListRow><RowLink href="/categorias" title="Categorias" value={String(p.categoriesCount)} /></ListRow>
         </ListCard>
       </ListSection>
+      <RemindersSection prefs={prefs} hasFamily={family !== null} vapidPublicKey={env.vapidPublicKey} />
     </main>
   )
 }

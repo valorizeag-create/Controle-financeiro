@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 // Sidebar importa `signOut`, uma server action que puxa @/lib/supabase/server
 // (que usa 'server-only'); mockamos o módulo para manter este teste em jsdom.
 vi.mock('@/features/auth/actions', () => ({ signOut: vi.fn() }))
+vi.mock('@/features/notificacoes/push-client', () => ({ disablePush: vi.fn() }))
 let pathname = '/inicio'
 vi.mock('next/navigation', () => ({ usePathname: () => pathname }))
 

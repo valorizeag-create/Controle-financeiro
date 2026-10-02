@@ -3,7 +3,9 @@ import { loadLedger } from '@/features/registro/queries'
 import { loadRecurrences } from '@/features/contas/queries'
 import { buildContas, parseContasTab } from '@/features/contas/view-model'
 import { ContasTabs, BillsList, IncomeList, RecurringList, contasHref } from '@/features/contas/contas-sections'
+import { BillsReminderCard } from '@/features/notificacoes/bills-reminder-card'
 import { MonthNav } from '@/features/seu-mes/month-nav'
+import { env } from '@/lib/env'
 import { Button } from '@/ui/button'
 import { Money } from '@/ui/money'
 import { FormAlert } from '@/ui/form-alert'
@@ -31,6 +33,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
         <div className="flex justify-between"><span>{v.aPagarLabel}</span><Money cents={v.aPagarCents} className="font-semibold text-ink" /></div>
         <div className="flex justify-between"><span>Disponível depois</span><Money cents={v.disponivelDepoisCents} className="font-semibold text-brand-ink" /></div>
       </section>
+      {env.vapidPublicKey && (v.bills.length > 0 || v.recurringBills.length > 0) && <BillsReminderCard vapidPublicKey={env.vapidPublicKey} />}
       <BillsList tab={tab} bills={v.bills} back={back} />
       {v.incomes.length > 0 && <IncomeList items={v.incomes} />}
       <RecurringList title="Contas que se repetem" empty="Nenhuma conta que se repete ainda." items={v.recurringBills} />

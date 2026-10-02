@@ -6,6 +6,7 @@ import { useActionState } from 'react'
 vi.mock('./actions', () => ({
   signUp: vi.fn(), signIn: vi.fn(), requestPasswordReset: vi.fn(), updatePassword: vi.fn(), signOut: vi.fn(),
 }))
+vi.mock('@/features/notificacoes/push-client', () => ({ disablePush: vi.fn() }))
 vi.mock('react', async (orig) => {
   const react = await orig<typeof import('react')>()
   return { ...react, useActionState: vi.fn(() => [{ status: 'idle' }, vi.fn(), false]) }

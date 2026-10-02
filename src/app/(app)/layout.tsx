@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireUser } from '@/lib/supabase/server'
 import { needsOnboarding } from '@/features/onboarding/gate'
 import { getOnboardedAt } from '@/features/perfil/queries'
+import { PushSync } from '@/features/notificacoes/push-sync'
 import { BottomNav } from '@/features/shell/bottom-nav'
 import { MainFrame } from '@/features/shell/main-frame'
 import { Sidebar } from '@/features/shell/sidebar'
@@ -18,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <MainFrame>{children}</MainFrame>
       <BottomNav />
       <Toast />
+      <PushSync />
     </div>
   )
 }

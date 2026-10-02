@@ -2,6 +2,7 @@
 
 import { LogOut } from 'lucide-react'
 import { signOut } from '@/features/auth/actions'
+import { disablePush } from '@/features/notificacoes/push-client'
 import { ConfirmAction } from '@/ui/confirm'
 
 export function SignOutButton({ variant }: { variant: 'icon' | 'row' }) {
@@ -28,7 +29,11 @@ export function SignOutButton({ variant }: { variant: 'icon' | 'row' }) {
       body="Seus dados continuam salvos."
       confirmLabel="Sair"
       cancelLabel="Ficar"
-      action={signOut}
+      action={async () => {
+        // Quem sai deixa de receber lembretes neste aparelho (apaga no banco e cancela no navegador).
+        await disablePush().catch(() => {})
+        await signOut()
+      }}
     />
   )
 }
