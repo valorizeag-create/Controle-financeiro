@@ -16,7 +16,7 @@ const data: ExportData = {
   cards: [{ id: 'k1', nickname: 'Roxinho', kind: 'credit', color: 'purple' }],
   recurrences: [{
     id: 'r1', kind: 'expense', name: 'Luz', amountCents: 18000, categoryId: 'c-casa', source: null, frequency: 'monthly',
-    dueDay: 10, dueMonth: null, startsOn: '2026-09-01', endedOn: null, familyId: null,
+    dueDay: 10, dueMonth: null, startsOn: '2026-09-01', endedOn: null, familyId: null, note: '=cmd', paymentMethod: null, cardId: 'k1',
   }],
   plans: [{ id: 'p1', totalCents: 60000, count: 6, purchasedOn: '2026-09-02', status: 'active', closedOn: null }],
   goals: [
@@ -72,19 +72,19 @@ test('cadastro e registros: cabeçalho e linhas exatas', async () => {
   const csv = await build()
   expect(csv).toContain('"Nome";"E-mail";"Quanto você tinha ao começar";"Cadastro criado em"\r\n"Camila";"camila@teste.iris.dev";1000,00;01/09/2026\r\n\r\n')
   expect(csv).toContain(
-    '"Data";"Tipo";"Situação";"Valor";"Categoria";"De onde veio";"Nota";"Como pagou";"Parcela";"Gasto da família";"Pago com a meta";"Parte paga pela meta";"Vencimento"\r\n',
+    '"Data";"Tipo";"Situação";"Valor";"Categoria";"De onde veio";"Nota";"Como pagou";"Parcela";"Gasto da família";"Pago com a meta";"Parte paga pela meta";"Vencimento";"Pago em";"Compra parcelada"\r\n',
   )
   // uma nota com fórmula sai neutralizada na linha do registro
-  expect(csv).toContain(`02/10/2026;"Gasto";"Confirmado";142,30;"Mercado";;"'=1+1";"Roxinho";"2 de 6";"Sim";;;\r\n`)
-  expect(csv).toContain('01/10/2026;"Entrada";"Confirmado";5000,00;;"Salário";;;;"Não";;;\r\n')
-  expect(csv).toContain('10/10/2026;"Gasto";"A pagar";180,00;"Casa";;;;;"Não";;;10/10/2026\r\n')
-  expect(csv).toContain('30/09/2026;"Gasto";"Confirmado";1500,00;"Lazer";;;;;"Não";"Viagem";1000,00;\r\n')
-  expect(csv).toContain(`02/10/2026;"Gasto";"Confirmado";9,90;"'+Extras";;"diz ""oi""; fim segunda linha";"Pix";;"Não";;;\r\n`)
+  expect(csv).toContain(`02/10/2026;"Gasto";"Confirmado";142,30;"Mercado";;"'=1+1";"Roxinho";"2 de 6";"Sim";;;;;"Compra de 02/09/2026"\r\n`)
+  expect(csv).toContain('01/10/2026;"Entrada";"Confirmado";5000,00;;"Salário";;;;"Não";;;;;\r\n')
+  expect(csv).toContain('10/10/2026;"Gasto";"A pagar";180,00;"Casa";;;;;"Não";;;10/10/2026;;\r\n')
+  expect(csv).toContain('30/09/2026;"Gasto";"Confirmado";1500,00;"Lazer";;;;;"Não";"Viagem";1000,00;;;\r\n')
+  expect(csv).toContain(`02/10/2026;"Gasto";"Confirmado";9,90;"'+Extras";;"diz ""oi""; fim segunda linha";"Pix";;"Não";;;;;\r\n`)
 })
 
 test('os outros blocos', async () => {
   const csv = await build()
-  expect(csv).toContain('"Luz";"Conta";180,00;"Casa";;"Todo mês";10;;01/09/2026;;"Não"\r\n')
+  expect(csv).toContain(`"Luz";"Conta";180,00;"Casa";;"Todo mês";10;;01/09/2026;;"Não";"'=cmd";"Roxinho"\r\n`)
   expect(csv).toContain('02/09/2026;600,00;6;"Em andamento";\r\n')
   expect(csv).toContain('"Roxinho";"Crédito";"Roxo"\r\n')
   expect(csv).toContain('"Viagem";4000,00;03/2027;"Ativa";"Não"\r\n')
@@ -116,4 +116,11 @@ test('erro numa página de registros interrompe o arquivo', async () => {
     failed = true
   }
   expect(failed).toBe(true)
+})
+
+test('registro pago com uma meta que a pessoa não alcança mais sai como "Meta da família"', async () => {
+  let out = ''
+  const orphan = { ...base, id: 't9', goalId: 'sumiu', goalFundedCents: 500, paidOn: '2026-10-03' }
+  for await (const part of exportCsv(data, pages([orphan]), pages())) out += part
+  expect(out).toContain('"Meta da família";5,00;;03/10/2026;\r\n')
 })

@@ -9,6 +9,8 @@ import type { PlanStatus } from '@/features/parcelas/types'
 import type { TxRow } from '@/features/registro/tx-row'
 import type { ExportData } from './export-queries'
 
+// As páginas não são um retrato único do banco: uma anotação feita durante o envio
+// pode duplicar ou pular uma linha. Aceito.
 // Arquivo da pessoa, em blocos: título, cabeçalho, linhas e uma linha vazia.
 // Todo texto digitado por gente passa por csvText (neutraliza fórmula); dinheiro
 // e datas, pelos ajudantes tipados. Nenhum identificador interno entra.
@@ -39,6 +41,11 @@ export async function* exportCsv(
   const categoryName = new Map(data.categories.map((c) => [c.id, c.name]))
   const goalName = new Map(data.goals.map((g) => [g.id, g.name]))
   const category = (id: string | null): string => csvText((id && categoryName.get(id)) || '')
+  const planById = new Map(data.plans.map((p) => [p.id, p]))
+  const purchase = (id: string | null): string => {
+    const plan = id ? planById.get(id) : undefined
+    return plan ? csvText(`Compra de ${csvDate(plan.purchasedOn)}`) : ''
+  }
   const goal = (id: string): string => csvText(goalName.get(id) ?? FAMILY_GOAL)
 
   const { profile } = data
@@ -51,7 +58,7 @@ export async function* exportCsv(
 
   yield head('Registros', [
     'Data', 'Tipo', 'Situação', 'Valor', 'Categoria', 'De onde veio', 'Nota', 'Como pagou', 'Parcela',
-    'Gasto da família', 'Pago com a meta', 'Parte paga pela meta', 'Vencimento',
+    'Gasto da família', 'Pago com a meta', 'Parte paga pela meta', 'Vencimento', 'Pago em', 'Compra parcelada',
   ])
   for await (const page of txPages) {
     yield page
@@ -70,6 +77,8 @@ export async function* exportCsv(
           t.goalId ? goal(t.goalId) : '',
           t.goalFundedCents > 0 ? csvMoney(t.goalFundedCents) : '',
           csvDate(t.dueOn),
+          csvDate(t.paidOn),
+          purchase(t.installmentPlanId),
         ]),
       )
       .join('')
@@ -78,7 +87,7 @@ export async function* exportCsv(
 
   yield block(
     'Contas e entradas que se repetem',
-    ['Nome', 'Tipo', 'Valor', 'Categoria', 'De onde veio', 'Frequência', 'Dia', 'Mês', 'Começou em', 'Encerrada em', 'Conta da família'],
+    ['Nome', 'Tipo', 'Valor', 'Categoria', 'De onde veio', 'Frequência', 'Dia', 'Mês', 'Começou em', 'Encerrada em', 'Conta da família', 'Nota', 'Como paga'],
     data.recurrences.map((r) => [
       csvText(r.name),
       csvText(r.kind === 'expense' ? 'Conta' : 'Entrada'),
@@ -91,6 +100,8 @@ export async function* exportCsv(
       csvDate(r.startsOn),
       csvDate(r.endedOn),
       yesNo(r.familyId !== null),
+      csvText(r.note),
+      csvText(paymentText({ cardId: r.cardId, cardDeleted: false, paymentMethod: r.paymentMethod }, data.cards)),
     ]),
   )
 

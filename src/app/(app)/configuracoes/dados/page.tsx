@@ -1,3 +1,4 @@
+import { buttonClass } from '@/ui/button'
 import { FormAlert } from '@/ui/form-alert'
 import { PageHeader } from '@/ui/page-header'
 
@@ -15,7 +16,7 @@ export default async function DadosPage({ searchParams }: { searchParams: Promis
       <p className="text-base text-ink">O arquivo traz só o que é seu. Nada de outras pessoas da família entra nele.</p>
       <a
         href="/configuracoes/dados/exportar"
-        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-panel bg-brand px-5 text-base font-semibold text-brand-ink transition-colors duration-[120ms] hover:bg-[#8bdc55] active:scale-[0.98]"
+        className={buttonClass()}
       >
         Baixar arquivo
       </a>

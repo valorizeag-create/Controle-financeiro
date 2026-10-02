@@ -2,7 +2,7 @@ import { unstable_rethrow } from 'next/navigation'
 import { todayInSaoPaulo } from '@/domain/dates'
 import { exportCsv, exportFileName } from '@/features/dados/export-csv'
 import { exportMovementPages, exportTransactionPages, loadExportData, type ExportData } from '@/features/dados/export-queries'
-import { requireUser } from '@/lib/supabase/server'
+import { createClient, requireUser } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,19 +18,22 @@ const back = (query = '') => new Response(null, { status: 303, headers: { locati
 // mostra o download como incompleto — nunca um arquivo pela metade com cara
 // de completo.
 export async function GET(request: Request): Promise<Response> {
-  await requireUser()
+  // A sessão e a conexão são resolvidas aqui, dentro do pedido: o envio em partes
+  // roda depois que GET devolve, quando cookies() já não pode ser lido.
+  const user = await requireUser()
   const site = request.headers.get('sec-fetch-site')
   if (site !== null && site !== 'same-origin' && site !== 'none') return back()
 
+  const scope = { supabase: await createClient(), user }
   let data: ExportData
   try {
-    data = await loadExportData()
+    data = await loadExportData(scope)
   } catch (e) {
     unstable_rethrow(e)
     return back('?erro=1')
   }
 
-  const parts = exportCsv(data, exportTransactionPages(), exportMovementPages())
+  const parts = exportCsv(data, exportTransactionPages(scope), exportMovementPages(scope))
   const encoder = new TextEncoder()
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {

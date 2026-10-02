@@ -17,7 +17,7 @@ const h = vi.hoisted(() => {
   }
 })
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/supabase/server', () => ({ requireUser: h.requireUser }))
+vi.mock('@/lib/supabase/server', () => ({ requireUser: h.requireUser, createClient: async () => ({}) }))
 vi.mock('next/navigation', () => ({ unstable_rethrow: (e: unknown) => { if (e instanceof h.RedirectSignal) throw e } }))
 vi.mock('@/features/dados/export-queries', () => ({
   loadExportData: h.loadExportData,

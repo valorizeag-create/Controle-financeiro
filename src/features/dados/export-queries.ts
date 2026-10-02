@@ -10,7 +10,6 @@ import { PLAN_COLUMNS, toPlanRow, type PlanRawRow, type PlanRow } from '@/featur
 import { BUDGET_COLUMNS, toBudgetRow, type BudgetRawRow, type BudgetRow } from '@/features/planejamento/types'
 import { fetchAllPages } from '@/features/registro/paging'
 import { TX_COLUMNS, toTxRow, type TxRawRow, type TxRow } from '@/features/registro/tx-row'
-import { createClient, requireUser } from '@/lib/supabase/server'
 
 // Tudo o que é DA PESSOA e só isso. Cada leitura filtra pelo id de requireUser()
 // além da RLS. As únicas leituras sem user_id são as que não têm dono pessoa:
@@ -29,11 +28,13 @@ export interface ExportGoal {
   family: boolean
 }
 
+export type ExportRecurrence = RecurrenceRow & { familyId: string | null; note: string | null; paymentMethod: string | null; cardId: string | null }
+
 export interface ExportData {
   profile: { displayName: string; email: string; initialBalanceCents: number; createdOn: ISODate }
   categories: { id: string; name: string }[]
   cards: CardRow[]
-  recurrences: (RecurrenceRow & { familyId: string | null })[]
+  recurrences: ExportRecurrence[]
   plans: PlanRow[]
   goals: ExportGoal[]
   budgets: BudgetRow[]
@@ -42,6 +43,16 @@ export interface ExportData {
 }
 
 export const EXPORT_PAGE = 1000
+
+type RecurrenceExtra = { family_id: string | null; note: string | null; payment_method: string | null; card_id: string | null }
+
+// A sessão e a conexão são resolvidas na rota, ANTES de devolver a resposta (o
+// cookie só pode ser lido dentro do pedido; o envio em partes roda depois).
+// Aqui nada chama requireUser(), createClient() nem cookies().
+export interface ExportScope {
+  supabase: SupabaseClient
+  user: { id: string; email?: string | null }
+}
 
 type Result = { data: unknown[] | null; error: unknown }
 type Raw = Record<string, unknown>
@@ -121,9 +132,7 @@ async function loadFamilyGoals(supabase: SupabaseClient, userId: string, familyI
   return goals.filter((g) => ids.has(g.id)).map((g) => toExportGoal(g, true))
 }
 
-export async function loadExportData(): Promise<ExportData> {
-  const user = await requireUser()
-  const supabase = await createClient()
+export async function loadExportData({ supabase, user }: ExportScope): Promise<ExportData> {
   const uid = user.id
 
   const [profile, categories, cards, recurrences, plans, goals, budgets, prefs, membership] = await Promise.all([
@@ -134,8 +143,8 @@ export async function loadExportData(): Promise<ExportData> {
     allPages<CardRawRow>((from, to) =>
       supabase.from('cards').select(CARD_COLUMNS).eq('user_id', uid).order('created_at').order('id').range(from, to),
     ),
-    allPages<RecurrenceRawRow & { family_id: string | null }>((from, to) =>
-      supabase.from('recurrences').select(`${RECURRENCE_COLUMNS}, family_id`).eq('user_id', uid).order('name').order('id').range(from, to),
+    allPages<RecurrenceRawRow & RecurrenceExtra>((from, to) =>
+      supabase.from('recurrences').select(`${RECURRENCE_COLUMNS}, family_id, note, payment_method, card_id`).eq('user_id', uid).order('name').order('id').range(from, to),
     ),
     allPages<PlanRawRow>((from, to) =>
       supabase.from('installment_plans').select(PLAN_COLUMNS).eq('user_id', uid).order('purchased_on').order('id').range(from, to),
@@ -164,7 +173,7 @@ export async function loadExportData(): Promise<ExportData> {
       })),
     ).map(({ id, name }) => ({ id, name })),
     cards: cards.map(toCardRow),
-    recurrences: recurrences.map((r) => ({ ...toRecurrenceRow(r), familyId: r.family_id })),
+    recurrences: recurrences.map((r) => ({ ...toRecurrenceRow(r), familyId: r.family_id, note: r.note, paymentMethod: r.payment_method, cardId: r.card_id })),
     plans: plans.map(toPlanRow),
     goals: [...goals.map((g) => toExportGoal(g, false)), ...familyGoals],
     budgets: budgets.map(toBudgetRow),
@@ -175,9 +184,7 @@ export async function loadExportData(): Promise<ExportData> {
 
 // Mesma ordem de loadLedger. Não usa personalLedger: a conta da família que a
 // pessoa criou e ainda não foi paga é linha dela e entra no arquivo.
-export async function* exportTransactionPages(): AsyncGenerator<TxRow[]> {
-  const user = await requireUser()
-  const supabase = await createClient()
+export async function* exportTransactionPages({ supabase, user }: ExportScope): AsyncGenerator<TxRow[]> {
   for await (const page of pagesOf<TxRawRow>((from, to) =>
     supabase
       .from('transactions')
@@ -192,9 +199,7 @@ export async function* exportTransactionPages(): AsyncGenerator<TxRow[]> {
   }
 }
 
-export async function* exportMovementPages(): AsyncGenerator<GoalMovementRow[]> {
-  const user = await requireUser()
-  const supabase = await createClient()
+export async function* exportMovementPages({ supabase, user }: ExportScope): AsyncGenerator<GoalMovementRow[]> {
   for await (const page of pagesOf<GoalMovementRawRow>((from, to) =>
     supabase
       .from('goal_movements')

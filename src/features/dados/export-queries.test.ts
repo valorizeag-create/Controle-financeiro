@@ -2,9 +2,9 @@ import { beforeEach, expect, test, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({ supabase: null as unknown, user: { id: 'u1', email: 'camila@teste.iris.dev' } }))
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/supabase/server', () => ({ createClient: async () => h.supabase, requireUser: async () => h.user }))
 
 const q = await import('./export-queries')
+const scope = () => ({ supabase: h.supabase as never, user: h.user })
 
 type Read = { table: string; filters: string[]; range: [number, number] | null }
 let reads: Read[] = []
@@ -63,9 +63,9 @@ async function drain<T>(pages: AsyncGenerator<T[]>): Promise<T[][]> {
 }
 
 test('toda leitura é da própria pessoa; nada de push, fila de avisos, convites ou avisos da família', async () => {
-  const data = await q.loadExportData()
-  await drain(q.exportTransactionPages())
-  await drain(q.exportMovementPages())
+  const data = await q.loadExportData(scope())
+  await drain(q.exportTransactionPages(scope()))
+  await drain(q.exportMovementPages(scope()))
   expect(data.profile).toEqual({ displayName: 'Camila', email: 'camila@teste.iris.dev', initialBalanceCents: 100000, createdOn: '2026-09-01' })
   expect(data.family).toBeNull()
   const tables = [...new Set(reads.map((r) => r.table))].sort()
@@ -87,7 +87,7 @@ test('com família: lê só a própria participação, o nome da família dela e
   })
   rows.goals = [goal('g1', 'Viagem'), goal('g2', 'Meta de outro membro')]
   rows.goal_movements = [{ goal_id: 'g1' }]
-  const data = await q.loadExportData()
+  const data = await q.loadExportData(scope())
   expect(data.family).toEqual({ name: 'Família Souza', role: 'member', joinedOn: '2026-09-10' })
   const members = reads.filter((r) => r.table === 'family_members')
   expect(members).toHaveLength(1)
@@ -103,7 +103,7 @@ test('com família: lê só a própria participação, o nome da família dela e
 
 test('os registros vêm em páginas de 1000, até a última', async () => {
   rows.transactions = Array.from({ length: 2300 }, (_, i) => tx(i))
-  const pages = await drain(q.exportTransactionPages())
+  const pages = await drain(q.exportTransactionPages(scope()))
   expect(pages.map((p) => p.length)).toEqual([1000, 1000, 300])
   expect(pages[2][299].amountCents).toBe(2399)
   expect(reads.filter((r) => r.table === 'transactions').map((r) => r.range)).toEqual([[0, 999], [1000, 1999], [2000, 2999]])
@@ -112,7 +112,7 @@ test('os registros vêm em páginas de 1000, até a última', async () => {
 test('erro numa página interrompe a leitura (não devolve um arquivo pela metade)', async () => {
   rows.transactions = Array.from({ length: 2300 }, (_, i) => tx(i))
   failOn = { table: 'transactions', from: 1000 }
-  const pages = q.exportTransactionPages()
+  const pages = q.exportTransactionPages(scope())
   expect((await pages.next()).value).toHaveLength(1000)
   await expect(pages.next()).rejects.toBeTruthy()
 })

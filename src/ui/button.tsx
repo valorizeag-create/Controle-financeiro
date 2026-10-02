@@ -14,6 +14,8 @@ const base =
 
 type Props = { variant?: Variant; href?: string; className?: string; children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>
 
+export const buttonClass = (variant: Variant = 'primary', extra = ''): string => `${base} ${styles[variant]} ${extra}`.trim()
+
 export function Button({ variant = 'primary', href, className = '', children, ...rest }: Props) {
   const cls = `${base} ${styles[variant]} ${className}`
   if (href) return <Link href={href} className={cls}>{children}</Link>
