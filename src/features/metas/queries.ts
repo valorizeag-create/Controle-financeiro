@@ -11,6 +11,7 @@ import {
   toMovementRow,
   type GoalMovementRawRow,
   type GoalMovementRow,
+  type GoalUseTx,
   type GoalRawRow,
   type GoalRow,
 } from './types'
@@ -66,6 +67,39 @@ export async function loadGoal(id: string): Promise<{ goal: GoalRow; movements: 
   if (movements.error) throw movements.error
   if (!goal.data) return null
   return { goal: toGoalRow(goal.data), movements: (movements.data as GoalMovementRawRow[]).map(toMovementRow) }
+}
+
+// Os usos da meta da família que o administrador fez (o gasto de cada uso é do administrador que usou).
+// Só linhas da própria pessoa; não lê nada dos outros membros nem as partes. Serve para o administrador
+// desfazer um uso mesmo quando ele não tem parte (o uso só grava movimento de quem tinha parte).
+export async function loadMyGoalUses(goalId: string): Promise<GoalUseTx[]> {
+  const user = await requireUser()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('id, amount_cents, occurred_on')
+    .eq('user_id', user.id)
+    .eq('goal_id', goalId)
+    .eq('kind', 'expense')
+    .eq('status', 'confirmed')
+    .order('occurred_on', { ascending: false })
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data as { id: string; amount_cents: number | string; occurred_on: string }[]).map((t) => ({
+    id: t.id,
+    amountCents: Number(t.amount_cents),
+    occurredOn: t.occurred_on,
+  }))
+}
+
+// Metas da família com as excluídas: só para dar nome às linhas do Extrato da própria pessoa (M-3).
+// A RLS só devolve as da família de quem pede.
+export async function loadFamilyGoalLabels(familyId: string): Promise<GoalRow[]> {
+  await requireUser()
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('goals').select(GOAL_COLUMNS).eq('family_id', familyId)
+  if (error) throw error
+  return (data as GoalRawRow[]).map(toGoalRow)
 }
 
 // Só o nome e se está excluída, mesmo para uma meta excluída (M-3): usado

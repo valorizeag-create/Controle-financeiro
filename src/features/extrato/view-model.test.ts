@@ -102,6 +102,40 @@ describe('busca (Review Focus 1)', () => {
   })
 })
 
+describe('buildExtrato — metas da família', () => {
+  const famGoal = (p: { deletedOn: string | null }) => ({
+    id: 'fg1', name: 'Reforma', targetCents: 1000000, deadline: null, status: 'used' as const, usedOn: '2026-09-10', deletedOn: p.deletedOn, createdAt: '2026-07-01T12:00:00Z',
+  })
+  const input = (goals: ReturnType<typeof famGoal>[]) => ({
+    filters: f(),
+    today: '2026-09-22',
+    categories: [],
+    cards: [],
+    goals,
+    transactions: [row({ id: 'u1', kind: 'expense', amountCents: 5000, occurredOn: '2026-09-22', goalId: 'fg1', familyId: 'fam1' })],
+    movements: [
+      { id: 'm1', goalId: 'fg1', kind: 'withdraw' as const, amountCents: 3000, occurredOn: '2026-09-21', transactionId: null, createdAt: '2026-09-21T12:00:00Z' },
+    ],
+  })
+
+  test('meta da família conhecida: dá nome e link às linhas da própria pessoa', () => {
+    const rows = buildExtrato(input([famGoal({ deletedOn: null })])).groups.flatMap((g) => g.rows)
+    expect(rows.find((r) => r.id === 'u1')).toMatchObject({ badge: 'pago com a meta Reforma', href: '/metas/fg1', family: true })
+    expect(rows.find((r) => r.id === 'm1')).toMatchObject({ subtitle: 'Reforma', href: '/metas/fg1' })
+  })
+
+  test('meta da família excluída continua nomeada, sem link para a tela dela', () => {
+    const rows = buildExtrato(input([famGoal({ deletedOn: '2026-09-22' })])).groups.flatMap((g) => g.rows)
+    expect(rows.find((r) => r.id === 'u1')).toMatchObject({ badge: 'pago com a meta Reforma', href: '/metas' })
+    expect(rows.find((r) => r.id === 'm1')).toMatchObject({ subtitle: 'Reforma', href: '/metas' })
+  })
+
+  test('nome que não pôde ser lido: sem selo solto "pago com a meta "', () => {
+    const rows = buildExtrato(input([])).groups.flatMap((g) => g.rows)
+    expect(rows.find((r) => r.id === 'u1')?.badge).toBeNull()
+  })
+})
+
 describe('buildExtrato', () => {
   test('family é verdadeiro só para registro com familyId', () => {
     const v = buildExtrato({

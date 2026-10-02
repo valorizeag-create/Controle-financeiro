@@ -4,12 +4,12 @@ import { loadCategories } from '@/features/registro/queries'
 import { AnotarForm } from '@/features/registro/anotar-form'
 import { SheetClose } from '@/features/registro/sheet-close'
 import { loadCards, loadLastCardId } from '@/features/cartoes/queries'
-import { loadMyFamily } from '@/features/familia/queries'
+import { loadFamilySummary } from '@/features/familia/queries'
 
 export default async function AnotarPage({ searchParams }: { searchParams: Promise<{ tipo?: string }> }) {
   const { tipo } = await searchParams
   const kind = tipo === 'entrada' ? 'income' : 'expense'
-  const [categories, cards, lastCardId, family] = await Promise.all([loadCategories(), loadCards(), loadLastCardId(), loadMyFamily()])
+  const [categories, cards, lastCardId, family] = await Promise.all([loadCategories(), loadCards(), loadLastCardId(), loadFamilySummary()])
   const tab = (active: boolean) =>
     `flex h-11 items-center justify-center rounded-control text-[15px] ${active ? 'bg-card font-semibold text-ink shadow-[0_1px_2px_rgba(18,40,1,.08)]' : 'font-medium text-inactive'}`
 

@@ -16,9 +16,11 @@ export default async function UsarPage({ params }: Props) {
   if (!data) notFound()
   // Na meta da família, só o administrador usa o dinheiro (o banco confere de novo ao salvar).
   if (data.kind === 'family' && !data.isAdmin) redirect(`/metas/${id}`)
-  const { summary, balanceText, canUse } = buildGoalDetail({ goal: data.goal, movements: data.movements, today: todayInSaoPaulo() })
   const family = data.kind === 'family'
-  const usable = family ? data.goal.status === 'active' && data.goal.savedCents > 0 : canUse
+  // Meta da família: o total é o de todos (o aviso de diferença usa ele); a pessoal usa o saldo dela.
+  const personal = data.kind === 'family' ? null : buildGoalDetail({ goal: data.goal, movements: data.movements, today: todayInSaoPaulo() })
+  const balanceCents = data.kind === 'family' ? data.goal.savedCents : personal!.summary.balanceCents
+  const usable = data.kind === 'family' ? data.goal.status === 'active' && data.goal.savedCents > 0 : personal!.canUse
   if (!usable) redirect(`/metas/${id}`)
   const categories = await loadCategories()
 
@@ -29,8 +31,8 @@ export default async function UsarPage({ params }: Props) {
           <h1 id="usar-titulo" className="flex-1 text-xl font-semibold tracking-tight text-ink">Usar o dinheiro da meta</h1>
           <SheetClose href={`/metas/${id}`} />
         </div>
-        {!family && <p className="rounded-panel bg-brand-wash px-3.5 py-3 text-[15px] text-brand-ink">{balanceText}</p>}
-        <UseGoalForm goalId={id} balanceCents={family ? data.goal.savedCents : summary.balanceCents} categories={categories} family={family} />
+        {personal && <p className="rounded-panel bg-brand-wash px-3.5 py-3 text-[15px] text-brand-ink">{personal.balanceText}</p>}
+        <UseGoalForm goalId={id} balanceCents={balanceCents} categories={categories} family={family} />
       </section>
     </div>
   )

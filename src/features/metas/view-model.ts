@@ -4,7 +4,7 @@ import { dayMonthLabel, dayMonthYearLabel, monthLabel, shortMonthLabel, type ISO
 import { monthName } from '@/domain/recurrence'
 import { normalizeText } from '@/features/extrato/view-model'
 import type { FamilyGoalRow } from '@/features/familia/types'
-import type { GoalMovementRow, GoalRow } from './types'
+import type { GoalMovementRow, GoalRow, GoalUseTx } from './types'
 
 export interface GoalSummary {
   goal: GoalRow
@@ -159,15 +159,44 @@ export function buildFamilyGoalDetail(input: {
   goal: FamilyGoalRow
   movements: GoalMovementRow[]
   today: ISODate
+  // Usos feitos por quem administra (total e dia); cada um ganha uma linha "Usou" com o botão de desfazer.
+  uses?: GoalUseTx[]
 }): FamilyGoalDetailView {
-  const { goal, movements, today } = input
+  const { goal, movements, today, uses = [] } = input
   const base = buildGoalDetail({ goal, movements, today })
   const own = movements.filter((m) => m.goalId === goal.id)
   const summary = summarizeGoal(goal, own, today, goal.savedCents)
   const myPartCents = goalBalance(own)
   const state: GoalDetailView['state'] = goal.status === 'used' ? 'used' : summary.complete ? 'complete' : 'active'
+  let history = base.history
+  if (uses.length > 0) {
+    const useIds = new Set(uses.map((u) => u.id))
+    const currentYear = today.slice(0, 4)
+    const dateLabel = (d: ISODate) => (d.slice(0, 4) === currentYear ? dayMonthLabel(d) : dayMonthYearLabel(d))
+    // A linha do uso vem do gasto (total do uso); a parte da própria pessoa nesse uso não aparece à parte.
+    const kept = own.filter((m) => !(m.kind === 'use' && m.transactionId !== null && useIds.has(m.transactionId)))
+    const rows = [
+      ...kept.map((m) => ({ date: m.occurredOn, createdAt: m.createdAt, item: base.history.find((h) => h.id === m.id)! })),
+      ...uses.map((u) => ({
+        date: u.occurredOn,
+        createdAt: '',
+        item: {
+          id: `use-${u.id}`,
+          label: 'Usou' as const,
+          dateLabel: dateLabel(u.occurredOn),
+          amountText: `− ${formatBRL(u.amountCents)}`,
+          positive: false,
+          transactionId: u.id,
+        },
+      })),
+    ]
+    rows.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
+    history = rows.map((r) => r.item)
+  }
   return {
     ...base,
+    history,
+    balanceText: `Sua parte: ${formatBRL(myPartCents)}`,
     summary,
     state,
     celebration: state === 'complete' ? `Você chegou lá. ${goal.name} está completa.` : null,

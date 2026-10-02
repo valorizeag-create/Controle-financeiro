@@ -1,7 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { z } from 'zod'
 import { todayInSaoPaulo } from '@/domain/dates'
-import { formatBRL } from '@/domain/money'
 import { resolveGoal } from '@/features/metas/resolve-goal'
 import { buildFamilyGoalDetail, buildGoalDetail } from '@/features/metas/view-model'
 import { MoveForm } from '@/features/metas/move-form'
@@ -17,12 +16,18 @@ export default async function TirarPage({ params }: Props) {
   const today = todayInSaoPaulo()
   // Na meta da família só existe a parte da própria pessoa para tirar ("Sua parte").
   const family = data.kind === 'family'
-  const detail = family
-    ? buildFamilyGoalDetail({ goal: data.goal, movements: data.movements, today })
-    : buildGoalDetail({ goal: data.goal, movements: data.movements, today })
-  const availableCents = family ? (detail as ReturnType<typeof buildFamilyGoalDetail>).myPartCents : detail.summary.balanceCents
+  let availableCents: number
+  let balanceText: string
+  if (data.kind === 'family') {
+    const d = buildFamilyGoalDetail({ goal: data.goal, movements: data.movements, today })
+    availableCents = d.myPartCents
+    balanceText = d.balanceText
+  } else {
+    const d = buildGoalDetail({ goal: data.goal, movements: data.movements, today })
+    availableCents = d.summary.balanceCents
+    balanceText = d.balanceText
+  }
   if (availableCents <= 0) redirect(`/metas/${id}`)
-  const balanceText = family ? `Sua parte: ${formatBRL(availableCents)}` : detail.balanceText
 
   return (
     <div className="min-h-dvh bg-[rgba(18,40,1,.32)] md:flex md:justify-end">

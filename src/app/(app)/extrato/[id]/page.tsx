@@ -11,7 +11,7 @@ import { Money } from '@/ui/money'
 import { loadCards } from '@/features/cartoes/queries'
 import { paymentText } from '@/features/cartoes/types'
 import { loadGoalLabel } from '@/features/metas/queries'
-import { loadMyFamily } from '@/features/familia/queries'
+import { loadFamilySummary } from '@/features/familia/queries'
 import { buildGoalFundedExpense } from '@/features/metas/view-model'
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ erro?: string }> }
@@ -19,7 +19,7 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ erro?: s
 export default async function EditarRegistroPage({ params, searchParams }: Props) {
   const [{ id }, { erro }] = await Promise.all([params, searchParams])
   if (!z.uuid().safeParse(id).success) notFound()
-  const [tx, categories, cards, family] = await Promise.all([loadTransaction(id), loadCategories(), loadCards(), loadMyFamily()])
+  const [tx, categories, cards, family] = await Promise.all([loadTransaction(id), loadCategories(), loadCards(), loadFamilySummary()])
   // Contas a pagar/receber (pendentes) ganham tela própria no Plano 3.
   if (!tx || tx.status !== 'confirmed') notFound()
   // Uma parcela ou o restante quitado não têm formulário próprio: a tela é a da compra inteira.

@@ -10,7 +10,8 @@ import type { Category } from '@/features/registro/queries'
 import { spendFromGoal } from './movement-actions'
 import { spendFromFamilyGoal } from './family-goal-actions'
 
-// `family`: meta da família, usada pelo administrador; o banco divide o uso entre as partes, então não há diferença a mostrar.
+// `family`: meta da família, usada pelo administrador (balanceCents = total da família). O banco divide o uso entre as partes;
+// o que passar do total sai do Disponível do administrador, então o aviso da diferença vale igual.
 type Props = { goalId: string; balanceCents: number; categories: Category[]; family?: boolean }
 
 export function UseGoalForm({ goalId, balanceCents, categories, family = false }: Props) {
@@ -21,7 +22,7 @@ export function UseGoalForm({ goalId, balanceCents, categories, family = false }
   const [amount, setAmount] = useState(v.amount ?? '')
 
   const parsed = parseBRL(amount)
-  const diffCents = !family && parsed !== null && parsed > balanceCents ? parsed - balanceCents : null
+  const diffCents = parsed !== null && parsed > balanceCents ? parsed - balanceCents : null
 
   return (
     <form key={err ? err.submission : 'idle'} action={action} noValidate className="flex flex-col gap-5">

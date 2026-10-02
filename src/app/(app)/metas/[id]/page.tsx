@@ -17,7 +17,7 @@ export default async function MetaPage({ params, searchParams }: Props) {
   const data = await resolveGoal(id)
   if (!data) notFound()
   const today = todayInSaoPaulo()
-  const familyView = data.kind === 'family' ? buildFamilyGoalDetail({ goal: data.goal, movements: data.movements, today }) : null
+  const familyView = data.kind === 'family' ? buildFamilyGoalDetail({ goal: data.goal, movements: data.movements, today, uses: data.uses }) : null
   const view = familyView ?? buildGoalDetail({ goal: data.goal, movements: data.movements, today })
   return (
     <main className="mx-auto flex max-w-[560px] flex-col gap-3.5 px-4 pt-4 md:px-9 md:pt-7">

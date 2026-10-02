@@ -221,7 +221,7 @@ function toRow(t: TxRow, nameOf: Map<string, string>, cards: CardRow[], goalById
       subtitle,
       cents: t.amountCents,
       href: goalHref(t.goalId, goalById),
-      badge: `pago com a meta ${goalById.get(t.goalId)?.name ?? ''}`,
+      badge: goalById.get(t.goalId) ? `pago com a meta ${goalById.get(t.goalId)!.name}` : null,
       family: t.familyId !== null,
     }
   }

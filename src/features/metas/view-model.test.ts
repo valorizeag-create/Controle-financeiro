@@ -169,6 +169,30 @@ describe('metas da família', () => {
     expect(v.concluded).toEqual([{ id: 'g1', name: 'Reforma da cozinha', caption: 'Reforma da cozinha · usada em agosto' }])
   })
 
+  test('administrador sem parte: o uso vem do gasto, com total e dia, e pode ser desfeito', () => {
+    const d = buildFamilyGoalDetail({
+      goal: familyGoal({ status: 'used', usedOn: '2026-09-20' }), today,
+      movements: [],
+      uses: [{ id: 'tx1', amountCents: 250000, occurredOn: '2026-09-20' }],
+    })
+    expect(d.myPartCents).toBe(0)
+    expect(d.history).toEqual([
+      { id: 'use-tx1', label: 'Usou', dateLabel: '20 de setembro', amountText: `− ${brl('2.500,00')}`, positive: false, transactionId: 'tx1' },
+    ])
+  })
+
+  test('administrador com parte: a linha do uso vem do gasto, sem repetir o movimento dele', () => {
+    const d = buildFamilyGoalDetail({
+      goal: familyGoal(), today,
+      movements: [
+        mv({ goalId: 'g1', kind: 'deposit', amountCents: 100000, occurredOn: '2026-09-01' }),
+        mv({ goalId: 'g1', kind: 'use', amountCents: 60000, occurredOn: '2026-09-20', transactionId: 'tx1' }),
+      ],
+      uses: [{ id: 'tx1', amountCents: 250000, occurredOn: '2026-09-20' }],
+    })
+    expect(d.history.map((h) => [h.label, h.transactionId])).toEqual([['Usou', 'tx1'], ['Guardou', null]])
+  })
+
   test('detalhe: resumo com o total, "Sua parte" só dos meus movimentos; tirar some com parte 0', () => {
     const d = buildFamilyGoalDetail({
       goal: familyGoal(), today,

@@ -36,9 +36,12 @@ test('gasto maior que o guardado avisa quanto sai do mês (RN-15a); menor não a
   expect(document.querySelector('[aria-live="polite"]')).toBeNull()
 })
 
-test('meta da família: sem o aviso de diferença nem a frase do Disponível', () => {
-  render(<UseGoalForm goalId="g1" balanceCents={248000} categories={categories} family />)
-  fireEvent.change(screen.getByLabelText('Quanto foi o gasto?'), { target: { value: '3.000' } })
+test('meta da família: a diferença sobre o total da família sai do Disponível (mesma frase da meta pessoal)', () => {
+  render(<UseGoalForm goalId="g1" balanceCents={300000} categories={categories} family />)
+  expect(screen.queryByText(/A diferença de/)).toBeNull()
+  fireEvent.change(screen.getByLabelText('Quanto foi o gasto?'), { target: { value: '3.500' } })
+  expect(screen.getByText(/A diferença de/).textContent).toBe(`A diferença de R$${NBSP}500,00 sai do seu Disponível deste mês.`)
+  fireEvent.change(screen.getByLabelText('Quanto foi o gasto?'), { target: { value: '2.000' } })
   expect(screen.queryByText(/A diferença de/)).toBeNull()
   expect(screen.queryByText(/Esse gasto não sai do seu Disponível de novo/)).toBeNull()
   expect(screen.getByRole('button', { name: 'Usar o dinheiro da meta' })).toBeTruthy()
