@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { after as afterResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/forms'
@@ -11,6 +12,7 @@ import { monthOf, todayInSaoPaulo } from '@/domain/dates'
 import { amountField } from '@/features/registro/schemas'
 import { nextDueOnOrAfter } from '@/domain/recurrence'
 import { UNEXPECTED } from '@/features/auth/errors'
+import { queueBudgetAlerts } from '@/features/notificacoes/alerts'
 import { myFamilyId } from '@/features/familia/queries'
 import { safeReturnPath } from './return-path'
 import { billSchema, makeRecurrenceEditSchema } from './schemas'
@@ -40,6 +42,7 @@ export async function markBillPaid(fd: FormData): Promise<void> {
   if (error) redirect('/contas?erro=1')
   if (!data || data.length !== 1) redirect(volta)
   await setFlash('Conta marcada como paga.')
+  afterResponse(() => queueBudgetAlerts())
   refreshMoneyViews()
   redirect(volta)
 }

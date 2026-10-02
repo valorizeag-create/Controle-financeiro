@@ -8,7 +8,7 @@ const h = vi.hoisted(() => {
       this.url = url
     }
   }
-  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), refresh: vi.fn() }
+  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), refresh: vi.fn(), after: [] as (() => unknown)[], budgetAlerts: vi.fn(async () => {}), goalAlert: vi.fn(async (_id: string) => {}) }
 })
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -18,6 +18,8 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/flash', () => ({ setFlash: h.setFlash }))
 vi.mock('@/lib/refresh', () => ({ refreshMoneyViews: h.refresh }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => { h.after.push(fn) } }))
+vi.mock('@/features/notificacoes/alerts', () => ({ queueBudgetAlerts: h.budgetAlerts, queueGoalAlert: h.goalAlert }))
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new h.RedirectSignal(url)
@@ -49,6 +51,9 @@ function form(fields: Record<string, string>): FormData {
 
 beforeEach(() => {
   calls.length = 0
+  h.after.length = 0
+  h.budgetAlerts.mockClear()
+  h.goalAlert.mockClear()
   h.setFlash.mockClear()
   h.refresh.mockClear()
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -127,6 +132,22 @@ describe('depositToGoal (RN-13)', () => {
     h.supabase = fakeSupabase({ rpc: { deposit_to_goal: { error: { message: 'Meta não encontrada.' } } } })
     expect(await actions.depositToGoal({ status: 'idle' }, form({ id: ID, amount: '20' }))).toMatchObject({ status: 'error', message: SAVE_FAILED })
     expect(h.setFlash).not.toHaveBeenCalled()
+  })
+})
+
+describe('aviso de meta perto de completar (depositToGoal)', () => {
+  test('depois de guardar, pede ao banco para conferir se falta pouco para a meta', async () => {
+    h.supabase = fakeSupabase({ rpc: { deposit_to_goal: { data: 250000 } } })
+    await redirectOf(actions.depositToGoal({ status: 'idle' }, form({ id: ID, amount: '20' })))
+    expect(h.after.length).toBe(1)
+    expect(h.goalAlert).not.toHaveBeenCalled()
+    await h.after[0]()
+    expect(h.goalAlert).toHaveBeenCalledWith(ID)
+    expect(h.budgetAlerts).not.toHaveBeenCalled()
+  })
+  test('valor inválido ou falha: nenhum aviso', async () => {
+    await actions.depositToGoal({ status: 'idle' }, form({ id: ID, amount: '' }))
+    expect(h.after).toEqual([])
   })
 })
 

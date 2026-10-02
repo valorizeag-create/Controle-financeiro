@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { after as afterResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/forms'
@@ -9,6 +10,7 @@ import { formatBRL } from '@/domain/money'
 import { monthOf, todayInSaoPaulo, type ISODate } from '@/domain/dates'
 import { refreshMoneyViews } from '@/lib/refresh'
 import { UNEXPECTED } from '@/features/auth/errors'
+import { queueBudgetAlerts } from '@/features/notificacoes/alerts'
 import { myFamilyId } from '@/features/familia/queries'
 import { familyPatch } from '@/features/familia/schemas'
 import { INSTALLMENT_MESSAGES, makeExpenseSchema, makeIncomeSchema, parseRepeat, readInstallments } from './schemas'
@@ -100,6 +102,7 @@ export async function createTransaction(_: FormState, fd: FormData): Promise<For
       if (error) return errorState({ message: saveFailure(error), values })
     }
     await setFlash('Anotado. Seu mês já está atualizado.')
+    afterResponse(() => queueBudgetAlerts())
   } else {
     const values = readFields(fd, [...INCOME_FIELDS, ...REPEAT_FIELDS])
     const parsed = makeIncomeSchema(today).safeParse(values)
@@ -224,6 +227,7 @@ export async function updateTransaction(_: FormState, fd: FormData): Promise<For
     if (error) return errorState({ message: saveFailure(error), values })
     if (!data || data.length !== 1) return errorState({ message: SAVE_FAILED, values })
     occurredOn = d.occurredOn
+    afterResponse(() => queueBudgetAlerts())
   }
 
   await setFlash('Alterações salvas.')

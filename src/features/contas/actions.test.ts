@@ -8,7 +8,7 @@ const h = vi.hoisted(() => {
       this.url = url
     }
   }
-  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), revalidatePath: vi.fn() }
+  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), revalidatePath: vi.fn(), after: [] as (() => unknown)[], budgetAlerts: vi.fn(async () => {}), goalAlert: vi.fn(async (_id: string) => {}) }
 })
 
 vi.mock('server-only', () => ({}))
@@ -18,6 +18,8 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 vi.mock('@/lib/flash', () => ({ setFlash: h.setFlash }))
 vi.mock('next/cache', () => ({ revalidatePath: h.revalidatePath }))
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => { h.after.push(fn) } }))
+vi.mock('@/features/notificacoes/alerts', () => ({ queueBudgetAlerts: h.budgetAlerts, queueGoalAlert: h.goalAlert }))
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new h.RedirectSignal(url)
@@ -96,6 +98,9 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-09-30T15:00:00Z'))
   calls.length = 0
+  h.after.length = 0
+  h.budgetAlerts.mockClear()
+  h.goalAlert.mockClear()
   h.setFlash.mockClear()
   h.revalidatePath.mockClear()
 })
@@ -116,6 +121,21 @@ describe('markBillPaid', () => {
     ])
     expect(h.setFlash).toHaveBeenCalledWith('Conta marcada como paga.')
     for (const path of ['/inicio', '/extrato', '/contas']) expect(h.revalidatePath).toHaveBeenCalledWith(path)
+  })
+
+  test('depois de pagar, confere os avisos do planejado fora do caminho da resposta; sem conta paga, nada', async () => {
+    h.supabase = fakeSupabase()
+    await redirectOf(actions.markBillPaid(form({ id: ID, volta: '/inicio' })))
+    expect(h.after.length).toBe(1)
+    expect(h.budgetAlerts).not.toHaveBeenCalled()
+    await h.after[0]()
+    expect(h.budgetAlerts).toHaveBeenCalledTimes(1)
+    h.after.length = 0
+    h.supabase = fakeSupabase({ rows: 0 })
+    await redirectOf(actions.markBillPaid(form({ id: ID, volta: '/inicio' })))
+    h.supabase = fakeSupabase({ error: { message: 'falhou' } })
+    await redirectOf(actions.markBillPaid(form({ id: ID, volta: '/inicio' })))
+    expect(h.after).toEqual([])
   })
 
   test('toque duplo ou conta já paga: nada muda e não aparece erro (Review Focus 4)', async () => {

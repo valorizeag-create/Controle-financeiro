@@ -10,7 +10,7 @@ const h = vi.hoisted(() => {
       this.url = url
     }
   }
-  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), refresh: vi.fn() }
+  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), refresh: vi.fn(), after: [] as (() => unknown)[], budgetAlerts: vi.fn(async () => {}), goalAlert: vi.fn(async (_id: string) => {}) }
 })
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -20,6 +20,8 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/flash', () => ({ setFlash: h.setFlash }))
 vi.mock('@/lib/refresh', () => ({ refreshMoneyViews: h.refresh }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => { h.after.push(fn) } }))
+vi.mock('@/features/notificacoes/alerts', () => ({ queueBudgetAlerts: h.budgetAlerts, queueGoalAlert: h.goalAlert }))
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new h.RedirectSignal(url)
@@ -93,6 +95,9 @@ function form(fields: Record<string, string>): FormData {
 
 beforeEach(() => {
   calls.length = 0
+  h.after.length = 0
+  h.budgetAlerts.mockClear()
+  h.goalAlert.mockClear()
   h.setFlash.mockClear()
   h.refresh.mockClear()
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -194,6 +199,20 @@ describe('depositToFamilyGoal', () => {
     expect(await actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '' }))).toMatchObject({ fieldErrors: { amount: 'Falta o valor.' } })
     expect(await actions.depositToFamilyGoal(idle, form({ id: 'x', amount: '20' }))).toMatchObject({ message: SAVE_FAILED })
     expect(h.setFlash).not.toHaveBeenCalled()
+  })
+})
+
+describe('aviso de meta da família perto de completar', () => {
+  test('depois de guardar, pede ao banco para conferir se falta pouco para a meta', async () => {
+    h.supabase = fakeSupabase({ rpc: { family_goal_totals: { data: [{ goal_id: UUID, saved_cents: 495000 }] } } })
+    await redirectOf(actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '100,00' })))
+    expect(h.after.length).toBe(1)
+    await h.after[0]()
+    expect(h.goalAlert).toHaveBeenCalledWith(UUID)
+  })
+  test('valor inválido: nenhum aviso', async () => {
+    await actions.depositToFamilyGoal(idle, form({ id: UUID, amount: '' }))
+    expect(h.after).toEqual([])
   })
 })
 

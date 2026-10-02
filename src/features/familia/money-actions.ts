@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { after as afterResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/forms'
@@ -8,6 +9,7 @@ import { setFlash } from '@/lib/flash'
 import { refreshMoneyViews } from '@/lib/refresh'
 import { monthOf, todayInSaoPaulo, type ISODate } from '@/domain/dates'
 import { UNEXPECTED } from '@/features/auth/errors'
+import { queueBudgetAlerts } from '@/features/notificacoes/alerts'
 import { familyBillSchema, familyReturnPath, makeFamilyExpenseSchema } from './schemas'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
@@ -42,6 +44,7 @@ export async function payFamilyBill(fd: FormData): Promise<void> {
     redirect(`${FAMILY_BILLS}?erro=1`)
   }
   await setFlash('Conta marcada como paga.')
+  afterResponse(() => queueBudgetAlerts())
   refreshMoneyViews()
   redirect(volta)
 }

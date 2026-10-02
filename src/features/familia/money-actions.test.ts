@@ -8,7 +8,7 @@ const h = vi.hoisted(() => {
       this.url = url
     }
   }
-  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), refresh: vi.fn() }
+  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), refresh: vi.fn(), after: [] as (() => unknown)[], budgetAlerts: vi.fn(async () => {}), goalAlert: vi.fn(async (_id: string) => {}) }
 })
 
 vi.mock('server-only', () => ({}))
@@ -18,6 +18,8 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 vi.mock('@/lib/flash', () => ({ setFlash: h.setFlash }))
 vi.mock('@/lib/refresh', () => ({ refreshMoneyViews: h.refresh }))
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => { h.after.push(fn) } }))
+vi.mock('@/features/notificacoes/alerts', () => ({ queueBudgetAlerts: h.budgetAlerts, queueGoalAlert: h.goalAlert }))
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new h.RedirectSignal(url)
@@ -54,6 +56,9 @@ function form(fields: Record<string, string>): FormData {
 
 beforeEach(() => {
   rpcCalls = []
+  h.after.length = 0
+  h.budgetAlerts.mockClear()
+  h.goalAlert.mockClear()
   rpcResults = {}
   h.supabase = {
     rpc: async (fn: string, args: unknown) => {
@@ -76,6 +81,18 @@ describe('pagar conta da família', () => {
     expect(rpcCalls).toEqual([{ fn: 'pay_family_bill', args: { p_id: UUID } }])
     expect(h.setFlash).toHaveBeenCalledWith('Conta marcada como paga.')
     expect(h.refresh).toHaveBeenCalled()
+  })
+
+  test('depois de pagar, confere os avisos do planejado fora do caminho da resposta; conta não encontrada, nada', async () => {
+    await redirectOf(payFamilyBill(form({ id: UUID, volta: '/inicio/familia' })))
+    expect(h.after.length).toBe(1)
+    expect(h.budgetAlerts).not.toHaveBeenCalled()
+    await h.after[0]()
+    expect(h.budgetAlerts).toHaveBeenCalledTimes(1)
+    h.after.length = 0
+    rpcError('pay_family_bill', 'Conta não encontrada.')
+    await redirectOf(payFamilyBill(form({ id: UUID, volta: '/inicio/familia' })))
+    expect(h.after).toEqual([])
   })
 
   test('endereço de volta adulterado ou id inválido', async () => {

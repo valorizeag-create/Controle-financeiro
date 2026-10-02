@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { inviteReturn, isAnonOnlyPath, isPublicPath, safeNext, withNext } from './routes'
+import { inviteReturn, isAnonOnlyPath, loginPath, isPublicPath, safeNext, withNext } from './routes'
 
 test('rotas públicas e rotas só para quem não entrou', () => {
   expect(isPublicPath('/entrar')).toBe(true)
@@ -31,6 +31,21 @@ test('o convite é público; outras rotas parecidas não', () => {
   expect(isPublicPath('/convite/a/b')).toBe(false)
   expect(isPublicPath('/familia')).toBe(false)
   expect(safeNext('/convite/abc')).toBe('/convite/abc')
+})
+
+test('volta da notificação de conta a pagar: só os dois formatos exatos', () => {
+  const ID = '3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
+  const personal = `/contas?mes=2026-10&pagar=${ID}`
+  const family = `/familia/contas?pagar=${ID}`
+  expect(inviteReturn(personal)).toBe(personal)
+  expect(inviteReturn(family)).toBe(family)
+  expect(loginPath(personal)).toBe(`/entrar?next=${encodeURIComponent(personal)}`)
+  expect(loginPath('/contas')).toBe('/entrar')
+  for (const bad of [`/contas?mes=2026-13&pagar=${ID}`, `/contas?pagar=${ID}`, `/contas?mes=2026-10&pagar=${ID}&x=1`, `/contas?mes=2026-10&pagar=${ID.toUpperCase()}`, '/contas?mes=2026-10&pagar=abc', `/familia/contas?pagar=${ID}
+`, `/familia/contas/${ID}`, `/extrato?pagar=${ID}`, `//familia/contas?pagar=${ID}`]) {
+    expect(inviteReturn(bad), bad).toBeNull()
+    expect(loginPath(bad), bad).toBe('/entrar')
+  }
 })
 
 test('volta ao convite: só o formato exato, só caminho interno', () => {

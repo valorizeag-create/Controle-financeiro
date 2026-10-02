@@ -10,7 +10,7 @@ const h = vi.hoisted(() => {
       this.url = url
     }
   }
-  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), revalidatePath: vi.fn() }
+  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), revalidatePath: vi.fn(), after: [] as (() => unknown)[], budgetAlerts: vi.fn(async () => {}), goalAlert: vi.fn(async (_id: string) => {}) }
 })
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -19,6 +19,8 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 vi.mock('@/lib/flash', () => ({ setFlash: h.setFlash }))
 vi.mock('next/cache', () => ({ revalidatePath: h.revalidatePath }))
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => { h.after.push(fn) } }))
+vi.mock('@/features/notificacoes/alerts', () => ({ queueBudgetAlerts: h.budgetAlerts, queueGoalAlert: h.goalAlert }))
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new h.RedirectSignal(url)
@@ -143,11 +145,48 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-09-30T15:00:00Z'))
   calls.length = 0
+  h.after.length = 0
+  h.budgetAlerts.mockClear()
+  h.goalAlert.mockClear()
   h.setFlash.mockClear()
   h.revalidatePath.mockClear()
 })
 
 afterEach(() => vi.useRealTimers())
+
+describe('avisos do planejado depois de salvar (fora do caminho da resposta)', () => {
+  const expense = { kind: 'expense', amount: '50', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: 'pix' }
+
+  test('depois de salvar um gasto, confere os avisos do planejado fora do caminho da resposta', async () => {
+    h.supabase = fakeCreate()
+    await redirectOf(createTransaction({ status: 'idle' }, form(expense)))
+    expect(h.after.length).toBe(1)
+    expect(h.budgetAlerts).not.toHaveBeenCalled()
+    await h.after[0]()
+    expect(h.budgetAlerts).toHaveBeenCalledTimes(1)
+  })
+
+  test('entrada não confere avisos do planejado; erro de validação também não', async () => {
+    h.supabase = fakeCreate()
+    await redirectOf(createTransaction({ status: 'idle' }, form({ kind: 'income', amount: '10', source: 'Salário', when: 'today', date: '' })))
+    await createTransaction({ status: 'idle' }, form({ ...expense, amount: '' }))
+    expect(h.after).toEqual([])
+  })
+
+  test('editar um gasto confere os avisos; editar uma entrada ou falhar não', async () => {
+    h.supabase = fakeSupabase({ kind: 'expense' })
+    await redirectOf(updateTransaction({ status: 'idle' }, form({ id: ID, amount: '150', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: 'pix' })))
+    expect(h.after.length).toBe(1)
+    await h.after[0]()
+    expect(h.budgetAlerts).toHaveBeenCalledTimes(1)
+    h.after.length = 0
+    h.supabase = fakeSupabase({ kind: 'income' })
+    await redirectOf(updateTransaction({ status: 'idle' }, form({ id: ID, amount: '10', source: 'Freela', when: 'today', date: '' })))
+    h.supabase = fakeSupabase({ kind: 'expense', changedRows: 0 })
+    await updateTransaction({ status: 'idle' }, form({ id: ID, amount: '150', categoryId: CAT, when: 'today', date: '', note: '', paymentMethod: 'pix' }))
+    expect(h.after).toEqual([])
+  })
+})
 
 describe('updateTransaction', () => {
   test('gasto movido para o mês anterior: salva e volta ao Extrato do novo mês (Review Focus 2)', async () => {

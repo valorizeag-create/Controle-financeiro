@@ -1,11 +1,13 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { after as afterResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import { errorState, firstFieldErrors, readFields, type FormState } from '@/lib/forms'
 import { setFlash } from '@/lib/flash'
 import { refreshMoneyViews } from '@/lib/refresh'
+import { queueGoalAlert } from '@/features/notificacoes/alerts'
 import { amountField } from '@/features/registro/schemas'
 import { myFamilyId } from '@/features/familia/queries'
 import { crossedMilestone } from '@/domain/goals'
@@ -110,6 +112,7 @@ export async function depositToFamilyGoal(_: FormState, fd: FormData): Promise<F
         ? `Metade do caminho até ${goal.name}.`
         : 'Guardado. Seu mês já está atualizado.'
   await setFlash(message)
+  afterResponse(() => queueGoalAlert(id))
   refreshMoneyViews()
   redirect(`/metas/${id}`)
 }
