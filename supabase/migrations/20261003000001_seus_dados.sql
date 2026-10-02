@@ -108,7 +108,9 @@ update public.families set name = 'Família encerrada' where ended_at is not nul
 --    cadastro, item 5, que já travou a família; a trava é pedida de novo aqui
 --    para a função nunca rodar sem ela). Em dois passos:
 --    a) apaga o que não é de mais ninguém: convites, avisos e metas sem
---       movimento;
+--       movimento. Os limites de convite por e-mail não dependem dessas
+--       linhas: contam o registro do item 7, que não guarda família nem
+--       pessoa;
 --    b) se alguém com cadastro ainda tem algo na família (participação,
 --       registro, molde ou parte numa meta), para: a linha da família fica,
 --       sem nome, e nada dessa pessoa é tocado. Se ninguém tem, o que sobrou
@@ -318,14 +320,141 @@ begin
     select count(*) into v_n from auth.users u where lower(u.email) = v_email;
     if v_n > 0 then place := 'auth.users.email'; n := v_n; return next; end if;
     -- Convite que outra família mandou para este endereço: fica até vencer
-    -- (o endereço) e por até 7 dias (o resumo dele, que conta para o limite de
-    -- convites por destinatário); a limpeza diária apaga os dois (Plano 8).
+    -- (o endereço) e por até 7 dias (o resumo dele, no convite e no registro
+    -- dos limites, item 7); a limpeza diária apaga os três (Plano 8 e item 9).
     select count(*) into v_n from public.family_invites i where i.invited_email = v_email;
     if v_n > 0 then place := 'public.family_invites.invited_email'; n := v_n; return next; end if;
     select count(*) into v_n from public.family_invites i
       where i.invited_email_hash = extensions.digest(v_email, 'sha256');
     if v_n > 0 then place := 'public.family_invites.invited_email_hash'; n := v_n; return next; end if;
+    select count(*) into v_n from public.invite_email_ledger l
+      where l.recipient_hash = extensions.digest(v_email, 'sha256');
+    if v_n > 0 then place := 'public.invite_email_ledger.recipient_hash'; n := v_n; return next; end if;
   end if;
+end;
+$$;
+
+-- 7. Registro dos convites enviados por e-mail, só para os limites por
+--    destinatário e no total (Plano 8, item 15). Antes, esses dois limites
+--    contavam as linhas de family_invites; a varredura do item 4 apaga os
+--    convites da família que acabou, e um cadastro criado só para isso
+--    (cria a família, convida, exclui o cadastro) zeraria os dois limites a
+--    cada volta. Aqui fica só o que os limites precisam: o resumo SHA-256 do
+--    endereço convidado e a hora. Nenhum id de pessoa, de família ou de
+--    convite: nada liga a linha a quem convidou, e ela sobrevive à exclusão
+--    do cadastro sem guardar nada dele. Some na limpeza diária depois de 7
+--    dias (item 9), o mesmo prazo do resumo guardado no convite.
+--    Pessoa nenhuma lê ou grava pela API (com ou sem sessão): só as funções
+--    dos itens 8 e 9. O papel de serviço, usado só nos testes de banco, lê
+--    para conferir.
+create table public.invite_email_ledger (
+  recipient_hash bytea not null check (octet_length(recipient_hash) = 32),
+  created_at timestamptz not null default now()
+);
+
+create index invite_email_ledger_recipient_idx on public.invite_email_ledger (recipient_hash, created_at);
+create index invite_email_ledger_created_idx on public.invite_email_ledger (created_at);
+
+alter table public.invite_email_ledger enable row level security;
+revoke all on public.invite_email_ledger from public, anon, authenticated;
+
+-- Os convites que já contam hoje entram no registro: aplicar esta migração
+-- não zera limite nenhum. (Mais de 7 dias, ou sem resumo: já não contavam.)
+insert into public.invite_email_ledger (recipient_hash, created_at)
+select i.invited_email_hash, i.created_at
+from public.family_invites i
+where i.sent_by_email and i.invited_email_hash is not null
+  and i.created_at > now() - interval '7 days';
+
+-- 8. Convidar por e-mail: a função do Plano 8 (item 15), com a mesma
+--    assinatura, as mesmas permissões (create or replace mantém dono e
+--    permissões), as mesmas mensagens e as mesmas travas na mesma ordem
+--    (família, depois o endereço, depois o total). O que muda:
+--    - os limites por destinatário (3 em 7 dias) e no total (100 em 24 horas)
+--      contam as linhas do registro do item 7, não as de family_invites;
+--    - cada convite enviado grava uma linha no registro, na mesma transação.
+--    O limite por família e por pessoa (5 em 24 horas) continua contando
+--    family_invites: ele vale por cadastro, e um cadastro novo já começa do
+--    zero de qualquer jeito.
+--    SECURITY DEFINER: family_invites e o registro não aceitam gravação direta.
+create or replace function public.create_family_email_invite(p_email text)
+returns table (invite_code text, invite_expires_at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_family uuid := public.my_family_id();
+  v_email text := lower(btrim(coalesce(p_email, '')));
+  v_hash bytea;
+  v_code text;
+  v_expires timestamptz;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null or public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  if char_length(v_email) not between 6 and 254
+     or v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
+    raise exception 'E-mail inválido.';
+  end if;
+  v_hash := extensions.digest(v_email, 'sha256');
+  -- Travas, sempre nesta ordem (sem impasse): a família (a mesma primeira
+  -- trava de create_family_invite e de aceitar), depois o endereço, depois o
+  -- total. Só esta função pega as duas últimas, e quem as espera nunca
+  -- precisa da família de outra chamada.
+  perform 1 from public.families f where f.id = v_family for update;
+  -- a) família e pessoa: chamadas da mesma família esperam na trava acima.
+  if (select count(*) from public.family_invites i
+      where i.sent_by_email and i.created_at > now() - interval '24 hours'
+        and (i.family_id = v_family or i.created_by = v_uid)) >= 5 then
+    raise exception 'Limite de convites.';
+  end if;
+  -- b) destinatário: famílias diferentes convidando o mesmo endereço ao mesmo
+  --    tempo esperam aqui, uma de cada vez. Cada comando lê o que já foi
+  --    confirmado antes dele: quem esperou conta o convite de quem passou.
+  perform pg_advisory_xact_lock(hashtextextended(encode(v_hash, 'hex'), 0));
+  if (select count(*) from public.invite_email_ledger l
+      where l.recipient_hash = v_hash and l.created_at > now() - interval '7 days') >= 3 then
+    raise exception 'Limite de convites.';
+  end if;
+  -- c) total: mesma corrida, mesma solução, com uma chave fixa (no espaço de
+  --    chaves de dois inteiros, que não se mistura com o das chaves de
+  --    endereço). A trava dura até o fim desta chamada, que é curta: o e-mail
+  --    é enviado pelo app depois dela.
+  perform pg_advisory_xact_lock(hashtext('iris.family_invites.sent_by_email'), 0);
+  if (select count(*) from public.invite_email_ledger l
+      where l.created_at > now() - interval '24 hours') >= 100 then
+    raise exception 'Limite de convites.';
+  end if;
+  -- Confere de novo o papel depois da trava, cancela o convite anterior e cria o novo.
+  select c.invite_code, c.invite_expires_at into v_code, v_expires from public.create_family_invite() c;
+  update public.family_invites i
+    set invited_email = v_email, invited_email_hash = v_hash, sent_by_email = true
+    where i.family_id = v_family and i.token_hash = extensions.digest(v_code, 'sha256');
+  insert into public.invite_email_ledger (recipient_hash) values (v_hash);
+  return query select v_code, v_expires;
+end;
+$$;
+
+-- 9. Limpeza diária: a função do Plano 8 (item 16), igual, mais as linhas do
+--    registro do item 7 com mais de 7 dias (já não contam para limite nenhum).
+--    SECURITY DEFINER: mesmo motivo de antes. Só o agendador chama (e
+--    service_role, nos testes); create or replace mantém as permissões.
+create or replace function public.job_cleanup() returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.family_invites i set invited_email = null
+    where i.invited_email is not null and i.expires_at <= now();
+  update public.family_invites i set invited_email_hash = null
+    where i.invited_email_hash is not null and i.created_at < now() - interval '7 days';
+  delete from public.invite_email_ledger l where l.created_at < now() - interval '7 days';
+  delete from public.notification_log nl where nl.created_at < now() - interval '90 days';
+  begin
+    delete from cron.job_run_details d where d.end_time < now() - interval '7 days';
+  exception when others then
+    raise warning 'job_cleanup (agendador): %', sqlstate;
+  end;
 end;
 $$;
 

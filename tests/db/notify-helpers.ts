@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { admin, categoryId, type TestUser } from './helpers'
 
 export const P256DH = `B${'A'.repeat(86)}`
@@ -50,4 +51,27 @@ export async function pendingBill(
   }).select('id').single()
   if (tx.error) throw tx.error
   return tx.data.id as string
+}
+
+// Os limites de convite por e-mail contam convites de qualquer família (por destinatário e no
+// total), e o que execuções anteriores gravaram fica no banco. Aqui os convites por e-mail que já
+// existem, e as linhas do registro dos limites (invite_email_ledger, Plano 9), passam a ter mais
+// de 7 dias: nenhum deles conta para limite nenhum.
+export async function forgetEarlierInvites(): Promise<void> {
+  const now = Date.now()
+  const old = new Date(now - 8 * 86_400_000).toISOString()
+  const { error } = await admin.from('family_invites')
+    .update({ created_at: old, expires_at: new Date(now - 2 * 86_400_000).toISOString() })
+    .eq('sent_by_email', true)
+  if (error) throw error
+  const ledger = await admin.from('invite_email_ledger').update({ created_at: old }).gt('created_at', old)
+  if (ledger.error) throw ledger.error
+}
+
+// Convites por e-mail de agora mesmo, de outras pessoas, no registro dos limites: só o resumo de
+// um endereço sorteado e a hora (é tudo o que o registro guarda).
+export async function fillInviteLedger(count: number): Promise<void> {
+  const rows = Array.from({ length: count }, () => ({ recipient_hash: `\\x${randomBytes(32).toString('hex')}` }))
+  const { error } = await admin.from('invite_email_ledger').insert(rows)
+  if (error) throw error
 }

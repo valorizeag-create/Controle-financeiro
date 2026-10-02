@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { admin, newUser, publishable, removeUsers, url, type TestUser } from './helpers'
 import { createFamily, joinFamily } from './family-helpers'
+import { fillInviteLedger, forgetEarlierInvites } from './notify-helpers'
 
 const anon = createClient(url, publishable, { auth: { persistSession: false } })
 const invite = (u: TestUser, email: string) => u.client.rpc('create_family_email_invite', { p_email: email })
@@ -12,14 +13,8 @@ const pending = async (family: string) =>
 
 // Os limites contam convites de qualquer família (por destinatário e no total), e as famílias
 // de execuções anteriores ficam no banco. Antes de cada bloco, os convites por e-mail que já
-// existem passam a ter mais de 7 dias: nenhum deles conta para limite nenhum.
-async function forgetEarlierInvites(): Promise<void> {
-  const now = Date.now()
-  const { error } = await admin.from('family_invites')
-    .update({ created_at: new Date(now - 8 * 86_400_000).toISOString(), expires_at: new Date(now - 2 * 86_400_000).toISOString() })
-    .eq('sent_by_email', true)
-  if (error) throw error
-}
+// existem passam a ter mais de 7 dias: nenhum deles conta para limite nenhum
+// (forgetEarlierInvites, em notify-helpers: também envelhece o registro dos limites, Plano 9).
 
 describe('convite por e-mail (RF-42)', () => {
   let ana: TestUser, bia: TestUser, caio: TestUser, eli: TestUser
@@ -249,6 +244,7 @@ describe('limite total de convites por e-mail em 24 horas', () => {
       revoked_at: now, sent_by_email: true,
     }))
     expect((await admin.from('family_invites').insert(rows)).error).toBeNull()
+    await fillInviteLedger(rows.length) // o limite total conta o registro dos limites (Plano 9), não estas linhas
     expect((await invite(tia, 'cem@teste.iris.dev')).error).toBeNull() // o centésimo
     const over = await invite(tia, 'cento-e-um@teste.iris.dev')
     expect(over.error?.message).toContain('Limite de convites.')
@@ -313,6 +309,7 @@ describe('limites em chamadas simultâneas', () => {
       revoked_at: now, sent_by_email: true,
     }))
     expect((await admin.from('family_invites').insert(rows)).error).toBeNull()
+    await fillInviteLedger(rows.length) // o limite total conta o registro dos limites (Plano 9), não estas linhas
     const stamp = Date.now()
     const burst = await Promise.all(admins.map((u, i) => invite(u, `total-${stamp}-${i}@teste.iris.dev`)))
     expect(burst.filter((r) => r.error === null).length).toBe(1)

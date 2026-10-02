@@ -1,8 +1,9 @@
-import { afterAll, describe, expect, test } from 'vitest'
+import { createHash, randomBytes } from 'node:crypto'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { admin, categoryId, newUser, publishable, removeUsers, url, type TestUser } from './helpers'
 import { createFamily, expense, joinFamily, todaySP } from './family-helpers'
-import { pendingBill, subscribe } from './notify-helpers'
+import { fillInviteLedger, forgetEarlierInvites, pendingBill, subscribe } from './notify-helpers'
 
 // Quem é excluído dentro de um teste nasce com newUser() e fica fora desta lista.
 const created: TestUser[] = []
@@ -75,6 +76,22 @@ async function useParts(tx: string, names: Record<string, string>): Promise<[str
     .map((m): [string, number] => [m.user_id === null ? 'ex' : (names[m.user_id as string] ?? 'outra pessoa'), Number(m.amount_cents)])
     .sort((a, b) => a[0].localeCompare(b[0]))
 }
+
+// O registro dos limites de convite por e-mail (invite_email_ledger): só o papel de serviço lê.
+const sha256Hex = (s: string) => createHash('sha256').update(s).digest('hex')
+const bytea = (hex: string) => `\\x${hex}`
+const inviteByEmail = (u: TestUser, email: string) => u.client.rpc('create_family_email_invite', { p_email: email })
+async function ledgerRows(hashHex: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await admin.from('invite_email_ledger').select('*').eq('recipient_hash', bytea(hashHex))
+  if (error) throw error
+  return data as Record<string, unknown>[]
+}
+
+// O registro dos limites sobrevive à exclusão do cadastro (é para isso que existe): o que execuções
+// anteriores deste arquivo gravaram não pode contar para os convites desta.
+beforeAll(async () => {
+  await forgetEarlierInvites()
+})
 
 afterAll(async () => {
   await removeUsers(...created)
@@ -468,10 +485,153 @@ describe('excluir o cadastro e a família (RN-22e, RN-24, RN-25)', () => {
 
     // Com o id dela, nada. Com o e-mail, só o convite da Ana (o endereço e o resumo dele).
     expect(await leftovers(eva.id)).toEqual([])
-    expect(await leftovers(eva.id, email)).toEqual(['public.family_invites.invited_email', 'public.family_invites.invited_email_hash'])
-    // Quem convidou cancela: o endereço some na hora; o resumo fica para o limite de convites e sai na limpeza diária.
+    expect(await leftovers(eva.id, email)).toEqual([
+      'public.family_invites.invited_email', 'public.family_invites.invited_email_hash', 'public.invite_email_ledger.recipient_hash',
+    ])
+    // Quem convidou cancela: o endereço some na hora; o resumo (no convite e no registro dos limites) fica
+    // para o limite de convites e sai na limpeza diária.
     expect((await ana.client.rpc('revoke_family_invite', { p_id: invite.id })).error).toBeNull()
-    expect(await leftovers(eva.id, email)).toEqual(['public.family_invites.invited_email_hash'])
+    expect(await leftovers(eva.id, email)).toEqual(['public.family_invites.invited_email_hash', 'public.invite_email_ledger.recipient_hash'])
+  })
+
+  test('quem já saiu de uma família que continua: o gasto que deixou fica como Ex-membro, o aviso antigo perde o nome e a família segue igual', async () => {
+    const ana = await user('Ana')
+    const bia = await newUser('Bia') // excluída no teste
+    const fam = await createFamily(ana, 'Família Vidal')
+    await joinFamily(bia, ana)
+    const bike = await familyGoal(ana, 'Bicicleta')
+    await deposit(ana, bike, 400)
+    await deposit(bia, bike, 900)
+    const daBia = await expense(bia, 'mercado', 2500, { family_id: fam, note: 'feira' })
+    const soDela = await expense(bia, 'lazer', 600)
+    expect((await bia.client.rpc('leave_family')).error).toBeNull()
+    const readEvents = async () => {
+      const { data, error } = await ana.client.from('family_events').select('kind, member_name, goal_name, amount_cents')
+      if (error) throw error
+      return data.map((e) => ({ ...e, amount_cents: e.amount_cents === null ? null : Number(e.amount_cents) }))
+    }
+    expect(await readEvents()).toEqual([{ kind: 'member_left', member_name: 'Bia', goal_name: 'Bicicleta', amount_cents: 900 }])
+    expect((await totals(ana))[bike]).toBe(400)
+
+    // A família da Ana não é mais a família ativa da Bia: a exclusão trava essa família (antiga) antes de mexer nela.
+    expect((await bia.client.rpc('delete_my_account')).data).toBe(true)
+
+    expect(await exists(bia.id)).toBe(false)
+    expect(await leftovers(bia.id)).toEqual([])
+    expect((await ana.client.from('families').select('name, ended_at').single()).data).toEqual({ name: 'Família Vidal', ended_at: null })
+    const events = await readEvents()
+    expect(events).toEqual([{ kind: 'member_deleted', member_name: null, goal_name: 'Bicicleta', amount_cents: null }])
+    const members = (await admin.from('family_members').select('user_id, role, display_name, left_at').eq('family_id', fam)).data!
+    expect(members).toHaveLength(2)
+    expect(members.find((m) => m.user_id === ana.id)).toMatchObject({ role: 'admin', display_name: 'Ana', left_at: null })
+    const ex = members.find((m) => m.user_id === null)
+    expect(ex).toMatchObject({ role: 'member', display_name: null })
+    expect(ex?.left_at).not.toBeNull()
+    const rows = await familyRows(ana)
+    expect(rows.find((r) => r.id === daBia)).toMatchObject({ author_id: null, author_name: null, amount_cents: 2500, note: 'feira' })
+    expect((await admin.from('transactions').select('user_id, category_id, ex_category_key, ex_category_name').eq('id', daBia).single()).data)
+      .toEqual({ user_id: null, category_id: null, ex_category_key: 'mercado', ex_category_name: 'Mercado' })
+    expect((await admin.from('transactions').select('id').eq('id', soDela)).data).toEqual([])
+    expect(JSON.stringify([events, members, rows])).not.toContain('Bia')
+    // O que é da Ana continua: a parte dela, o papel e a meta.
+    const moves = (await admin.from('goal_movements').select('user_id').eq('goal_id', bike)).data!
+    expect(moves.length).toBeGreaterThan(0)
+    expect(moves.every((m) => m.user_id === ana.id)).toBe(true)
+    expect((await totals(ana))[bike]).toBe(400)
+    expect((await ana.client.rpc('my_family_role')).data).toBe('admin')
+  })
+})
+
+// Plano 8, item 15: 3 convites por endereço em 7 dias e 100 no total em 24 horas. A exclusão do
+// cadastro apaga a família que acabou e os convites dela; os dois limites contam um registro à
+// parte, que não guarda pessoa nem família, e por isso não voltam a zero.
+describe('limites de convite por e-mail não voltam a zero com a exclusão do cadastro', () => {
+  beforeAll(async () => {
+    await forgetEarlierInvites()
+  })
+  afterAll(async () => {
+    await forgetEarlierInvites()
+  })
+
+  test('por destinatário: três convites de um cadastro que depois é excluído continuam contando para qualquer família', async () => {
+    const target = `alvo-${Date.now()}@teste.iris.dev`
+    const tmp = await newUser('Temporária') // excluída no teste
+    const tmpEmail = (await session(tmp)).user.email!
+    const fam = await createFamily(tmp, 'Família de Passagem')
+    for (let i = 0; i < 3; i++) expect((await inviteByEmail(tmp, target)).error, String(i)).toBeNull()
+    expect(await ledgerRows(sha256Hex(target))).toHaveLength(3)
+
+    expect((await tmp.client.rpc('delete_my_account')).data).toBe(true)
+
+    // Da pessoa e da família dela não fica nada: nem a família, nem os convites, nem o resumo do endereço neles.
+    expect(await leftovers(tmp.id, tmpEmail)).toEqual([])
+    expect((await admin.from('families').select('id').eq('id', fam)).data).toEqual([])
+    expect((await admin.from('family_invites').select('id').eq('family_id', fam)).data).toEqual([])
+    // O registro continua, e só tem o resumo do endereço convidado e a hora: nada de pessoa, família ou convite.
+    const rows = await ledgerRows(sha256Hex(target))
+    expect(rows).toHaveLength(3)
+    for (const r of rows) expect(Object.keys(r).sort()).toEqual(['created_at', 'recipient_hash'])
+    expect(JSON.stringify(rows)).not.toContain(tmp.id)
+    expect(JSON.stringify(rows)).not.toContain(fam)
+
+    // O quarto convite para o mesmo endereço é recusado, venha de onde vier.
+    const ana = await user('Ana')
+    const famAna = await createFamily(ana, 'Família Fica')
+    const fourth = await inviteByEmail(ana, target)
+    expect(fourth.error?.message).toContain('Limite de convites.')
+    expect((await admin.from('family_invites').select('id').eq('family_id', famAna)).data).toEqual([])
+    expect(await ledgerRows(sha256Hex(target))).toHaveLength(3)
+    // Outro cadastro de passagem também não consegue.
+    const outra = await newUser('Passageira') // excluída no teste
+    await createFamily(outra, 'Família de Passagem')
+    expect((await inviteByEmail(outra, target)).error?.message).toContain('Limite de convites.')
+    expect((await outra.client.rpc('delete_my_account')).data).toBe(true)
+    // Só aquele endereço está no limite.
+    expect((await inviteByEmail(ana, `outro-${Date.now()}@teste.iris.dev`)).error).toBeNull()
+  })
+
+  test('no total: o centésimo convite do dia continua contando depois que quem o enviou exclui o cadastro', async () => {
+    await forgetEarlierInvites()
+    await fillInviteLedger(99)
+    const tmp = await newUser('Temporária') // excluída no teste
+    await createFamily(tmp, 'Família de Passagem')
+    expect((await inviteByEmail(tmp, `cem-${Date.now()}@teste.iris.dev`)).error).toBeNull() // o centésimo
+    expect((await tmp.client.rpc('delete_my_account')).data).toBe(true)
+    expect(await leftovers(tmp.id)).toEqual([])
+
+    const bia = await user('Bia')
+    await createFamily(bia, 'Família Fica')
+    expect((await inviteByEmail(bia, `cento-e-um-${Date.now()}@teste.iris.dev`)).error?.message).toContain('Limite de convites.')
+    // O convite por link não entra nessa conta.
+    expect((await bia.client.rpc('create_family_invite')).error).toBeNull()
+  })
+
+  test('a limpeza diária apaga do registro o que tem mais de 7 dias, e só isso; pessoa nenhuma lê nem grava o registro', async () => {
+    await forgetEarlierInvites()
+    const oldHash = randomBytes(32).toString('hex')
+    const freshHash = randomBytes(32).toString('hex')
+    expect((await admin.from('invite_email_ledger').insert([
+      { recipient_hash: bytea(oldHash), created_at: new Date(Date.now() - 8 * 86_400_000).toISOString() },
+      { recipient_hash: bytea(freshHash), created_at: new Date().toISOString() },
+    ])).error).toBeNull()
+
+    expect((await admin.rpc('job_cleanup')).error).toBeNull()
+
+    expect(await ledgerRows(oldHash)).toEqual([])
+    expect(await ledgerRows(freshHash)).toHaveLength(1)
+    // Tudo o que tinha mais de 7 dias saiu, não só a linha deste teste.
+    const stale = await admin.from('invite_email_ledger').select('created_at', { count: 'exact', head: true })
+      .lt('created_at', new Date(Date.now() - 7 * 86_400_000 - 60_000).toISOString())
+    expect(stale.error).toBeNull()
+    expect(stale.count).toBe(0)
+
+    const a = await user('Ana')
+    for (const client of [a.client, anon]) {
+      expect((await client.from('invite_email_ledger').select('recipient_hash')).error?.code).toBe('42501')
+      expect((await client.from('invite_email_ledger').insert({ recipient_hash: bytea(freshHash) })).error?.code).toBe('42501')
+      expect((await client.from('invite_email_ledger').delete().eq('recipient_hash', bytea(freshHash))).error?.code).toBe('42501')
+    }
+    expect(await ledgerRows(freshHash)).toHaveLength(1)
   })
 })
 
