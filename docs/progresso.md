@@ -139,3 +139,50 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 **Pendências (revisão final do Plano 6)**
 - Corrigido na revisão final: frase de abertura do bloco "Planejado" (sem "R$ 0"; sem frase quando tudo está exatamente no planejado), ordem das inserções em `set_month_budgets`, testes do banco (corrida real na primeira cópia, erro do `delete_category`, gasto pago com meta ao excluir categoria), legenda e borda do gráfico.
 - Ainda abertas (baixo risco): o aviso "Planejamento salvo." aparece mesmo se todas as categorias enviadas foram excluídas em outra aba (`actions.ts`); a linha "Tirado das metas" no Mês a mês depende do texto "Guardado este mês" (`relatorios/view-model.ts`); `?de=` repetido chega como lista na página de Relatórios; texto da decisão 79 em `docs/decisoes-para-revisao.md` ainda fala em "Ajustar valor"; barra âmbar com contraste abaixo de 3:1 (o estado sempre aparece em texto) e layout `md:col-span-2` do bloco Planejado: conferir no Plano 10; migration e testes do banco/e2e ainda nunca rodaram (sem Docker).
+
+## Plano 7 — Família · concluído em 2026-10-01
+
+**Entregue**
+- Criar a família (quem cria administra), convidar por link (7 dias, uma pessoa, código aleatório que o banco não guarda), aceitar depois de entrar ou criar o cadastro, cancelar convite; no máximo uma família por pessoa e 10 participantes.
+- "Gasto da família" no Anotar (também parcelado e conta que se repete) e na edição; "Conta da família" em Nova conta; etiqueta "da família" no Extrato.
+- Seu mês → Família (seletor Eu · Família): gastos da família do mês, por pessoa e por categoria da casa, contas da família, metas da família e últimos gastos; nada do Disponível, das entradas, dos cartões ou das metas individuais de ninguém.
+- Contas da família: qualquer membro marca como paga (sai do Disponível de quem pagou); alterar e encerrar: quem criou e o administrador.
+- Metas da família: todos veem o total e só a própria parte; guardar e tirar a própria parte; usar (dividido na proporção do guardado) e excluir (cada parte volta a quem guardou) só pelo administrador.
+- Administrador ajusta e exclui gasto da família, passa a administração e remove membros; sair devolve a parte das metas e avisa a família; excluir o cadastro deixa os gastos como "Ex-membro" (tela no Plano 9).
+- Família no menu lateral e em Mais.
+
+**Segurança**
+- Tabelas pessoais continuam "só o dono" (nenhuma política antiga afrouxada); a família lê e grava só por funções do banco que conferem quem pede, a família e o papel; ex-membro perde tudo na hora. Testes de banco tentam furar cada regra por gravação direta.
+- Revisão independente do SQL antes de implementar (1 crítico e 6 importantes, todos corrigidos; ver `docs/decisoes-para-revisao.md`), mais uma correção da revisão do Task 4 (resposta de erro que revelava a parte de outro membro) e uma do Task 5 (ordem das travas).
+
+**Testes**
+- Unitários e de componentes: 715 passando (113 arquivos). Tipos, lint e build sem erros.
+- Banco (`plano7-familia`, `plano7-gastos`, `plano7-metas`, `plano7-saida`: 118 testes) e ponta a ponta (`plano7.spec.ts`: 3 testes com duas pessoas em dois contextos do navegador, celular: 2, desktop: 1; 6 entradas em `--list`): **pendentes**, dependem do Docker para o Supabase local (mesma pendência dos Planos 1 a 6). Conferido sem Docker: `npx playwright test --list` e `npx tsc --noEmit`.
+- O seed do e2e respeita as guardas do banco (família, participação, molde da conta da família, movimentos de meta de hoje com a data voltada por atualização administrativa); a limpeza apaga só os usuários do prefixo da execução, com uma nova tentativa se houver impasse (40P01).
+
+**Ao rodar o banco pela primeira vez (Docker)**
+- No primeiro `npx supabase db reset`, confirmar que o erro do gatilho adiado "Família sem administrador." chega pela API (PostgREST) como erro, e não só no `psql`.
+- Os testes de corrida podem passar sem sobreposição real das transações; não provam ausência de impasse.
+- Casos de impasse recuperável (40P01) estão documentados no cabeçalho da seção 4 da migração. A tela mostra "Algo não saiu como esperado do nosso lado. Tente novamente em instantes."
+- O Postgres hospedado precisa ser 17 ou mais recente.
+- Rodar: `npx supabase db reset && npm run test:db && npm run test:e2e`.
+
+**Pendências levadas a outros planos**
+- Convite por e-mail, "Reenviar" (protótipo) e avisos da família por push/e-mail: Plano 8 (inclui um limite de convites por período, que precisa de texto novo).
+- Plano 9: a ação de excluir cadastro tenta de novo uma vez se o banco devolver 40P01 (impasse com a exclusão de `auth.users`); tela "Sua parte nas metas da família ({valor}) também sairá delas."; `families.name` de família encerrada fica guardado (limpar ou anonimizar); exportar a família no CSV (gastos que a pessoa registrou, parte nas metas).
+- Trocar o nome da família; extrato da família ("Ver todos" dos últimos gastos): depois da v1, se fizer falta.
+- Desktop da tela Família e do mês da família com layout próprio: Plano 10.
+
+**Pendências menores adiadas (registradas no livro-razão da execução)**
+- Tarefa 1: o rótulo "Ex-membro" confunde com um membro de mesmo nome (comparar `authorId` nulo); `BigInt` com número não inteiro; empate de uuid; ordem ICU.
+- Tarefa 2: transferir a administração cancela o convite pendente de quem passou o papel (avisar na tela); os testes de revogar convite não distinguem exposição pela API; `data ?? []` esconde erros nos testes; blocos repetidos de trava e conferência.
+- Tarefa 3: 9 pequenos itens em `task-3-review.md` (linhas com data futura mantidas; limpar `family_id` direto num molde deixa ocorrências pendentes com a família).
+- Tarefa 4: a guarda de autor recusa por nome de papel (um papel novo da API a contornaria; preferir conferir `auth.uid()`); a função nova fora do teste "não chamável"; duplicação; sinal de existência do uuid da meta.
+- Tarefa 5: 10 pequenos itens em `task-5-review.md`; impasse com a exclusão de `auth.users` aceito como menor.
+- Tarefa 6: faltam testes de `loadGoalLabel` (ramo da família) e do filtro `.is('family_id', null)` em recorrências.
+- Tarefa 7: o código do convite viaja em `?next=` e na volta do login com Google (mitigado: uso único, 7 dias); considerar cookie curto; 6 outros itens.
+- Tarefa 8: itens 4 a 7 de `task-8-review.md`.
+- Tarefa 9: "Meta inválida." (ex-membro com saldo) mostra "Atualize a página", que não resolve; "Sessão necessária." mostra o texto de só-administrador; marco da meta com corrida; constantes duplicadas.
+- Tarefa 10: "voltaram para Um membro" se o nome faltar em `eventText`; nomes acessíveis iguais para remover/passar a administração quando dois membros têm o mesmo primeiro nome; telas de convite inválido e de já participa sem h1; botão de aceitar sem estado de espera (toque duplo).
+- Tarefa 11: `.catch` silencioso em `loadFamilySummary` (registrar); comparador de contas duplicado; `byMember` por rótulo.
+- Tarefas 12 e 13: ainda em revisão no momento deste registro.
