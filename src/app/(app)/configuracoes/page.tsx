@@ -8,8 +8,8 @@ import { FormAlert } from '@/ui/form-alert'
 import { ListCard, ListRow, ListSection, RowLink, RowStatic } from '@/ui/list'
 import { PageHeader } from '@/ui/page-header'
 
-// Seções que chegam depois: Cartões (Plano 4), App (Plano 8, instalar),
-// Seus dados e troca de e-mail (Plano 9). Lembretes já está aqui (Plano 8).
+// Seções que chegam depois: Cartões (Plano 4), Seus dados e troca de e-mail (Plano 9).
+// Lembretes e App (instalar) são do Plano 8.
 export default async function ConfiguracoesPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
   const { erro } = await searchParams
   const [p, prefs, family] = await Promise.all([loadProfile(), loadNotificationPrefs(), loadFamilySummaryOrNull()])
@@ -31,6 +31,11 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
         </ListCard>
       </ListSection>
       <RemindersSection prefs={prefs} hasFamily={family !== null} vapidPublicKey={env.vapidPublicKey} />
+      <ListSection title="App">
+        <ListCard>
+          <ListRow><RowLink href="/configuracoes/instalar" title="Adicionar à tela de início" /></ListRow>
+        </ListCard>
+      </ListSection>
     </main>
   )
 }

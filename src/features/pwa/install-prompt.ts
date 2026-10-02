@@ -31,3 +31,8 @@ export function onInstallable(listener: () => void): () => void {
   listeners.add(listener)
   return () => { listeners.delete(listener) }
 }
+
+// Há convite guardado? (não gasta o convite)
+export function peekInstallPrompt(): boolean {
+  return saved !== null
+}

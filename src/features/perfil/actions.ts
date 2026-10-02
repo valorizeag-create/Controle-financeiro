@@ -20,7 +20,7 @@ export async function completeOnboardingBalance(_: FormState, fd: FormData): Pro
     .update({ initial_balance_cents: parsed.data.initialBalanceCents, onboarded_at: new Date().toISOString() })
     .eq('id', user.id)
   if (error) return errorState({ message: SAVE_FAILED, values })
-  redirect('/boas-vindas/primeiro-gasto')
+  redirect('/boas-vindas/instalar')
 }
 
 export async function skipOnboardingBalance(): Promise<void> {
@@ -28,7 +28,7 @@ export async function skipOnboardingBalance(): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.from('profiles').update({ onboarded_at: new Date().toISOString() }).eq('id', user.id)
   if (error) redirect('/boas-vindas/saldo?erro=1')
-  redirect('/boas-vindas/primeiro-gasto')
+  redirect('/boas-vindas/instalar')
 }
 
 export async function updateInitialBalance(_: FormState, fd: FormData): Promise<FormState> {

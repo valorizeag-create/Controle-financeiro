@@ -74,7 +74,7 @@ afterEach(() => vi.useRealTimers())
 describe('onboarding: Quanto você tem hoje?', () => {
   test('grava o saldo inicial, conclui o onboarding e segue para o primeiro gasto', async () => {
     const url = await redirectOf(completeOnboardingBalance({ status: 'idle' }, form({ initialBalance: 'R$ 6.000' })))
-    expect(url).toBe('/boas-vindas/primeiro-gasto')
+    expect(url).toBe('/boas-vindas/instalar')
     expect(calls).toEqual([{ op: 'update:profiles', id: 'u1', payload: { initial_balance_cents: 600000, onboarded_at: NOW } }])
   })
   test('campo vazio vale R$ 0,00 (é opcional)', async () => {
@@ -98,7 +98,7 @@ describe('onboarding: Quanto você tem hoje?', () => {
     })
   })
   test('Pular conclui o onboarding sem mexer no saldo', async () => {
-    expect(await redirectOf(skipOnboardingBalance())).toBe('/boas-vindas/primeiro-gasto')
+    expect(await redirectOf(skipOnboardingBalance())).toBe('/boas-vindas/instalar')
     expect(calls).toEqual([{ op: 'update:profiles', id: 'u1', payload: { onboarded_at: NOW } }])
   })
   test('Pular com falha no banco volta para a mesma tela com aviso', async () => {
