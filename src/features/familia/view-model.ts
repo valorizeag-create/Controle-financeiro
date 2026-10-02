@@ -20,7 +20,12 @@ export function eventText(e: FamilyEventRow): string {
   if (e.kind === 'member_deleted') {
     return e.goalName ? `Um membro saiu da família, e a meta ${e.goalName} foi atualizada.` : 'Um membro saiu da família.'
   }
-  const name = e.memberName ?? 'Um membro'
+  // Aviso de saída sem nome (não deveria existir): as frases anônimas da RN-22e,
+  // em vez de "voltaram para Um membro".
+  const name = e.memberName?.trim()
+  if (!name) {
+    return e.goalName ? `Um membro saiu da família, e a meta ${e.goalName} foi atualizada.` : 'Um membro saiu da família.'
+  }
   if (e.goalName && e.amountCents !== null) {
     return `${name} saiu da família, e ${formatBRL(e.amountCents)} da meta ${e.goalName} voltaram para ${name}.`
   }
@@ -164,6 +169,8 @@ export function buildFamilyMonth(input: {
     .sort((a, b) => b.percent - a.percent || (a.id < b.id ? -1 : 1))
     .slice(0, 2)
 
+  // O ajuste do administrador só é oferecido onde o banco aceita (can_adjust).
+  const adjustable = new Set(input.expenses.filter((e) => e.canAdjust).map((e) => e.id))
   const recent = fm.recent.map((e) => {
     const mine = e.authorId !== null && e.authorId === meId
     return {
@@ -171,7 +178,7 @@ export function buildFamilyMonth(input: {
       title: familyCategoryLabel(e),
       caption: `${dayLabel(e.effectiveOn, today)} · por ${inSentence(authorLabel(e.authorId, e.authorName, meId))}`,
       amountCents: e.amountCents,
-      href: mine ? `/extrato/${e.id}` : isAdmin ? `/familia/gastos/${e.id}` : null,
+      href: mine ? `/extrato/${e.id}` : isAdmin && adjustable.has(e.id) ? `/familia/gastos/${e.id}` : null,
     }
   })
 

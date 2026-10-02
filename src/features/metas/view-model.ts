@@ -159,7 +159,7 @@ export function buildFamilyGoalDetail(input: {
   goal: FamilyGoalRow
   movements: GoalMovementRow[]
   today: ISODate
-  // Usos feitos por quem administra (total e dia); cada um ganha uma linha "Usou" com o botão de desfazer.
+  // Usos feitos por quem administra (o que saiu da meta e o dia); cada um ganha uma linha "Usou" com o botão de desfazer.
   uses?: GoalUseTx[]
 }): FamilyGoalDetailView {
   const { goal, movements, today, uses = [] } = input
@@ -173,7 +173,7 @@ export function buildFamilyGoalDetail(input: {
     const useIds = new Set(uses.map((u) => u.id))
     const currentYear = today.slice(0, 4)
     const dateLabel = (d: ISODate) => (d.slice(0, 4) === currentYear ? dayMonthLabel(d) : dayMonthYearLabel(d))
-    // A linha do uso vem do gasto (total do uso); a parte da própria pessoa nesse uso não aparece à parte.
+    // A linha do uso vem do gasto (o que saiu da meta, de todos); a parte da própria pessoa nesse uso não aparece à parte.
     const kept = own.filter((m) => !(m.kind === 'use' && m.transactionId !== null && useIds.has(m.transactionId)))
     const rows = [
       ...kept.map((m) => ({ date: m.occurredOn, createdAt: m.createdAt, item: base.history.find((h) => h.id === m.id)! })),

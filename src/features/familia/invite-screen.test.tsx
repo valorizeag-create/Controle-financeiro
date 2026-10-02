@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, test, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 vi.mock('./actions', () => ({ acceptInvite: vi.fn() }))
 
@@ -32,4 +32,32 @@ test('inválido e já em família', () => {
   expect(screen.getByRole('link', { name: 'Ver meu mês' }).getAttribute('href')).toBe('/inicio')
   rerender(<InviteScreen view={{ kind: 'has-family' }} />)
   expect(screen.getByRole('link', { name: 'Ver a família' }).getAttribute('href')).toBe('/familia')
+})
+
+test('pronto: enquanto envia, o botão fica desativado e um segundo toque não envia de novo', async () => {
+  const { acceptInvite } = await import('./actions')
+  const accept = vi.mocked(acceptInvite)
+  accept.mockClear()
+  let finish: () => void = () => {}
+  accept.mockImplementation(() => new Promise<void>((resolve) => { finish = resolve }) as never)
+  render(<InviteScreen view={{ kind: 'ready', code, familyName: 'Família Souza', invitedBy: null }} />)
+  const button = screen.getByRole('button', { name: 'Entrar na família' }) as HTMLButtonElement
+  expect(button.disabled).toBe(false)
+
+  await act(async () => {
+    fireEvent.click(button)
+  })
+  expect(accept).toHaveBeenCalledTimes(1)
+  expect((accept.mock.calls[0][0] as FormData).get('code')).toBe(code)
+  expect(button.disabled).toBe(true)
+
+  await act(async () => {
+    fireEvent.click(button)
+  })
+  expect(accept).toHaveBeenCalledTimes(1)
+
+  await act(async () => {
+    finish()
+  })
+  expect(button.disabled).toBe(false)
 })

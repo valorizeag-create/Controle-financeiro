@@ -1,5 +1,6 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { unstable_rethrow } from 'next/navigation'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import { fetchAllPages } from '@/features/registro/paging'
 import { ensureOccurrences } from '@/features/contas/occurrences'
@@ -107,6 +108,21 @@ export async function loadFamilySummary(): Promise<{ id: string; name: string; r
   if (family.error) throw family.error
   if (!family.data) return null
   return { id: family.data.id, name: family.data.name, role: mine.data.role as FamilyRole }
+}
+
+// Para o Seu mês: uma falha ao ler a família não derruba a tela pessoal, que só
+// fica sem o seletor Eu · Família. O erro vai para o registro do servidor, para
+// uma falha persistente ser notada: só o código e a mensagem do banco, nada da
+// pessoa. Redirecionamentos do Next (sessão vencida) seguem o caminho deles.
+export async function loadFamilySummaryOrNull(): Promise<{ id: string; name: string; role: FamilyRole } | null> {
+  try {
+    return await loadFamilySummary()
+  } catch (e) {
+    unstable_rethrow(e)
+    const err = (typeof e === 'object' && e !== null ? e : {}) as { code?: unknown; message?: unknown }
+    console.error('loadFamilySummary', { code: err.code ?? null, message: err.message ?? null })
+    return null
+  }
 }
 
 // Cartão nunca aparece nas leituras da família (RN-31): o banco nem devolve a coluna.

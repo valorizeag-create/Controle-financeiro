@@ -1,7 +1,8 @@
 import type { ISODate, MonthKey } from '@/domain/dates'
 import type { GoalMovement } from '@/domain/summary'
 
-// O gasto de um uso da meta da família (o total e o dia são visíveis à família, como o gasto dela).
+// O gasto de um uso da meta da família. `amountCents` é o que saiu da meta (goal_funded_cents),
+// não o gasto inteiro: é o valor da linha "Usou" no histórico da meta.
 export interface GoalUseTx {
   id: string
   amountCents: number

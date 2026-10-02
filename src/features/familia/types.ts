@@ -89,6 +89,10 @@ export interface MyFamily {
 
 export interface FamilyExpenseRow extends FamilyExpense {
   createdAt: string
+  // O banco diz se quem pede pode ajustar este gasto como administrador (mesmas
+  // condições de admin_update/delete_family_expense): nada de parcela, de gasto
+  // pago com meta nem de quem saiu da família.
+  canAdjust: boolean
 }
 
 export type FamilyExpenseRawRow = {
@@ -101,6 +105,7 @@ export type FamilyExpenseRawRow = {
   author_id: string | null
   author_name: string | null
   created_at: string
+  can_adjust: boolean | null
 }
 
 export function toFamilyExpenseRow(r: FamilyExpenseRawRow): FamilyExpenseRow {
@@ -114,6 +119,8 @@ export function toFamilyExpenseRow(r: FamilyExpenseRawRow): FamilyExpenseRow {
     authorId: r.author_id,
     authorName: r.author_name,
     createdAt: r.created_at,
+    // Só um "sim" explícito vale; qualquer outra resposta fica sem ajuste.
+    canAdjust: r.can_adjust === true,
   }
 }
 

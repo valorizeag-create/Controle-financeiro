@@ -179,6 +179,9 @@ Decisões do controlador ao longo da execução:
 - **O código do convite viaja no endereço durante o entrar/criar cadastro** (`?next=` e, no login com Google, na volta do provedor); o código vale uma vez e por 7 dias, e a página do convite não é indexada nem repassa o endereço. Alternativa futura: guardar o retorno num cookie curto.
 - **A lista de participantes lê `family_members` pela política do banco** (só a própria família; nomes e papéis, sem dinheiro): exceção consciente à regra "só por funções do banco".
 - **Desfazer o uso de uma meta da família** que envolve alguém que saiu é recusado pelo banco; como a mesma resposta vale para toque duplo, o texto é neutro ("Este uso não pode mais ser desfeito.").
+- **Revisão final: "ajustar" só onde o banco deixa.** As leituras dos gastos da família passaram a devolver um sim/não (`can_adjust`) dizendo se quem pede pode ajustar aquele gasto, com as mesmas condições das funções de ajuste do administrador (decisão 101): administra a família, o gasto não é parcela nem foi pago com meta, e é de quem ainda participa (ou histórico sem dono). Não revela nada novo: é sobre uma linha que a pessoa já vê, e para quem não administra é sempre "não". Sem o "sim", o link de ajuste não aparece e a tela de ajuste não abre.
+- **Revisão final: o aviso verde também aparece quando a ação volta para a mesma tela.** O aviso passou a acompanhar o próprio cookie (na hora em que muda e por uma conferida a cada meio segundo com a aba visível), além da troca de tela. Continua texto simples, some em 4 segundos, é apagado ao ser lido e aparece uma vez só.
+- **Revisão final: limitação conhecida.** Depois de passar a administração, o novo administrador sem parte numa meta da família não vê nem desfaz os usos feitos pelo anterior; corrigir pede uma função nova do banco (decisão de segurança à parte), adiada. Nenhum valor fica errado.
 
 ## Textos novos usados (fora da copy oficial)
 
@@ -195,4 +198,7 @@ Plano 7: ver a seção "Textos novos" do plano `docs/superpowers/plans/2026-09-3
 - "Esta meta mudou. Atualize a página para ver como ela está." (meta da família alterada ou excluída por outra pessoa)
 - "Esta meta não tem dinheiro guardado." (tirar ou usar de meta da família sem saldo)
 - "Você entrou na família." e "A pessoa" (textos de reserva quando o nome da família ou da pessoa não pôde ser lido, em `src/features/familia/actions.ts`)
+- "Membro" (texto de reserva no lugar do nome de um participante sem nome, na lista de Família, em `src/features/familia/view-model.ts`)
+- "Um membro" (texto de reserva no aviso de saída quando o nome de quem saiu não pôde ser lido; desde a revisão final só aparece dentro das frases já aprovadas da decisão 108, "Um membro saiu da família." e "Um membro saiu da família, e a meta {meta} foi atualizada.", nunca como "voltaram para Um membro")
+- "Oi." (saudação de reserva no mês da família quando o nome da própria pessoa não pôde ser lido, em `src/app/(app)/inicio/familia/page.tsx`)
 

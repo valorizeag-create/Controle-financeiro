@@ -19,6 +19,8 @@ export default async function AjustarGastoDaFamiliaPage({ params }: Props) {
   if (!expense) redirect('/inicio/familia')
   // O gasto da própria pessoa tem a tela de sempre, no Extrato.
   if (expense.authorId === family.meId) redirect(`/extrato/${id}`)
+  // Parcela, gasto pago com meta ou de quem saiu: o banco não deixa ajustar, então não há formulário.
+  if (!expense.canAdjust) redirect('/inicio/familia')
   const who = authorLabel(expense.authorId, expense.authorName, family.meId)
 
   return (

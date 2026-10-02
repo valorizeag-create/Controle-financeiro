@@ -14,11 +14,15 @@ const {
   loadFamilyExpenses,
   loadFamilyExpense,
   loadFamilySummary,
+  loadFamilySummaryOrNull,
   loadFamilyBills,
   loadFamilyRecurrences,
   loadFamilyGoals,
   loadFamilyGoal,
 } = await import('./queries')
+
+// O redirecionamento do Next é um erro com `digest` próprio; o de verdade é reconhecido pelo unstable_rethrow.
+const { redirect } = await import('next/navigation')
 
 type Call = {
   table?: string
@@ -32,6 +36,9 @@ type Call = {
 let calls: Call[] = []
 // Cada leitura de uma tabela (ou RPC) tira a próxima resposta da fila; a última se repete.
 let responses: Record<string, unknown[][]> = {}
+
+// Leituras que respondem com erro (por tabela).
+const failing = new Map<string, unknown>()
 
 function queue(r: Record<string, unknown[][]>) {
   responses = r
@@ -51,7 +58,7 @@ function builder(call: Call, key: string) {
     order: () => b,
     limit: () => b,
     range: (from: number, to: number) => ((call.range = [from, to]), b),
-    maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
+    maybeSingle: async () => (failing.has(key) ? { data: null, error: failing.get(key) } : { data: rows[0] ?? null, error: null }),
     then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(res, rej),
   }
   return b
@@ -75,6 +82,7 @@ h.supabase = {
 beforeEach(() => {
   calls = []
   responses = {}
+  failing.clear()
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-09-28T15:00:00Z'))
 })
@@ -149,19 +157,56 @@ test('loadFamilySummary: só a própria participação ativa e o nome', async ()
   expect(await loadFamilySummary()).toBeNull()
 })
 
+test('Seu mês: falha ao ler a família vira null e fica no registro, sem dados da pessoa', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  failing.set('family_members', { code: '57014', message: 'canceling statement due to statement timeout', details: 'u1 ana@teste.iris.dev', hint: null })
+  expect(await loadFamilySummaryOrNull()).toBeNull()
+  expect(log).toHaveBeenCalledTimes(1)
+  expect(log).toHaveBeenCalledWith('loadFamilySummary', { code: '57014', message: 'canceling statement due to statement timeout' })
+  expect(JSON.stringify(log.mock.calls)).not.toMatch(/u1|ana@teste/)
+
+  // Sem falha: o mesmo resultado de loadFamilySummary, e nada no registro.
+  log.mockClear()
+  failing.clear()
+  queue({ family_members: [[{ family_id: 'f1', role: 'member' }]], families: [[{ id: 'f1', name: 'Família Souza' }]] })
+  expect(await loadFamilySummaryOrNull()).toEqual({ id: 'f1', name: 'Família Souza', role: 'member' })
+  queue({ family_members: [[]] })
+  expect(await loadFamilySummaryOrNull()).toBeNull()
+  expect(log).not.toHaveBeenCalled()
+  log.mockRestore()
+})
+
+test('Seu mês: o redirecionamento do Next não é engolido nem registrado como erro', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  let thrown: unknown
+  try {
+    redirect('/entrar')
+  } catch (e) {
+    thrown = e
+  }
+  failing.set('family_members', thrown)
+  await expect(loadFamilySummaryOrNull()).rejects.toBe(thrown)
+  expect(log).not.toHaveBeenCalled()
+  log.mockRestore()
+})
+
 test('gastos da família: só o mês pedido, do dia 1 ao último dia, por RPC e em páginas', async () => {
   queue({
-    family_expenses: [[{ id: 'e1', effective_on: '2026-02-03', amount_cents: '31240', category_key: null, category_name: 'Outros', note: null, author_id: 'u2', author_name: 'Bia', created_at: 'c' }]],
+    family_expenses: [[{ id: 'e1', effective_on: '2026-02-03', amount_cents: '31240', category_key: null, category_name: 'Outros', note: null, author_id: 'u2', author_name: 'Bia', created_at: 'c', can_adjust: true }]],
   })
   const rows = await loadFamilyExpenses('2026-02')
   expect(calls[0]).toMatchObject({ rpc: 'family_expenses', args: { p_from: '2026-02-01', p_to: '2026-02-28' }, range: [0, 999] })
   expect(rows[0].amountCents).toBe(31240)
+  expect(rows[0].canAdjust).toBe(true)
 })
 
 test('um gasto da família pelo RPC, só o que tem o id pedido', async () => {
-  const row = { id: 'e1', effective_on: '2026-02-03', amount_cents: 100, category_key: null, category_name: 'Outros', note: null, author_id: 'u2', author_name: 'Bia', created_at: 'c' }
+  const row = { id: 'e1', effective_on: '2026-02-03', amount_cents: 100, category_key: null, category_name: 'Outros', note: null, author_id: 'u2', author_name: 'Bia', created_at: 'c', can_adjust: true }
+  queue({ family_expense: [[{ ...row, can_adjust: false }]] })
+  expect((await loadFamilyExpense('e1'))?.canAdjust).toBe(false)
+  calls = []
   queue({ family_expense: [[row]] })
-  expect((await loadFamilyExpense('e1'))?.id).toBe('e1')
+  expect(await loadFamilyExpense('e1')).toMatchObject({ id: 'e1', canAdjust: true })
   expect(calls[0]).toMatchObject({ rpc: 'family_expense', args: { p_id: 'e1' } })
   queue({ family_expense: [[row]] })
   expect(await loadFamilyExpense('e2')).toBeNull()

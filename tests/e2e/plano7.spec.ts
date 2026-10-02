@@ -236,8 +236,24 @@ test('celular: conta da família paga pelo membro sai do Disponível dele; meta 
   await confirm(alexPage).getByRole('button', { name: 'Sair da família', exact: true }).click()
   await expect(alexPage.getByRole('status')).toContainText('Você saiu da família.')
   await expect(alexPage.getByRole('button', { name: 'Criar família', exact: true })).toBeVisible()
-  await alexPage.goto('/inicio/familia')
-  await expect(alexPage).toHaveURL(/\/familia$/)
+  // Review Focus 3: quem saiu não vê mais nada da família. /inicio/familia manda
+  // para /familia (o caminho inteiro é conferido: "/inicio/familia" também termina
+  // em "/familia"), e lá só há a tela de criar uma família.
+  await alexPage.goto(`/inicio/familia?mes=${current}`)
+  await expect.poll(() => new URL(alexPage.url()).pathname).toBe('/familia')
+  await expect(alexPage.getByRole('button', { name: 'Criar família', exact: true })).toBeVisible()
+  await expect(alexPage.getByRole('region', { name: 'Contas da família' })).toHaveCount(0)
+  await expect(recent(alexPage)).toHaveCount(0)
+  await expect(alexPage.getByRole('main')).not.toContainText('Família Souza')
+  await expect(alexPage.getByRole('main')).not.toContainText('Reforma da cozinha')
+  await expect(alexPage.getByRole('main')).not.toContainText('Camila')
+  // As contas da família também: a tela manda embora do mesmo jeito.
+  await alexPage.goto('/familia/contas')
+  await expect.poll(() => new URL(alexPage.url()).pathname).toBe('/familia')
+  await expect(alexPage.getByRole('button', { name: 'Criar família', exact: true })).toBeVisible()
+  // E as metas da família saem da lista dele.
+  await alexPage.goto('/metas')
+  await expect(alexPage.getByRole('main')).not.toContainText('Reforma da cozinha')
   await alexPage.goto('/inicio')
   await expect(line(alexPage, 'Tirado das metas')).toContainText(brl('1.800,00'))
 

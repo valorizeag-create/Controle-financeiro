@@ -70,6 +70,8 @@ export async function loadGoal(id: string): Promise<{ goal: GoalRow; movements: 
 }
 
 // Os usos da meta da família que o administrador fez (o gasto de cada uso é do administrador que usou).
+// O valor de cada uso é o que saiu da meta (goal_funded_cents), não o gasto inteiro: numa compra maior
+// que o guardado, a diferença saiu do Disponível de quem usou e não é movimento da meta.
 // Só linhas da própria pessoa; não lê nada dos outros membros nem as partes. Serve para o administrador
 // desfazer um uso mesmo quando ele não tem parte (o uso só grava movimento de quem tinha parte).
 export async function loadMyGoalUses(goalId: string): Promise<GoalUseTx[]> {
@@ -77,7 +79,7 @@ export async function loadMyGoalUses(goalId: string): Promise<GoalUseTx[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('transactions')
-    .select('id, amount_cents, occurred_on')
+    .select('id, goal_funded_cents, occurred_on')
     .eq('user_id', user.id)
     .eq('goal_id', goalId)
     .eq('kind', 'expense')
@@ -85,9 +87,9 @@ export async function loadMyGoalUses(goalId: string): Promise<GoalUseTx[]> {
     .order('occurred_on', { ascending: false })
     .order('created_at', { ascending: false })
   if (error) throw error
-  return (data as { id: string; amount_cents: number | string; occurred_on: string }[]).map((t) => ({
+  return (data as { id: string; goal_funded_cents: number | string; occurred_on: string }[]).map((t) => ({
     id: t.id,
-    amountCents: Number(t.amount_cents),
+    amountCents: Number(t.goal_funded_cents),
     occurredOn: t.occurred_on,
   }))
 }

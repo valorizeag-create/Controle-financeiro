@@ -5,7 +5,7 @@ import { createFamily, expense, joinFamily, todaySP } from './family-helpers'
 
 type FamilyExpenseRow = {
   id: string; effective_on: string; amount_cents: number; category_key: string | null; category_name: string
-  note: string | null; author_id: string | null; author_name: string | null; created_at: string
+  note: string | null; author_id: string | null; author_name: string | null; created_at: string; can_adjust: boolean
 }
 
 let ana: TestUser // administra
@@ -121,7 +121,7 @@ describe('privacidade entre membros (Review Focus 1)', () => {
   test('a família vê só as colunas seguras dos gastos da família (RN-31: nada de cartão)', async () => {
     const rows = await familyRows(ana)
     const row = rows.find((r) => r.id === biaFamily)!
-    expect(Object.keys(row).sort()).toEqual(['amount_cents', 'author_id', 'author_name', 'category_key', 'category_name', 'created_at', 'effective_on', 'id', 'note'])
+    expect(Object.keys(row).sort()).toEqual(['amount_cents', 'author_id', 'author_name', 'can_adjust', 'category_key', 'category_name', 'created_at', 'effective_on', 'id', 'note'])
     expect(row).toMatchObject({ amount_cents: 8990, category_key: 'casa', note: 'lâmpadas', author_id: bia.id, author_name: 'Bia', effective_on: today })
     expect(rows.some((r) => r.id === biaPersonal)).toBe(false)
     expect(await familyRows(eli)).toEqual([])
@@ -129,6 +129,23 @@ describe('privacidade entre membros (Review Focus 1)', () => {
     expect((await ana.client.rpc('family_expense', { p_id: biaFamily })).data).toHaveLength(1)
     expect((await caio.client.rpc('family_expense', { p_id: biaFamily })).data).toEqual([])
     expect((await ana.client.rpc('family_expense', { p_id: biaPersonal })).data).toEqual([])
+  })
+
+  test('can_adjust: sim só para quem administra; para o membro é sempre não, até no próprio gasto', async () => {
+    const anaOwn = await expense(ana, 'casa', 1200, { family_id: famAna })
+    const asAdmin = await familyRows(ana)
+    expect(asAdmin.find((r) => r.id === biaFamily)?.can_adjust).toBe(true)
+    expect(asAdmin.find((r) => r.id === anaOwn)?.can_adjust).toBe(true)
+    const asMember = await familyRows(bia)
+    expect(asMember.length).toBeGreaterThan(0)
+    expect(asMember.every((r) => r.can_adjust === false)).toBe(true)
+    const one = async (u: TestUser, id: string) => ((await u.client.rpc('family_expense', { p_id: id })).data as FamilyExpenseRow[])[0]?.can_adjust
+    expect(await one(ana, biaFamily)).toBe(true)
+    expect(await one(bia, biaFamily)).toBe(false)
+    expect(await one(bia, anaOwn)).toBe(false)
+    // De fora da família não vem linha nenhuma, então não vem resposta nenhuma.
+    expect(await one(caio, biaFamily)).toBeUndefined()
+    expect(await one(eli, biaFamily)).toBeUndefined()
   })
 
   test('categorias na família (A3): a padrão vem pela chave mesmo renomeada; a própria pelo nome', async () => {
@@ -189,6 +206,13 @@ describe('administrador e gastos da família (RN-21, RF-44)', () => {
       expect(error?.message).toContain(message)
     }
     expect((await bia.client.from('transactions').select('amount_cents').eq('id', theirs).single()).data?.amount_cents).toBe(1000)
+    // can_adjust diz o mesmo que a função responde: parcela não, gasto comum sim.
+    const one = async (id: string) => ((await ana.client.rpc('family_expense', { p_id: id })).data as FamilyExpenseRow[])[0]?.can_adjust
+    expect(await one(installment)).toBe(false)
+    expect(await one(theirs)).toBe(true)
+    const listed = (await familyRows(ana, monthStart, plusDays(today, 120))).filter((r) => r.can_adjust === false).map((r) => r.id)
+    expect(listed).toContain(installment)
+    expect(listed).not.toContain(theirs)
   })
 
   test('administrador exclui gasto da família de outra pessoa; membro não', async () => {
@@ -504,6 +528,11 @@ describe('quem saiu não mexe mais na família, nem a família no que é dele (I
       .toEqual({ amount_cents: 4000, note: null, family_id: famDan })
     // O histórico continua com o nome (RN-23).
     expect((await familyRows(dan)).find((r) => r.id === fiaExpense)).toMatchObject({ author_id: fia.id, author_name: 'Fia', amount_cents: 4000 })
+    // E a tela nem oferece o ajuste: can_adjust é falso para o gasto de quem saiu, e sim para o do próprio administrador.
+    expect((await familyRows(dan)).find((r) => r.id === fiaExpense)?.can_adjust).toBe(false)
+    expect(((await dan.client.rpc('family_expense', { p_id: fiaExpense })).data as FamilyExpenseRow[])[0].can_adjust).toBe(false)
+    const danOwn = await expense(dan, 'casa', 100, { family_id: famDan })
+    expect((await familyRows(dan)).find((r) => r.id === danOwn)?.can_adjust).toBe(true)
   })
 
   test('quem saiu não transforma gasto antigo em conta nem reabre conta encerrada (I3)', async () => {

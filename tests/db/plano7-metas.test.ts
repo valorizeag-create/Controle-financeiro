@@ -200,6 +200,11 @@ describe('usar o dinheiro da meta da família (RN-22b, RN-22c, Review Focus 4)',
     expect((await bia.client.rpc('deposit_family_goal', { p_goal_id: goal, p_amount_cents: 1 })).error?.message).toContain('Meta não encontrada.')
     const { data: rows } = await eva.client.rpc('family_expenses', { p_from: monthStart, p_to: today })
     expect((rows as { id: string; amount_cents: number; author_id: string }[]).find((x) => x.id === r.tx_id)).toMatchObject({ amount_cents: 350000, author_id: ana.id })
+    // Gasto pago com meta: nem a administradora ajusta (as funções recusam), e can_adjust diz isso antes.
+    const asAdmin = await ana.client.rpc('family_expense', { p_id: r.tx_id })
+    expect((asAdmin.data as { can_adjust: boolean }[])[0].can_adjust).toBe(false)
+    expect((await ana.client.rpc('admin_update_family_expense', { p_id: r.tx_id, p_amount_cents: 1, p_on: today, p_note: null })).error?.message)
+      .toContain('Gasto não encontrado.')
   })
 
   test('centavos que sobram vão para os maiores restos (mesma regra de splitFamilyUse)', async () => {

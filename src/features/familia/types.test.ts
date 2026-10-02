@@ -15,12 +15,24 @@ test('gasto da família: valor em centavos, data efetiva e autor sem nome', () =
   expect(
     toFamilyExpenseRow({
       id: 'e1', effective_on: '2026-09-10', amount_cents: '31240', category_key: 'mercado', category_name: 'Mercado',
-      note: null, author_id: 'u2', author_name: null, created_at: '2026-09-10T12:00:00Z',
+      note: null, author_id: 'u2', author_name: null, created_at: '2026-09-10T12:00:00Z', can_adjust: true,
     }),
   ).toEqual({
     id: 'e1', effectiveOn: '2026-09-10', amountCents: 31240, categoryKey: 'mercado', categoryName: 'Mercado',
-    note: null, authorId: 'u2', authorName: null, createdAt: '2026-09-10T12:00:00Z',
+    note: null, authorId: 'u2', authorName: null, createdAt: '2026-09-10T12:00:00Z', canAdjust: true,
   })
+})
+
+test('gasto da família: só pode ajustar quando o banco disse que sim', () => {
+  const raw = {
+    id: 'e1', effective_on: '2026-09-10', amount_cents: 100, category_key: null, category_name: 'Outros',
+    note: null, author_id: 'u2', author_name: 'Bia', created_at: 'c',
+  }
+  expect(toFamilyExpenseRow({ ...raw, can_adjust: false }).canAdjust).toBe(false)
+  // Resposta sem a coluna, nula ou com outro valor: fica sem ajuste.
+  expect(toFamilyExpenseRow(raw as never).canAdjust).toBe(false)
+  expect(toFamilyExpenseRow({ ...raw, can_adjust: null }).canAdjust).toBe(false)
+  expect(toFamilyExpenseRow({ ...raw, can_adjust: 'true' as never }).canAdjust).toBe(false)
 })
 
 test('molde da família: dia e mês viram número', () => {

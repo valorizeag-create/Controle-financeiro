@@ -3,7 +3,7 @@ import { monthOf, parseMonthKey, todayInSaoPaulo } from '@/domain/dates'
 import { loadLedger } from '@/features/registro/queries'
 import { loadGoals } from '@/features/metas/queries'
 import { loadBudgets } from '@/features/planejamento/queries'
-import { loadFamilySummary } from '@/features/familia/queries'
+import { loadFamilySummaryOrNull } from '@/features/familia/queries'
 import { ViewSwitch } from '@/features/familia/view-switch'
 import { buildSeuMes } from '@/features/seu-mes/view-model'
 import { Hero } from '@/features/seu-mes/hero'
@@ -26,7 +26,7 @@ export default async function InicioPage({ searchParams }: { searchParams: Promi
     loadLedger(),
     loadGoals(),
     loadBudgets([month]),
-    loadFamilySummary().catch(() => null),
+    loadFamilySummaryOrNull(),
   ])
   const v = buildSeuMes({ month, today, profile, categories, transactions, goals, goalMovements, budgets })
 

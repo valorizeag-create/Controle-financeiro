@@ -14,6 +14,9 @@ function readAndClear(): string | null {
   return message
 }
 
+// De quanto em quanto tempo o cookie do aviso é conferido com a aba visível.
+const COOKIE_CHECK_MS = 500
+
 // `id` diferencia duas mensagens iguais seguidas: cada uma ganha seu próprio prazo.
 type Shown = { text: string; id: number }
 
@@ -32,6 +35,30 @@ export function Toast() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setShown({ text: m, id: Date.now() })
   }, [pathname])
+
+  // Uma Server Action que redireciona para a MESMA tela (sair da família,
+  // marcar a conta como paga em /familia/contas…) não troca a rota, e o efeito
+  // acima não roda de novo. Por isso o aviso também acompanha o próprio cookie:
+  // na hora em que ele muda, onde o navegador avisa (cookieStore), e por uma
+  // conferida curta enquanto a aba está visível, que vale em qualquer navegador.
+  // Ler apaga o cookie, então cada aviso aparece uma vez só, venha por onde vier.
+  useEffect(() => {
+    const check = () => {
+      if (document.visibilityState !== 'visible') return
+      const m = readAndClear()
+      if (m) setShown({ text: m, id: Date.now() })
+    }
+    const store = (globalThis as { cookieStore?: Pick<EventTarget, 'addEventListener' | 'removeEventListener'> }).cookieStore
+    const listens = typeof store?.addEventListener === 'function'
+    if (listens) store!.addEventListener('change', check)
+    document.addEventListener('visibilitychange', check)
+    const timer = setInterval(check, COOKIE_CHECK_MS)
+    return () => {
+      if (listens) store!.removeEventListener('change', check)
+      document.removeEventListener('visibilitychange', check)
+      clearInterval(timer)
+    }
+  }, [])
 
   // O prazo de 4 s fica num efeito próprio, ligado à mensagem e não à rota:
   // trocar de página antes dos 4 s não cancela o prazo, e o aviso não fica preso.

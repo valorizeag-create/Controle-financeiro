@@ -156,8 +156,8 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 - Revisão independente do SQL antes de implementar (1 crítico e 6 importantes, todos corrigidos; ver `docs/decisoes-para-revisao.md`), mais uma correção da revisão do Task 4 (resposta de erro que revelava a parte de outro membro) e uma do Task 5 (ordem das travas).
 
 **Testes**
-- Unitários e de componentes: 715 passando (113 arquivos). Tipos, lint e build sem erros.
-- Banco (`plano7-familia`, `plano7-gastos`, `plano7-metas`, `plano7-saida`: 118 testes) e ponta a ponta (`plano7.spec.ts`: 3 testes com duas pessoas em dois contextos do navegador, celular: 2, desktop: 1; 6 entradas em `--list`): **pendentes**, dependem do Docker para o Supabase local (mesma pendência dos Planos 1 a 6). Conferido sem Docker: `npx playwright test --list` e `npx tsc --noEmit`.
+- Unitários e de componentes: 747 passando (117 arquivos). Tipos, lint e build sem erros.
+- Banco (`plano7-familia`, `plano7-gastos`, `plano7-metas`, `plano7-saida`: 119 testes) e ponta a ponta (`plano7.spec.ts`: 3 testes com duas pessoas em dois contextos do navegador, celular: 2, desktop: 1; 6 entradas em `--list`): **pendentes**, dependem do Docker para o Supabase local (mesma pendência dos Planos 1 a 6). Conferido sem Docker: `npx playwright test --list` e `npx tsc --noEmit`.
 - O seed do e2e respeita as guardas do banco (família, participação, molde da conta da família, movimentos de meta de hoje com a data voltada por atualização administrativa); a limpeza apaga só os usuários do prefixo da execução, com uma nova tentativa se houver impasse (40P01).
 
 **Ao rodar o banco pela primeira vez (Docker)**
@@ -166,6 +166,20 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 - Casos de impasse recuperável (40P01) estão documentados no cabeçalho da seção 4 da migração. A tela mostra "Algo não saiu como esperado do nosso lado. Tente novamente em instantes."
 - O Postgres hospedado precisa ser 17 ou mais recente.
 - Rodar: `npx supabase db reset && npm run test:db && npm run test:e2e`.
+- Confirmar na primeira execução do e2e que o aviso aparece depois de uma ação que volta para a mesma tela ("Você saiu da família.", "Conta marcada como paga.", "Família criada."): a correção foi feita e testada no componente, mas nunca rodou num navegador de verdade (ver "Revisão final").
+- Confirmar que `family_expenses` e `family_expense` devolvem `can_adjust` como os testes de banco esperam (parcela, gasto pago com meta e gasto de quem saiu: não; os demais, só para quem administra: sim).
+
+**Revisão final do plano (2026-10-01)**
+- Resultado da revisão de todo o plano: nenhum problema crítico; a segurança se manteve em todos os caminhos conferidos (privacidade entre membros, quem saiu, convite, redirecionamento, segredos). Quatro pontos importantes, todos corrigidos:
+  - **Aviso depois de uma ação na mesma tela.** O aviso verde só era lido quando a pessoa trocava de tela; depois de "Sair da família", "Remover", "Tornar administrador", "Criar família", "Cancelar convite", marcar ou encerrar uma conta da família e desfazer o uso de uma meta ele não aparecia (ou aparecia atrasado, em outra tela). Agora o aviso acompanha o próprio cookie: aparece na hora em que ele chega, também sem trocar de tela, continua sumindo em 4 segundos e aparece uma vez só. O defeito vinha do Plano 1 e também afetava "Paga" em Contas a partir do Seu mês (Plano 3). Sem navegador com o Supabase local, a correção foi provada só por testes do componente.
+  - **"Ajustar" só onde o banco deixa.** O administrador via o link de ajuste em qualquer gasto da família de outra pessoa, mas o banco recusa parcelas, gastos pagos com meta e gastos de quem saiu; a tela respondia "é só tentar de novo", o que nunca era verdade. Agora o próprio banco diz, para cada gasto, se quem pede pode ajustá-lo (`can_adjust`, com as mesmas condições das funções de ajuste; é um sim/não sobre uma linha que a pessoa já vê, e é sempre "não" para quem não administra). Sem esse "sim" não há link, e a tela de ajuste manda de volta para o mês da família.
+  - **Teste de quem saiu.** A conferência do e2e não podia falhar ("/inicio/familia" também termina em "/familia"). Agora confere o caminho inteiro, a tela de criar família e a ausência de qualquer dado da família (contas, últimos gastos, nome da família, da meta e da administradora), também em Família → Contas e em Metas.
+  - **Este documento** estava desatualizado.
+- Também corrigido: aviso de saída sem nome usa a frase anônima já aprovada (nunca "voltaram para Um membro"); botão "Entrar na família" fica desativado enquanto envia (toque duplo); falha ao ler a família no Seu mês vai para o registro do servidor (só código e mensagem do banco); a linha "Usou" da meta da família mostra o que saiu da meta, não o gasto inteiro; testes novos para o nome da meta da família no Extrato e para as contas da família ficarem fora de Contas.
+- Tarefas 12 e 13 (Anotar, Extrato, metas da família, menu): revisadas e aprovadas depois de uma rodada de correções (administrador sem parte não conseguia desfazer o uso; faltava o aviso da diferença quando o uso passa do guardado; o Extrato perdia o nome de meta da família excluída).
+
+**Limitação conhecida**
+- Depois de "Tornar administrador", um novo administrador que não tem parte numa meta da família não vê nem consegue desfazer os usos feitos pelo administrador anterior (a linha "Usou" com "desfazer" vem dos gastos da própria pessoa; o banco aceitaria o pedido, decisão 105). Nenhum valor fica errado; a meta só fica como usada. Saída possível hoje: devolver a administração a quem usou. A correção pede uma função nova do banco que mostre o gasto do uso a quem administra, o que é uma decisão de segurança à parte: adiada.
 
 **Pendências levadas a outros planos**
 - Convite por e-mail, "Reenviar" (protótipo) e avisos da família por push/e-mail: Plano 8 (inclui um limite de convites por período, que precisa de texto novo).
@@ -179,10 +193,27 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 - Tarefa 3: 9 pequenos itens em `task-3-review.md` (linhas com data futura mantidas; limpar `family_id` direto num molde deixa ocorrências pendentes com a família).
 - Tarefa 4: a guarda de autor recusa por nome de papel (um papel novo da API a contornaria; preferir conferir `auth.uid()`); a função nova fora do teste "não chamável"; duplicação; sinal de existência do uuid da meta.
 - Tarefa 5: 10 pequenos itens em `task-5-review.md`; impasse com a exclusão de `auth.users` aceito como menor.
-- Tarefa 6: faltam testes de `loadGoalLabel` (ramo da família) e do filtro `.is('family_id', null)` em recorrências.
+- Tarefa 6: comentário sobre a origem do `familyId`; leitura duplicada. (Os testes que faltavam foram escritos na revisão final.)
 - Tarefa 7: o código do convite viaja em `?next=` e na volta do login com Google (mitigado: uso único, 7 dias); considerar cookie curto; 6 outros itens.
 - Tarefa 8: itens 4 a 7 de `task-8-review.md`.
 - Tarefa 9: "Meta inválida." (ex-membro com saldo) mostra "Atualize a página", que não resolve; "Sessão necessária." mostra o texto de só-administrador; marco da meta com corrida; constantes duplicadas.
-- Tarefa 10: "voltaram para Um membro" se o nome faltar em `eventText`; nomes acessíveis iguais para remover/passar a administração quando dois membros têm o mesmo primeiro nome; telas de convite inválido e de já participa sem h1; botão de aceitar sem estado de espera (toque duplo).
-- Tarefa 11: `.catch` silencioso em `loadFamilySummary` (registrar); comparador de contas duplicado; `byMember` por rótulo.
-- Tarefas 12 e 13: ainda em revisão no momento deste registro.
+- Tarefa 10: "Convidar pessoa" continua ativo depois de criar um link, e apertar de novo cancela o link recém-compartilhado sem avisar; estado "copiado"; caminhos sem teste; página do convite sem título próprio. (Frase "voltaram para Um membro" e toque duplo no aceitar: corrigidos na revisão final.)
+- Tarefa 11: comparador de contas duplicado; `byMember` por rótulo e `key` por rótulo em `family-month.tsx` (dois membros com o mesmo nome: só um aviso do React); 5 outros itens. (`.catch` silencioso: corrigido na revisão final.)
+- Tarefas 12 e 13: a tela "Usar" calcula o detalhe pessoal de uma meta da família e descarta, e usa `personal!` duas vezes; linhas "Usou" do mesmo dia ficam sempre abaixo dos outros movimentos (falta a hora do gasto); o jsdom imprime "Not implemented: navigation" nos testes de registro e contas (já existia antes).
+- Tarefa 14: a limpeza do e2e deixa famílias, avisos, metas sem dono e gastos "Ex-membro" no banco local (some no `db reset`).
+
+**Acessibilidade adiada para o Plano 10 (precisa de texto novo, para aprovação)**
+- "Remover {nome} da família" e "Tornar {nome} administrador" ficam com o mesmo nome acessível quando dois membros têm o mesmo primeiro nome.
+- As telas "Este convite não vale mais…" e "Você já participa de uma família…" não têm título (h1).
+- O bloco "Da família" em Metas não é uma região com nome (os blocos vizinhos são); o e2e acha a seção pelo título.
+
+**Outros itens da revisão final, adiados**
+- Erros que tentar de novo não resolve ainda dizem "é só tentar de novo": criar convite sem ser administrador, ajustar gasto ou alterar conta da família sem permissão, e anotar com "Gasto da família" logo depois de sair. Para o caso "sem permissão" já existe o texto "Só quem administra a família pode fazer isso."; "você não participa mais da família" precisa de texto novo.
+- Criar o cadastro a partir de um convite não tem teste de ponta a ponta, e o aviso "Você entrou na família …" se perde porque a pessoa passa antes pelas boas-vindas (o aviso dura 30 segundos).
+- `loadFamilyExpenses` pagina a função do banco sem repetir a ordem do lado do app (só importa acima de 1.000 gastos da família num mês).
+- `NEXT_PUBLIC_SITE_URL` com barra no fim gera "//convite/…" no link e na volta do login com Google: aparar em `lib/env.ts`. No lançamento, a lista de endereços de retorno do Supabase hospedado precisa do curinga ("…/**", como em `supabase/config.toml`), senão entrar com Google a partir de um convite volta para a página inicial.
+- `family_events` é liberada por tabela inteira, então `member_id` pode ser lido pela API (é só o número da linha de participação, que a família já vê; o app nunca o pede). Liberar por coluna, como em `family_invites`, faria o banco garantir a regra.
+- O plano diz 36 funções `security definer`; a migração tem 37 (`family_one_admin_check`, acrescentada pela revisão de segurança). Corrigir o número no plano.
+- O "pode ajustar" (`can_adjust`), o "pode alterar" das contas e o "é administrador" das metas são calculados em lugares diferentes; juntar a regra "quem pode o quê" num lugar só.
+- Com entrar por e-mail exigindo confirmação (configuração do Supabase hospedado), a volta para o convite se perde depois de confirmar: conferir no lançamento.
+- Custo da segunda chamada ao banco (contas da família) em toda leitura do mês de quem não tem família: medir no Plano 10.

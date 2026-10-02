@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Button } from '@/ui/button'
 import { FormAlert } from '@/ui/form-alert'
 import { acceptInvite } from './actions'
+import { AcceptInviteButton } from './accept-invite-button'
 import type { InviteView } from './view-model'
 
 const UNEXPECTED = 'Algo não saiu como esperado do nosso lado. Tente novamente em instantes.'
@@ -42,7 +43,7 @@ export function InviteScreen({ view, transientError = false }: { view: InviteVie
           </p>
           <form action={acceptInvite} className="flex flex-col gap-3">
             <input type="hidden" name="code" value={view.code} />
-            <Button type="submit">Entrar na família</Button>
+            <AcceptInviteButton />
           </form>
           <Link href="/inicio" className="flex min-h-11 items-center justify-center font-medium text-brand-text">Agora não</Link>
         </>

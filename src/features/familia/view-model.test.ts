@@ -48,6 +48,18 @@ test('avisos da família (RN-22d, RN-22e)', () => {
   expect(eventText(e({ kind: 'member_deleted', memberName: null }))).toBe('Um membro saiu da família.')
 })
 
+test('aviso de saída sem nome usa a frase anônima, nunca "voltaram para Um membro"', () => {
+  const e = (p: Partial<FamilyEventRow>): FamilyEventRow => ({ id: 'e', kind: 'member_left', memberName: null, goalName: null, amountCents: null, createdAt: '', ...p })
+  expect(eventText(e({ goalName: 'Reforma da cozinha', amountCents: 180000 }))).toBe('Um membro saiu da família, e a meta Reforma da cozinha foi atualizada.')
+  expect(eventText(e({ goalName: 'Viagem' }))).toBe('Um membro saiu da família, e a meta Viagem foi atualizada.')
+  expect(eventText(e({}))).toBe('Um membro saiu da família.')
+  // Nome em branco conta como sem nome.
+  expect(eventText(e({ memberName: '  ', goalName: 'Viagem', amountCents: 100 }))).toBe('Um membro saiu da família, e a meta Viagem foi atualizada.')
+  for (const p of [{}, { goalName: 'Viagem' }, { goalName: 'Viagem', amountCents: 100 }, { memberName: '' }]) {
+    expect(eventText(e(p))).not.toContain('para Um membro')
+  }
+})
+
 test('membro desde: com o ano quando não é o ano de hoje', () => {
   expect(sinceLabel('2025-12-31T23:30:00Z', '2026-09-28')).toBe('dezembro de 2025')
   expect(sinceLabel('2026-01-01T02:00:00Z', '2026-09-28')).toBe('dezembro de 2025')
@@ -73,7 +85,7 @@ test('tela do convite (Review Focus 2)', () => {
 // ---- Task 11: Seu mês da família e contas da família ----
 const x = (p: Partial<FamilyExpenseRow>): FamilyExpenseRow => ({
   id: 'x', effectiveOn: '2026-09-28', amountCents: 0, categoryKey: 'mercado', categoryName: 'Mercado', note: null,
-  authorId: 'u1', authorName: 'Camila', createdAt: '2026-09-28T12:00:00Z', ...p,
+  authorId: 'u1', authorName: 'Camila', createdAt: '2026-09-28T12:00:00Z', canAdjust: false, ...p,
 })
 
 test('protótipo Mobile-Familia: total, pessoas, casa, últimos com quem registrou', () => {
@@ -95,8 +107,27 @@ test('protótipo Mobile-Familia: total, pessoas, casa, últimos com quem registr
 })
 
 test('administrador abre o gasto de outra pessoa para ajustar (RN-21)', () => {
-  const v = buildFamilyMonth({ month: '2026-09', today: '2026-09-28', meId: 'u1', isAdmin: true, myMovements: [], goals: [], bills: [], expenses: [x({ id: 'a', authorId: 'u2', authorName: 'Alex' }), x({ id: 'z', authorId: null, authorName: null })] })
+  const v = buildFamilyMonth({ month: '2026-09', today: '2026-09-28', meId: 'u1', isAdmin: true, myMovements: [], goals: [], bills: [], expenses: [x({ id: 'a', authorId: 'u2', authorName: 'Alex', canAdjust: true }), x({ id: 'z', authorId: null, authorName: null, canAdjust: true })] })
   expect(v.recent.map((r) => r.href)).toEqual(['/familia/gastos/a', '/familia/gastos/z'])
+})
+
+test('administrador: sem link de ajuste onde o banco não deixa ajustar (parcela, pago com meta, de quem saiu)', () => {
+  const v = buildFamilyMonth({
+    month: '2026-09', today: '2026-09-28', meId: 'u1', isAdmin: true, myMovements: [], goals: [], bills: [],
+    expenses: [
+      x({ id: 'ok', authorId: 'u2', authorName: 'Alex', canAdjust: true }),
+      x({ id: 'parcela', effectiveOn: '2026-09-27', authorId: 'u2', authorName: 'Alex', canAdjust: false }),
+      x({ id: 'saiu', effectiveOn: '2026-09-26', authorId: 'u3', authorName: 'Jordan', canAdjust: false }),
+      // O próprio gasto continua abrindo no Extrato, com ou sem ajuste da família.
+      x({ id: 'meu', effectiveOn: '2026-09-25', canAdjust: false }),
+    ],
+  })
+  expect(v.recent.map((r) => [r.id, r.href])).toEqual([['ok', '/familia/gastos/ok'], ['parcela', null], ['saiu', null], ['meu', '/extrato/meu']])
+})
+
+test('membro nunca ganha link de ajuste, mesmo se a linha disser que pode', () => {
+  const v = buildFamilyMonth({ month: '2026-09', today: '2026-09-28', meId: 'u1', isAdmin: false, myMovements: [], goals: [], bills: [], expenses: [x({ id: 'a', authorId: 'u2', authorName: 'Alex', canAdjust: true })] })
+  expect(v.recent.map((r) => r.href)).toEqual([null])
 })
 
 test('metas da família: total, quanto falta e só a minha parte (A4 B)', () => {

@@ -680,13 +680,21 @@ $$;
 --     confirmados; categoria pela chave padrão ou pelo nome (A3); o nome de
 --     quem registrou vem da participação (guardado ao sair, RN-23; nulo depois
 --     da exclusão do cadastro, RN-24). No máximo 367 dias por chamada.
+--     can_adjust: se quem chama pode ajustar este gasto pelo item 22. São as
+--     mesmas condições de admin_update_family_expense e
+--     admin_delete_family_expense, para a tela só oferecer o ajuste onde o
+--     banco aceita: quem chama administra a família, o gasto não é parcela nem
+--     foi pago com meta, e é de quem ainda participa (ou histórico sem dono).
+--     É um sim/não sobre uma linha que a pessoa já vê; para quem não
+--     administra é sempre falso. Mudou a regra do item 22? Mude aqui também.
 create function public.family_expenses(p_from date, p_to date)
 returns table (id uuid, effective_on date, amount_cents bigint, category_key text, category_name text,
-               note text, author_id uuid, author_name text, created_at timestamptz)
+               note text, author_id uuid, author_name text, created_at timestamptz, can_adjust boolean)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 declare
   v_family uuid := public.my_family_id();
+  v_admin boolean := coalesce(public.my_family_role() = 'admin', false);
 begin
   if auth.uid() is null then
     raise exception 'Sessão necessária.' using errcode = '42501';
@@ -705,7 +713,11 @@ begin
            (select fm.display_name from public.family_members fm
               where fm.family_id = t.family_id and fm.user_id = t.user_id
               order by fm.joined_at desc limit 1),
-           t.created_at
+           t.created_at,
+           (v_admin and t.installment_plan_id is null and t.goal_id is null
+              and (t.user_id is null or exists (
+                select 1 from public.family_members fa
+                where fa.family_id = v_family and fa.user_id = t.user_id and fa.left_at is null)))
     from public.transactions t
     left join public.categories c on c.id = t.category_id and c.user_id = t.user_id
     where t.family_id = v_family and t.kind = 'expense' and t.status = 'confirmed'
@@ -714,10 +726,10 @@ begin
 end;
 $$;
 
--- Um gasto da família (tela de edição do administrador). Mesmas colunas.
+-- Um gasto da família (tela de edição do administrador). Mesmas colunas, com o mesmo can_adjust.
 create function public.family_expense(p_id uuid)
 returns table (id uuid, effective_on date, amount_cents bigint, category_key text, category_name text,
-               note text, author_id uuid, author_name text, created_at timestamptz)
+               note text, author_id uuid, author_name text, created_at timestamptz, can_adjust boolean)
 language sql stable security definer set search_path = '' as $$
   select t.id, coalesce(t.paid_on, t.occurred_on), t.amount_cents,
          coalesce(c.default_key, t.ex_category_key), coalesce(c.name, t.ex_category_name, 'Outros'),
@@ -725,7 +737,12 @@ language sql stable security definer set search_path = '' as $$
          (select fm.display_name from public.family_members fm
             where fm.family_id = t.family_id and fm.user_id = t.user_id
             order by fm.joined_at desc limit 1),
-         t.created_at
+         t.created_at,
+         (coalesce(public.my_family_role() = 'admin', false)
+            and t.installment_plan_id is null and t.goal_id is null
+            and (t.user_id is null or exists (
+              select 1 from public.family_members fa
+              where fa.family_id = t.family_id and fa.user_id = t.user_id and fa.left_at is null)))
   from public.transactions t
   left join public.categories c on c.id = t.category_id and c.user_id = t.user_id
   where t.id = p_id and t.family_id = public.my_family_id()
