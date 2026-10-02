@@ -552,3 +552,138 @@ grant execute on function
   public.generate_family_occurrences_for(uuid),
   public.job_generate_occurrences()
 to service_role;
+
+-- ============================================================================
+-- Seção 3 — convite da família por e-mail (RF-42) e limpeza diária
+-- ============================================================================
+
+-- 14. O convite por e-mail é o convite por link do Plano 7 (7 dias, uma
+--     pessoa, um por vez, só o resumo do código no banco) entregue por e-mail.
+--     - invited_email: o endereço de quem foi convidado é dado de terceiro.
+--       Fica só enquanto o convite está pendente (para "Reenviar"), só o
+--       administrador lê, e some quando o convite é aceito, cancelado ou vence.
+--     - sent_by_email fica: é o que conta para os limites por período.
+--     - invited_email_hash: o SHA-256 do endereço, só para o limite por
+--       destinatário (item 15). Ninguém lê pela API (sem permissão na coluna),
+--       fica mesmo depois de o convite ser cancelado (senão cancelar zeraria o
+--       limite) e é apagado pela limpeza diária depois de 7 dias (item 16).
+alter table public.family_invites
+  add column invited_email text check (
+    invited_email is null
+    or (char_length(invited_email) between 6 and 254
+        and invited_email = lower(invited_email)
+        and invited_email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$')
+  ),
+  add column sent_by_email boolean not null default false,
+  add column invited_email_hash bytea check (invited_email_hash is null or octet_length(invited_email_hash) = 32),
+  add constraint family_invites_email_only_pending
+    check (invited_email is null or (accepted_at is null and revoked_at is null));
+
+create index family_invites_sent_idx on public.family_invites (created_at) where sent_by_email;
+create index family_invites_email_hash_idx on public.family_invites (invited_email_hash, created_at)
+  where invited_email_hash is not null;
+
+-- A política do Plano 7 já limita a leitura ao administrador da família.
+-- invited_email_hash fica de fora de propósito.
+grant select (invited_email, sent_by_email) on public.family_invites to authenticated;
+
+create function public.family_invites_clear_email() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if new.accepted_at is not null or new.revoked_at is not null then
+    new.invited_email := null;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger family_invites_clear_email before update on public.family_invites
+  for each row execute function public.family_invites_clear_email();
+
+-- 15. Convidar por e-mail: só o administrador. Ninguém usa a Íris para encher
+--     a caixa de entrada de outra pessoa nem para mandar texto próprio em nome
+--     da Íris. Limites, todos com a mesma resposta ("Limite de convites."):
+--     a) 5 por família E 5 por pessoa a cada 24 horas. O limite por pessoa usa
+--        created_by, que não muda quando a pessoa encerra a família e cria
+--        outra: recriar a família não zera a conta;
+--     b) 3 para o mesmo endereço a cada 7 dias, somando todas as famílias
+--        (pelo resumo do endereço);
+--     c) 100 no total a cada 24 horas (abaixo da cota gratuita de envio, que é
+--        a mesma dos e-mails de recuperação de senha). Aproximado: não há
+--        trava global, de propósito.
+--     Não consulta se o e-mail tem cadastro: a resposta é sempre a mesma.
+--     Devolve só o código e a validade, só para quem pediu (a Server Action
+--     monta o link e envia; o código não é guardado). Nenhum nome sai daqui: o
+--     assunto do e-mail é fixo, definido no app, sem texto escolhido por
+--     quem convida.
+--     O link continua sendo um convite normal do Plano 7: vale para quem o
+--     tiver (uma pessoa, 7 dias), entra sempre como membro.
+--     SECURITY DEFINER: family_invites não aceita gravação direta.
+create function public.create_family_email_invite(p_email text)
+returns table (invite_code text, invite_expires_at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_family uuid := public.my_family_id();
+  v_email text := lower(btrim(coalesce(p_email, '')));
+  v_hash bytea;
+  v_code text;
+  v_expires timestamptz;
+begin
+  if v_uid is null then
+    raise exception 'Sessão necessária.' using errcode = '42501';
+  end if;
+  if v_family is null or public.my_family_role() is distinct from 'admin' then
+    raise exception 'Só quem administra a família pode fazer isso.' using errcode = '42501';
+  end if;
+  if char_length(v_email) not between 6 and 254
+     or v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
+    raise exception 'E-mail inválido.';
+  end if;
+  v_hash := extensions.digest(v_email, 'sha256');
+  -- Mesma ordem de travas de create_family_invite (família, depois convite).
+  perform 1 from public.families f where f.id = v_family for update;
+  if (select count(*) from public.family_invites i
+      where i.sent_by_email and i.created_at > now() - interval '24 hours'
+        and (i.family_id = v_family or i.created_by = v_uid)) >= 5
+     or (select count(*) from public.family_invites i
+         where i.invited_email_hash = v_hash and i.created_at > now() - interval '7 days') >= 3
+     or (select count(*) from public.family_invites i
+         where i.sent_by_email and i.created_at > now() - interval '24 hours') >= 100 then
+    raise exception 'Limite de convites.';
+  end if;
+  -- Confere de novo o papel depois da trava, cancela o convite anterior e cria o novo.
+  select c.invite_code, c.invite_expires_at into v_code, v_expires from public.create_family_invite() c;
+  update public.family_invites i
+    set invited_email = v_email, invited_email_hash = v_hash, sent_by_email = true
+    where i.family_id = v_family and i.token_hash = extensions.digest(v_code, 'sha256');
+  return query select v_code, v_expires;
+end;
+$$;
+
+-- 16. Limpeza diária (agenda própria, seção 4): e-mail de convite vencido,
+--     resumo de endereço com mais de 7 dias (já não conta para limite nenhum),
+--     avisos antigos (a fila só precisa lembrar do que já avisou por pouco
+--     tempo) e o histórico do agendador (cresce a cada execução). Um problema
+--     no histórico do agendador não impede o resto.
+create function public.job_cleanup() returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.family_invites i set invited_email = null
+    where i.invited_email is not null and i.expires_at <= now();
+  update public.family_invites i set invited_email_hash = null
+    where i.invited_email_hash is not null and i.created_at < now() - interval '7 days';
+  delete from public.notification_log nl where nl.created_at < now() - interval '90 days';
+  begin
+    delete from cron.job_run_details d where d.end_time < now() - interval '7 days';
+  exception when others then
+    raise warning 'job_cleanup (agendador): %', sqlstate;
+  end;
+end;
+$$;
+
+revoke execute on function public.family_invites_clear_email() from public, anon, authenticated;
+revoke execute on function public.create_family_email_invite(text) from public, anon;
+grant execute on function public.create_family_email_invite(text) to authenticated;
+revoke execute on function public.job_cleanup() from public, anon, authenticated;
+grant execute on function public.job_cleanup() to service_role;
