@@ -15,6 +15,14 @@ export const INVITE_CODE = /^[A-Za-z0-9_-]{32}$/
 export const inviteCodeSchema = z.string().regex(INVITE_CODE)
 export const memberIdSchema = z.uuid()
 
+export const INVITE_EMAIL_ERROR = 'Confira o e-mail. Parece que falta alguma coisa.'
+// O endereço digitado é dado pessoal: só vai ao banco e ao envio de e-mail, nunca a log, aviso ou endereço da página.
+export const inviteEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.email({ error: INVITE_EMAIL_ERROR }).min(6, { error: INVITE_EMAIL_ERROR }).max(254, { error: INVITE_EMAIL_ERROR }))
+
 export function inviteLink(siteUrl: string, code: string): string {
   return `${siteUrl}/convite/${code}`
 }

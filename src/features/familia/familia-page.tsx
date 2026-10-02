@@ -9,6 +9,7 @@ import { FamilyCreate } from './family-create'
 import { InvitePanel } from './invite-panel'
 import { LeaveFamily } from './leave-family'
 import { MemberActions } from './member-actions'
+import { ResendInvite } from './resend-invite'
 import type { FamiliaPageView } from './view-model'
 
 const SEES =
@@ -100,11 +101,17 @@ export function FamiliaPage({ view, erro }: { view: FamiliaPageView; erro?: stri
           <h2 id="invite-title" className="px-1 text-sm font-semibold text-inactive">Convidar pessoa</h2>
           {view.invite && (
             <Card className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[15px] text-ink">{view.invite.caption}</p>
-              <form action={revokeInvite}>
-                <input type="hidden" name="id" value={view.invite.id} />
-                <button type="submit" className="min-h-11 text-sm font-medium text-error-ink">Cancelar convite</button>
-              </form>
+              <div className="flex min-w-0 flex-col">
+                {view.invite.email && <p className="break-all text-[15px] text-ink">{view.invite.email}</p>}
+                <p className={view.invite.email ? 'text-[13px] text-muted' : 'text-[15px] text-ink'}>{view.invite.caption}</p>
+              </div>
+              <div className="flex flex-wrap items-start gap-x-4">
+                {view.invite.email && <ResendInvite id={view.invite.id} />}
+                <form action={revokeInvite}>
+                  <input type="hidden" name="id" value={view.invite.id} />
+                  <button type="submit" className="min-h-11 text-sm font-medium text-error-ink">Cancelar convite</button>
+                </form>
+              </div>
             </Card>
           )}
           {view.canInvite && <InvitePanel />}

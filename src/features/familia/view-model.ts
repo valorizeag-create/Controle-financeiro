@@ -39,7 +39,7 @@ export type FamiliaPageView =
       name: string
       isAdmin: boolean
       members: { userId: string; label: string; initial: string; caption: string; isMe: boolean; isAdmin: boolean }[]
-      invite: { id: string; caption: string } | null
+      invite: { id: string; caption: string; email: string | null } | null
       canInvite: boolean
       events: string[]
       leave: 'member' | 'admin-with-others' | 'alone'
@@ -70,7 +70,13 @@ export function buildFamiliaPage(input: { family: MyFamily | null; today: ISODat
   // O convite mais recente (o que vence por último).
   const latest = isAdmin ? [...family.invites].sort((a, b) => b.expiresAt.localeCompare(a.expiresAt))[0] : undefined
   const invite = latest
-    ? { id: latest.id, caption: `Convite pendente · vale até ${dayMonthLabel(todayInSaoPaulo(new Date(latest.expiresAt)))}` }
+    ? {
+        id: latest.id,
+        caption: latest.invitedEmail
+          ? 'Convite enviado · aguardando'
+          : `Convite pendente · vale até ${dayMonthLabel(todayInSaoPaulo(new Date(latest.expiresAt)))}`,
+        email: latest.invitedEmail,
+      }
     : null
   const leave = !isAdmin ? 'member' : active.length > 1 ? 'admin-with-others' : 'alone'
   return {

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { familyBillSchema, familyNameSchema, familyPatch, familyReturnPath, makeFamilyExpenseSchema, inviteCodeSchema, inviteLink, memberIdSchema } from './schemas'
+import { familyBillSchema, familyNameSchema, familyPatch, familyReturnPath, makeFamilyExpenseSchema, inviteCodeSchema, inviteEmailSchema, inviteLink, memberIdSchema } from './schemas'
 
 test('nome da família: limpo, obrigatório, até 40', () => {
   expect(familyNameSchema.safeParse({ name: '  Família   Souza ' }).data).toEqual({ name: 'Família Souza' })
@@ -51,4 +51,13 @@ test('conta da família: nome, valor e dia', () => {
   expect(familyBillSchema.safeParse({ name: ' Aluguel ', amount: '1.800,00', dueDay: '5' }).data).toEqual({ name: 'Aluguel', amountCents: 180000, dueDay: 5 })
   expect(familyBillSchema.safeParse({ name: '', amount: '1', dueDay: '5' }).error?.issues[0].message).toBe('Falta o nome.')
   expect(familyBillSchema.safeParse({ name: 'a', amount: '1', dueDay: '32' }).error?.issues[0].message).toBe('Escolha o dia.')
+})
+
+test('e-mail do convite: minúsculas, sem espaços nas pontas, 6 a 254 caracteres, com a mensagem da copy', () => {
+  expect(inviteEmailSchema.safeParse('  Jordan@Email.COM ').data).toBe('jordan@email.com')
+  for (const bad of ['', 'sem-arroba', 'a@b', 'a b@c.dev', 'a@b.c', `${'a'.repeat(250)}@x.dev`]) {
+    const r = inviteEmailSchema.safeParse(bad)
+    expect(r.success, bad).toBe(false)
+    expect(r.error?.issues[0].message).toBe('Confira o e-mail. Parece que falta alguma coisa.')
+  }
 })

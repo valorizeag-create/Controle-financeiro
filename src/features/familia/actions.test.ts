@@ -8,7 +8,14 @@ const h = vi.hoisted(() => {
       this.url = url
     }
   }
-  return { RedirectSignal, supabase: null as unknown, setFlash: vi.fn(async (_m: string) => {}), refresh: vi.fn(), revalidatePath: vi.fn() }
+  return {
+    RedirectSignal,
+    supabase: null as unknown,
+    mailer: null as null | { send: (m: unknown) => Promise<void> },
+    setFlash: vi.fn(async (_m: string) => {}),
+    refresh: vi.fn(),
+    revalidatePath: vi.fn(),
+  }
 })
 
 vi.mock('server-only', () => ({}))
@@ -17,6 +24,7 @@ vi.mock('@/lib/supabase/server', () => ({
   requireUser: async () => ({ id: 'u1', email: 'ana@teste.iris.dev' }),
 }))
 vi.mock('@/lib/env', () => ({ env: { siteUrl: 'https://iris.app' } }))
+vi.mock('@/features/notificacoes/mailer', () => ({ getMailer: () => h.mailer }))
 vi.mock('@/lib/flash', () => ({ setFlash: h.setFlash }))
 vi.mock('@/lib/refresh', () => ({ refreshMoneyViews: h.refresh }))
 vi.mock('next/cache', () => ({ revalidatePath: h.revalidatePath }))
@@ -95,6 +103,7 @@ beforeEach(() => {
   rpcResults = {}
   rows = {}
   h.supabase = fakeSupabase()
+  h.mailer = null
   h.setFlash.mockClear()
   h.refresh.mockClear()
   h.revalidatePath.mockClear()
@@ -244,5 +253,169 @@ describe('remover e passar a administração', () => {
     queue({})
     expect(await redirectOf(actions.removeMember(form({ userId: UUID })))).toBe('/familia?erro=1')
     expect(h.setFlash).not.toHaveBeenCalled()
+  })
+})
+
+const CODE = 'AbCdEfGhIjKlMnOpQrStUvWxYz012345'
+const EXPIRES = '2026-10-05T15:00:00Z'
+const emailForm = (email: string) => form({ email })
+const sentMail = () =>
+  ((h.mailer?.send ?? vi.fn()) as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as { to: string; subject: string; text: string; html: string })
+const NOTICE = 'Não conseguimos enviar o e-mail agora. Você pode enviar o link abaixo.'
+const LIMIT = 'Você já enviou alguns convites hoje. Dá para enviar de novo amanhã, ou compartilhar o link.'
+const BAD_EMAIL = 'Confira o e-mail. Parece que falta alguma coisa.'
+const familyRows = { family_members: [{ family_id: 'f1', role: 'admin' }], families: [{ id: 'f1', name: 'Família Souza' }], profiles: [{ display_name: 'Camila' }] }
+
+describe('inviteByEmail', () => {
+  beforeEach(() => {
+    h.mailer = { send: vi.fn(async () => {}) }
+    rpcData('create_family_email_invite', [{ invite_code: CODE, invite_expires_at: EXPIRES }])
+    queue(familyRows)
+  })
+
+  test('cria o convite pelo banco e envia o link por e-mail; nada do código nem do endereço em aviso ou log', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const state = await actions.inviteByEmail(idle, emailForm('  Jordan@Email.com '))
+    expect(rpcCalls).toEqual([{ fn: 'create_family_email_invite', args: { p_email: 'jordan@email.com' } }])
+    const [mail] = sentMail()
+    expect(sentMail()).toHaveLength(1)
+    expect(mail.to).toBe('jordan@email.com')
+    expect(mail.subject).toBe('Você recebeu um convite na Íris')
+    expect(mail.text).toContain(`https://iris.app/convite/${CODE}`)
+    expect(mail.html).toContain(`https://iris.app/convite/${CODE}`)
+    expect(mail.text).toContain('Camila')
+    expect(mail.text).toContain('Família Souza')
+    expect(state).toEqual({ status: 'sent', email: 'jordan@email.com', expiresOn: '2026-10-05' })
+    expect(JSON.stringify(h.setFlash.mock.calls)).toBe('[]')
+    const logged = JSON.stringify([log.mock.calls, warn.mock.calls, out.mock.calls])
+    expect(logged).not.toContain(CODE)
+    expect(logged).not.toContain('jordan')
+    expect(h.revalidatePath).toHaveBeenCalledWith('/familia')
+  })
+
+  test('a família sai do banco pela participação da própria pessoa, nunca do formulário', async () => {
+    const fd = emailForm('jordan@email.com')
+    fd.set('familyId', 'outra-familia')
+    await actions.inviteByEmail(idle, fd)
+    expect(calls.find((c) => c.table === 'family_members')?.filters).toEqual({ 'eq:user_id': 'u1', 'is:left_at': null })
+    expect(calls.find((c) => c.table === 'families')?.filters).toEqual({ 'eq:id': 'f1' })
+    expect(calls.find((c) => c.table === 'profiles')?.filters).toEqual({ 'eq:id': 'u1' })
+    expect(rpcCalls[0].args).toEqual({ p_email: 'jordan@email.com' })
+  })
+
+  test('sem nome de quem convida, o e-mail sai sem esse nome', async () => {
+    queue({ ...familyRows, profiles: [{ display_name: null }] })
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toMatchObject({ status: 'sent' })
+    expect(sentMail()[0].text).not.toContain('Camila')
+  })
+
+  test.each(['', '   ', 'sem-arroba', 'a@b', 'a b@c.dev', 'um@dois@tres.dev', `${'a'.repeat(250)}@x.dev`])(
+    'e-mail que não serve (%j): mensagem da copy, nada é criado nem enviado',
+    async (email) => {
+      const state = await actions.inviteByEmail(idle, emailForm(email))
+      expect(state).toEqual({ status: 'error', message: BAD_EMAIL })
+      expect(rpcCalls).toEqual([])
+      expect(sentMail()).toEqual([])
+    },
+  )
+
+  test('sem o campo: mesma mensagem', async () => {
+    expect(await actions.inviteByEmail(idle, new FormData())).toEqual({ status: 'error', message: BAD_EMAIL })
+    expect(rpcCalls).toEqual([])
+  })
+
+  test('limite de convites: mensagem calma, sem enviar', async () => {
+    rpcError('create_family_email_invite', 'Limite de convites.')
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual({ status: 'error', message: LIMIT })
+    expect(sentMail()).toEqual([])
+    expect(h.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  test('família completa, quem não administra, e-mail recusado pelo banco', async () => {
+    rpcError('create_family_email_invite', 'A família já está completa.')
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual({ status: 'error', message: 'A família já está completa.' })
+    rpcError('create_family_email_invite', 'Só quem administra a família pode fazer isso.', '42501')
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual({ status: 'error', message: 'Só quem administra a família pode fazer isso.' })
+    rpcError('create_family_email_invite', 'E-mail inválido.')
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual({ status: 'error', message: BAD_EMAIL })
+    expect(sentMail()).toEqual([])
+  })
+
+  test('impasse no banco pede para tentar de novo; erro qualquer não mostra o erro do banco', async () => {
+    rpcError('create_family_email_invite', 'deadlock detected', '40P01')
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual({ status: 'error', message: UNEXPECTED })
+    rpcError('create_family_email_invite', 'connection reset jordan@email.com')
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual({ status: 'error', message: SAVE_FAILED })
+  })
+
+  test('resposta do banco sem código válido: erro, nada é enviado', async () => {
+    rpcData('create_family_email_invite', [{ invite_code: 'curto', invite_expires_at: EXPIRES }])
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual({ status: 'error', message: SAVE_FAILED })
+    expect(sentMail()).toEqual([])
+  })
+
+  test('e-mail desligado ou com falha: o convite existe, e quem convida recebe o link para enviar por conta própria', async () => {
+    const ready = { status: 'ready', link: `https://iris.app/convite/${CODE}`, expiresOn: '2026-10-05', notice: NOTICE }
+    h.mailer = null
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual(ready)
+    queue(familyRows)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    h.mailer = { send: vi.fn(async () => { throw new Error('smtp jordan@email.com') }) }
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toEqual(ready)
+    expect(log).not.toHaveBeenCalled()
+    expect(h.revalidatePath).toHaveBeenCalledWith('/familia')
+  })
+
+  test('não consegui ler os nomes: o convite existe, então vem o link, não um erro', async () => {
+    queue({ family_members: [{ family_id: 'f1', role: 'admin' }], families: [], profiles: [] })
+    expect(await actions.inviteByEmail(idle, emailForm('jordan@email.com'))).toMatchObject({ status: 'ready', notice: NOTICE })
+    expect(sentMail()).toEqual([])
+  })
+
+  test('a resposta de sucesso é a mesma, quem quer que seja o destinatário', async () => {
+    const a = await actions.inviteByEmail(idle, emailForm('quem-tem-cadastro@email.com'))
+    queue(familyRows)
+    const b = await actions.inviteByEmail(idle, emailForm('ninguem@email.com'))
+    expect(Object.keys(a)).toEqual(Object.keys(b))
+    expect(a).toMatchObject({ status: 'sent', expiresOn: '2026-10-05' })
+  })
+})
+
+describe('resendInvite', () => {
+  beforeEach(() => {
+    h.mailer = { send: vi.fn(async () => {}) }
+    rpcData('create_family_email_invite', [{ invite_code: CODE, invite_expires_at: EXPIRES }])
+  })
+
+  test('lê o e-mail do convite pendente (só o administrador enxerga) e envia um convite novo', async () => {
+    queue({ family_invites: [{ invited_email: 'jordan@email.com' }], ...familyRows })
+    const state = await actions.resendInvite(idle, form({ id: UUID }))
+    const read = calls.find((c) => c.table === 'family_invites')!
+    expect(read.filters).toEqual({ 'eq:id': UUID, 'is:accepted_at': null, 'is:revoked_at': null })
+    expect(rpcCalls).toEqual([{ fn: 'create_family_email_invite', args: { p_email: 'jordan@email.com' } }])
+    expect(sentMail()[0].to).toBe('jordan@email.com')
+    expect(state).toEqual({ status: 'sent', email: 'jordan@email.com', expiresOn: '2026-10-05' })
+  })
+
+  test('o limite vale também para reenviar', async () => {
+    queue({ family_invites: [{ invited_email: 'jordan@email.com' }] })
+    rpcError('create_family_email_invite', 'Limite de convites.')
+    expect(await actions.resendInvite(idle, form({ id: UUID }))).toEqual({ status: 'error', message: LIMIT })
+    expect(sentMail()).toEqual([])
+  })
+
+  test('convite que não existe mais, sem e-mail, e-mail estranho ou id estranho: nada é enviado', async () => {
+    queue({ family_invites: [] })
+    expect(await actions.resendInvite(idle, form({ id: UUID }))).toEqual({ status: 'error', message: SAVE_FAILED })
+    queue({ family_invites: [{ invited_email: null }] })
+    expect(await actions.resendInvite(idle, form({ id: UUID }))).toEqual({ status: 'error', message: SAVE_FAILED })
+    queue({ family_invites: [{ invited_email: 'nao-e-email' }] })
+    expect(await actions.resendInvite(idle, form({ id: UUID }))).toEqual({ status: 'error', message: SAVE_FAILED })
+    expect(await actions.resendInvite(idle, form({ id: 'abc' }))).toEqual({ status: 'error', message: SAVE_FAILED })
+    expect(await actions.resendInvite(idle, new FormData())).toEqual({ status: 'error', message: SAVE_FAILED })
+    expect(rpcCalls).toEqual([])
+    expect(sentMail()).toEqual([])
   })
 })

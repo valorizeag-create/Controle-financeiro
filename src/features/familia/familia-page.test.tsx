@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { FamiliaPageView } from './view-model'
 
 vi.mock('./actions', () => ({
-  createFamily: vi.fn(), createInvite: vi.fn(), revokeInvite: vi.fn(), leaveFamily: vi.fn(), removeMember: vi.fn(), transferAdmin: vi.fn(),
+  createFamily: vi.fn(), createInvite: vi.fn(), inviteByEmail: vi.fn(), resendInvite: vi.fn(), revokeInvite: vi.fn(), leaveFamily: vi.fn(), removeMember: vi.fn(), transferAdmin: vi.fn(),
 }))
 
 const { FamiliaPage } = await import('./familia-page')
@@ -18,7 +18,7 @@ const view = (p: Partial<Member> = {}): FamiliaPageView => ({
     { userId: 'u1', label: 'Você', initial: 'C', caption: 'Administra a família', isMe: true, isAdmin: true },
     { userId: 'u2', label: 'Alex', initial: 'A', caption: 'Membro desde agosto', isMe: false, isAdmin: false },
   ],
-  invite: { id: 'i1', caption: 'Convite pendente · vale até 4 de outubro' },
+  invite: { id: 'i1', caption: 'Convite pendente · vale até 4 de outubro', email: null },
   canInvite: true, events: ['Jordan saiu da família.'], leave: 'admin-with-others', ...p,
 })
 const asMember = () => view({ isAdmin: false, invite: null, canInvite: false, leave: 'member' })
@@ -49,6 +49,29 @@ test('administrador: ações, convite pendente, nenhuma ação sobre si mesmo; a
   for (const el of container.querySelectorAll('button')) {
     expect(/min-h-(11|12|14)|size-11/.test(el.className), el.textContent ?? '').toBe(true)
   }
+})
+
+test('administrador vê o e-mail convidado, "Reenviar" e "Cancelar convite"; membro não vê nada disso', () => {
+  const { container } = render(<FamiliaPage view={view({ invite: { id: 'i1', caption: 'Convite enviado · aguardando', email: 'jordan@email.com' } })} />)
+  expect(screen.getByText('jordan@email.com')).toBeTruthy()
+  expect(screen.getByText('Convite enviado · aguardando')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Reenviar' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Cancelar convite' })).toBeTruthy()
+  expect(screen.getByLabelText('E-mail de quem vai participar')).toBeTruthy()
+  for (const el of container.querySelectorAll('button')) {
+    expect(/min-h-(11|12|14)|size-11/.test(el.className), el.textContent ?? '').toBe(true)
+  }
+  cleanup()
+  render(<FamiliaPage view={asMember()} />)
+  expect(screen.queryByText('jordan@email.com')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Reenviar' })).toBeNull()
+  expect(screen.queryByLabelText('E-mail de quem vai participar')).toBeNull()
+})
+
+test('convite por link: sem e-mail e sem "Reenviar"', () => {
+  render(<FamiliaPage view={view()} />)
+  expect(screen.queryByRole('button', { name: 'Reenviar' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Cancelar convite' })).toBeTruthy()
 })
 
 test('administrador com outros: sem botão de sair, com o texto de antes de sair', () => {

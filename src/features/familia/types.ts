@@ -32,14 +32,16 @@ export function toMemberRow(r: MemberRawRow): MemberRow {
 export interface InviteRow {
   id: string
   expiresAt: string
+  // Só o administrador lê (regra do banco); null no convite por link.
+  invitedEmail: string | null
 }
 
-export type InviteRawRow = { id: string; expires_at: string }
+export type InviteRawRow = { id: string; expires_at: string; invited_email: string | null }
 
-export const INVITE_COLUMNS = 'id, expires_at'
+export const INVITE_COLUMNS = 'id, expires_at, invited_email'
 
 export function toInviteRow(r: InviteRawRow): InviteRow {
-  return { id: r.id, expiresAt: r.expires_at }
+  return { id: r.id, expiresAt: r.expires_at, invitedEmail: r.invited_email ?? null }
 }
 
 // Sem member_id de propósito: a coluna só existe para apagar nomes quando alguém

@@ -124,11 +124,11 @@ test('membro não lê convites; administrador lê só os pendentes, válidos e d
     family_members: [[{ family_id: 'f1' }], [member('admin')]],
     families: [[{ id: 'f1', name: 'Família Souza' }]],
     family_events: [[]],
-    family_invites: [[{ id: 'i1', expires_at: '2026-10-05T12:00:00Z' }]],
+    family_invites: [[{ id: 'i1', expires_at: '2026-10-05T12:00:00Z', invited_email: 'jordan@email.com' }]],
   })
   const fam = (await loadMyFamily())!
   expect(fam.role).toBe('admin')
-  expect(fam.invites).toEqual([{ id: 'i1', expiresAt: '2026-10-05T12:00:00Z' }])
+  expect(fam.invites).toEqual([{ id: 'i1', expiresAt: '2026-10-05T12:00:00Z', invitedEmail: 'jordan@email.com' }])
   expect(calls.find((c) => c.table === 'family_invites')?.filters).toEqual({
     'eq:family_id': 'f1', 'is:accepted_at': null, 'is:revoked_at': null, 'gt:expires_at': '2026-09-28T15:00:00.000Z',
   })

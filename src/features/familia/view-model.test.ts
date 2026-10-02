@@ -26,12 +26,23 @@ test('protótipo Familia: Você primeiro, quem saiu fica de fora, legendas', () 
 })
 
 test('convite pendente só para o administrador; sair conforme o papel (RN-25)', () => {
-  const admin = buildFamiliaPage({ family: fam({ invites: [{ id: 'i1', expiresAt: '2026-10-05T02:00:00Z' }] }), today: '2026-09-28' })
-  expect(admin.kind === 'member' && admin.invite).toEqual({ id: 'i1', caption: 'Convite pendente · vale até 4 de outubro' })
-  const member = buildFamiliaPage({ family: fam({ role: 'member', meId: 'u2', invites: [{ id: 'i1', expiresAt: '2026-10-05T02:00:00Z' }] }), today: '2026-09-28' })
+  const admin = buildFamiliaPage({ family: fam({ invites: [{ id: 'i1', expiresAt: '2026-10-05T02:00:00Z', invitedEmail: null }] }), today: '2026-09-28' })
+  expect(admin.kind === 'member' && admin.invite).toEqual({ id: 'i1', caption: 'Convite pendente · vale até 4 de outubro', email: null })
+  const member = buildFamiliaPage({ family: fam({ role: 'member', meId: 'u2', invites: [{ id: 'i1', expiresAt: '2026-10-05T02:00:00Z', invitedEmail: 'jordan@email.com' }] }), today: '2026-09-28' })
   expect(member.kind === 'member' && [member.isAdmin, member.invite, member.canInvite, member.leave]).toEqual([false, null, false, 'member'])
   const alone = buildFamiliaPage({ family: fam({ members: [fam().members[1]] }), today: '2026-09-28' })
   expect(alone.kind === 'member' && alone.leave).toBe('alone')
+})
+
+test('convite pendente enviado por e-mail mostra o e-mail e "Convite enviado · aguardando"', () => {
+  const view = buildFamiliaPage({ family: fam({ invites: [{ id: 'i1', expiresAt: '2026-10-05T15:00:00Z', invitedEmail: 'jordan@email.com' }] }), today: '2026-09-28' })
+  expect(view.kind === 'member' && view.invite).toEqual({ id: 'i1', caption: 'Convite enviado · aguardando', email: 'jordan@email.com' })
+})
+
+test('convite por link continua como antes, sem e-mail', () => {
+  const view = buildFamiliaPage({ family: fam({ invites: [{ id: 'i1', expiresAt: '2026-10-05T15:00:00Z', invitedEmail: null }] }), today: '2026-09-28' })
+  expect(view.kind === 'member' && view.invite).toMatchObject({ id: 'i1', email: null })
+  expect(view.kind === 'member' && view.invite?.caption).toContain('Convite pendente')
 })
 
 test('família completa não convida', () => {

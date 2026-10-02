@@ -65,7 +65,8 @@ test('participação e convite', () => {
   expect(toMemberRow({ user_id: null, role: 'member', display_name: null, joined_at: 'j', left_at: 'l' })).toEqual({
     userId: null, role: 'member', displayName: null, joinedAt: 'j', leftAt: 'l',
   })
-  expect(toInviteRow({ id: 'i1', expires_at: 'x' })).toEqual({ id: 'i1', expiresAt: 'x' })
+  expect(toInviteRow({ id: 'i1', expires_at: 'x', invited_email: null })).toEqual({ id: 'i1', expiresAt: 'x', invitedEmail: null })
+  expect(toInviteRow({ id: 'i1', expires_at: 'x', invited_email: 'a@b.dev' }).invitedEmail).toBe('a@b.dev')
 })
 
 test('meta da família: soma guardada e quem criou', () => {
