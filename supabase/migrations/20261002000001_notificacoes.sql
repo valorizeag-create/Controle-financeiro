@@ -16,6 +16,18 @@
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
 
+-- O Vault (endereço da rota da tarefa e o código de disparo, seção 4) já vem
+-- ligado no Supabase. Aqui só se garante que existe, sem depender do padrão
+-- da imagem; se não puder ser criado, o disparo fica desligado e o resto
+-- funciona (job_dispatch só devolve falso).
+do $$
+begin
+  create extension if not exists supabase_vault with schema vault;
+exception when others then
+  raise notice 'supabase_vault: %', sqlstate;
+end;
+$$;
+
 -- ============================================================================
 -- Seção 1 — preferências, inscrições de push e fila de avisos
 -- ============================================================================
@@ -687,3 +699,684 @@ revoke execute on function public.create_family_email_invite(text) from public, 
 grant execute on function public.create_family_email_invite(text) to authenticated;
 revoke execute on function public.job_cleanup() from public, anon, authenticated;
 grant execute on function public.job_cleanup() to service_role;
+
+-- ============================================================================
+-- Seção 4 — segredo da tarefa, enfileirar, entregar o lote, avisos da família
+--           e agenda
+-- ============================================================================
+
+-- 17. O segredo da tarefa (JOB_SECRET: 32 bytes aleatórios em base64url, 43
+--     caracteres). Ele mora só no ambiente do servidor do app. O banco guarda
+--     só o SHA-256 dele, num esquema que a API não expõe: o segredo em si
+--     nunca fica no banco, nem no Vault, nem passa pelo pg_net.
+--     A rota da tarefa usa a chave pública, sem sessão (papel anon), e manda o
+--     segredo como parâmetro das funções dos itens 22, 23 e 25. Sem o segredo
+--     certo elas não fazem nem devolvem nada.
+--     Várias linhas com rótulo: trocar o segredo (grava o novo com outro
+--     rótulo, muda o ambiente, apaga o antigo) e deixar os testes gravarem o
+--     deles sem mexer no de quem desenvolve.
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated, service_role;
+
+create table private.job_secrets (
+  label text primary key check (label ~ '^[a-z0-9-]{1,40}$'),
+  secret_hash bytea not null check (octet_length(secret_hash) = 32),
+  created_at timestamptz not null default now()
+);
+
+-- Sem política: ninguém além do dono (as funções SECURITY DEFINER abaixo).
+alter table private.job_secrets enable row level security;
+revoke all on private.job_secrets from public, anon, authenticated, service_role;
+
+-- Grava ou apaga (p_hash_hex nulo) um resumo. Recebe só o resumo em
+-- hexadecimal: o segredo não chega ao banco, ao log de comandos nem ao editor
+-- de SQL. No máximo 5 rótulos. Só service_role (script local e testes de
+-- banco); no Supabase hospedado, quem cuida do projeto roda a mesma chamada no
+-- editor de SQL. SECURITY DEFINER: o esquema private não tem acesso nenhum.
+create function public.job_secret_set(p_label text, p_hash_hex text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if p_label is null or p_label !~ '^[a-z0-9-]{1,40}$' then
+    raise exception 'Segredo inválido.';
+  end if;
+  if p_hash_hex is null then
+    delete from private.job_secrets s where s.label = p_label;
+    return;
+  end if;
+  if p_hash_hex !~ '^[0-9a-f]{64}$'
+     or (select count(*) from private.job_secrets s where s.label <> p_label) >= 4 then
+    raise exception 'Segredo inválido.';
+  end if;
+  insert into private.job_secrets (label, secret_hash) values (p_label, decode(p_hash_hex, 'hex'))
+  on conflict (label) do update set secret_hash = excluded.secret_hash, created_at = now();
+end;
+$$;
+
+-- Confere o segredo sem dar pista pelo tempo de resposta: os dois lados viram
+-- um resumo e depois um HMAC com uma chave sorteada nesta chamada, então a
+-- comparação de bytes é feita sobre valores que quem chama não prevê.
+-- bool_or compara todas as linhas (não para na primeira). O tamanho é
+-- conferido depois da comparação: segredo malformado custa o mesmo que errado.
+create function private.job_secret_ok(p_secret text) returns boolean
+language plpgsql volatile set search_path = '' as $$
+declare
+  v_key bytea := extensions.gen_random_bytes(32);
+  v_given bytea := extensions.hmac(extensions.digest(coalesce(p_secret, ''), 'sha256'), v_key, 'sha256');
+  v_ok boolean;
+begin
+  select coalesce(bool_or(extensions.hmac(s.secret_hash, v_key, 'sha256') = v_given), false)
+    into v_ok from private.job_secrets s;
+  return v_ok and p_secret is not null and octet_length(p_secret) between 43 and 128;
+end;
+$$;
+
+-- Uma falha só para tudo: segredo errado, nenhum segredo gravado, vazio,
+-- tamanho errado. É o mesmo código que recebe quem chama uma função sem
+-- permissão. O segredo nunca entra numa mensagem de erro.
+create function private.job_require(p_secret text) returns void
+language plpgsql volatile set search_path = '' as $$
+begin
+  if not private.job_secret_ok(p_secret) then
+    raise exception 'permission denied' using errcode = '42501';
+  end if;
+end;
+$$;
+
+revoke execute on function private.job_secret_ok(text), private.job_require(text)
+  from public, anon, authenticated, service_role;
+
+-- 18. Os dados de um aviso, conferidos na hora do envio. Devolve nulo quando
+--     quem recebe não pode (mais) ver aquilo: conta já paga ou que mudou de
+--     dia, pessoa que saiu da família, categoria ou meta excluída, meta já
+--     completa ou que deixou de estar perto, quem voltou a anotar antes do
+--     aviso de retomada. Só as colunas
+--     que as telas da própria pessoa (ou da família, Plano 7) já mostram:
+--     nunca cartão, forma de pagamento, valor da conta, entrada de outra
+--     pessoa nem a parte de outro numa meta. Entrada a receber é sempre
+--     pessoal: nunca vai para a família.
+--     Interna: chamada só por job_claim_notifications.
+create function public.notification_params(p_user uuid, p_kind text, p_ref text) returns jsonb
+language plpgsql stable set search_path = '' as $$
+declare
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_uuid constant text := '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+  v_out jsonb;
+begin
+  if p_user is null or p_kind is null or p_ref is null then
+    return null;
+  end if;
+
+  if p_kind in ('bill_tomorrow', 'bill_today', 'income_today') then
+    if p_ref !~ ('^' || v_uuid || '$') then
+      return null;
+    end if;
+    -- O nome cabe no que o aviso aceita (60 caracteres): uma nota comprida
+    -- não faz o aviso da conta deixar de sair.
+    select jsonb_build_object(
+             'name', left(coalesce(r.name, t.note, t.source), 60), 'id', t.id, 'due_on', t.due_on,
+             'family', t.family_id is not null)
+      into v_out
+    from public.transactions t
+    left join public.recurrences r on r.id = t.recurrence_id
+    where t.id = p_ref::uuid
+      and t.status = 'pending'
+      and t.kind = case when p_kind = 'income_today' then 'income' else 'expense' end
+      and t.due_on = case when p_kind = 'bill_tomorrow' then v_today + 1 else v_today end
+      and coalesce(r.name, t.note, t.source) is not null
+      and (
+        (t.family_id is null and t.user_id = p_user)
+        or (p_kind <> 'income_today'
+            and t.family_id is not null
+            and r.family_id = t.family_id
+            and exists (select 1 from public.family_members fm
+                        where fm.family_id = t.family_id and fm.user_id = p_user and fm.left_at is null)
+            and exists (select 1 from public.family_members au
+                        where au.family_id = t.family_id and au.user_id = t.user_id and au.left_at is null))
+      );
+    return v_out;
+  end if;
+
+  if p_kind = 'budget_near' then
+    if p_ref !~ ('^' || v_uuid || ':20[0-9]{2}-(0[1-9]|1[0-2])$')
+       or split_part(p_ref, ':', 2) <> to_char(v_today, 'YYYY-MM') then
+      return null;
+    end if;
+    select jsonb_build_object('name', c.name) into v_out
+    from public.categories c
+    where c.id = split_part(p_ref, ':', 1)::uuid and c.user_id = p_user;
+    return v_out;
+  end if;
+
+  if p_kind = 'goal_near' then
+    if p_ref !~ ('^' || v_uuid || ':20[0-9]{2}-(0[1-9]|1[0-2])$') then
+      return null;
+    end if;
+    select jsonb_build_object('name', g.name, 'id', g.id, 'remaining_cents', g.target_cents - s.saved) into v_out
+    from public.goals g
+    cross join lateral (
+      select coalesce(sum(case when m.kind = 'deposit' then m.amount_cents else -m.amount_cents end), 0)::bigint as saved
+      from public.goal_movements m
+      where m.goal_id = g.id and m.user_id is not null
+    ) s
+    where g.id = split_part(p_ref, ':', 1)::uuid
+      and g.deleted_on is null and g.status = 'active'
+      and g.target_cents - s.saved > 0
+      -- Ainda falta até um décimo (a mesma regra de queue_own_notification):
+      -- se alguém resgatou ou saiu da família nesse meio-tempo, "faltam só"
+      -- deixou de ser verdade e o aviso não sai.
+      and (g.target_cents - s.saved) * 10 <= g.target_cents
+      and (g.user_id = p_user
+           or (g.family_id is not null and exists (
+                 select 1 from public.family_members fm
+                 where fm.family_id = g.family_id and fm.user_id = p_user and fm.left_at is null)));
+    return v_out;
+  end if;
+
+  if p_kind = 'month_summary' then
+    return case when p_ref ~ '^20[0-9]{2}-(0[1-9]|1[0-2])$' then jsonb_build_object('month', p_ref) end;
+  end if;
+
+  if p_kind = 'daily_reminder' then
+    return case when p_ref = v_today::text then '{}'::jsonb end;
+  end if;
+
+  if p_kind = 'comeback' then
+    -- A referência é o dia do último registro. Quem anotou alguma coisa
+    -- depois dele já voltou: não recebe o aviso. (Datas AAAA-MM-DD comparam
+    -- como texto na mesma ordem dos dias.)
+    if p_ref !~ '^20[0-9]{2}-[0-9]{2}-[0-9]{2}$' then
+      return null;
+    end if;
+    return case when not exists (
+      select 1 from public.transactions t
+      where t.user_id = p_user and t.status = 'confirmed'
+        and to_char((t.updated_at at time zone 'America/Sao_Paulo')::date, 'YYYY-MM-DD') > p_ref
+    ) then '{}'::jsonb end;
+  end if;
+
+  if p_kind = 'family_event' then
+    if p_ref !~ ('^' || v_uuid || '$') then
+      return null;
+    end if;
+    select jsonb_build_object(
+             'event_kind', e.kind, 'member_name', e.member_name, 'goal_name', e.goal_name, 'amount_cents', e.amount_cents)
+      into v_out
+    from public.family_events e
+    where e.id = p_ref::uuid
+      and exists (select 1 from public.family_members fm
+                  where fm.family_id = e.family_id and fm.user_id = p_user and fm.left_at is null);
+    return v_out;
+  end if;
+
+  return null;
+end;
+$$;
+
+-- 19. Manhã (9h de Brasília, A8). p_today existe para os testes escolherem o
+--     dia; a agenda chama job_enqueue_morning, que usa o dia de hoje.
+--     - contas: a pagar que vencem amanhã ou hoje. Pessoal → quem criou; da
+--       família → todos que participam (é o que Família → Contas mostra a
+--       todos, RN-20). Vencida não gera aviso.
+--     - entradas a receber de hoje (só pessoais).
+--     - retomada: o último registro confirmado foi há 5 dias ou mais (até 30);
+--       a referência é o dia desse registro, então o aviso sai uma vez por
+--       intervalo. Só olha os registros dos últimos 30 dias: se o último é
+--       mais antigo, a pessoa não entra de qualquer jeito.
+--     - resumo: no dia 1, quem teve registro no mês que fechou. Não exige
+--       aparelho (também vai por e-mail).
+--     Só entra na fila quem tem a chave ligada (e, menos no resumo, aparelho).
+--     SECURITY DEFINER: lê registros de todas as pessoas e grava na fila, que
+--     não aceita gravação direta.
+create function public.job_enqueue_morning_on(p_today date) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_prev date;
+  v_rows integer;
+  v_count integer := 0;
+begin
+  if p_today is null then
+    return 0;
+  end if;
+
+  insert into public.notification_log (user_id, kind, ref)
+  select t.user_id, case when t.due_on = p_today then 'bill_today' else 'bill_tomorrow' end, t.id::text
+  from public.transactions t
+  where t.kind = 'expense' and t.status = 'pending' and t.family_id is null and t.user_id is not null
+    and t.due_on in (p_today, p_today + 1)
+    and public.notification_enabled(t.user_id, 'bill_today')
+    and exists (select 1 from public.push_subscriptions ps where ps.user_id = t.user_id)
+  on conflict (user_id, kind, ref) do nothing;
+  get diagnostics v_rows = row_count;
+  v_count := v_count + v_rows;
+
+  insert into public.notification_log (user_id, kind, ref)
+  select fm.user_id, case when t.due_on = p_today then 'bill_today' else 'bill_tomorrow' end, t.id::text
+  from public.transactions t
+  join public.recurrences r on r.id = t.recurrence_id and r.family_id = t.family_id
+  join public.family_members au on au.family_id = t.family_id and au.user_id = t.user_id and au.left_at is null
+  join public.family_members fm on fm.family_id = t.family_id and fm.left_at is null and fm.user_id is not null
+  where t.kind = 'expense' and t.status = 'pending' and t.family_id is not null
+    and t.due_on in (p_today, p_today + 1)
+    and public.notification_enabled(fm.user_id, 'bill_today')
+    and exists (select 1 from public.push_subscriptions ps where ps.user_id = fm.user_id)
+  on conflict (user_id, kind, ref) do nothing;
+  get diagnostics v_rows = row_count;
+  v_count := v_count + v_rows;
+
+  insert into public.notification_log (user_id, kind, ref)
+  select t.user_id, 'income_today', t.id::text
+  from public.transactions t
+  where t.kind = 'income' and t.status = 'pending' and t.family_id is null and t.user_id is not null
+    and t.due_on = p_today
+    and public.notification_enabled(t.user_id, 'income_today')
+    and exists (select 1 from public.push_subscriptions ps where ps.user_id = t.user_id)
+  on conflict (user_id, kind, ref) do nothing;
+  get diagnostics v_rows = row_count;
+  v_count := v_count + v_rows;
+
+  insert into public.notification_log (user_id, kind, ref)
+  select x.user_id, 'comeback', x.last_on::text
+  from (
+    select t.user_id, max((t.updated_at at time zone 'America/Sao_Paulo')::date) as last_on
+    from public.transactions t
+    where t.user_id is not null and t.status = 'confirmed'
+      and t.updated_at >= ((p_today - 30)::timestamp at time zone 'America/Sao_Paulo')
+    group by t.user_id
+  ) x
+  where x.last_on between p_today - 30 and p_today - 5
+    and public.notification_enabled(x.user_id, 'comeback')
+    and exists (select 1 from public.push_subscriptions ps where ps.user_id = x.user_id)
+  on conflict (user_id, kind, ref) do nothing;
+  get diagnostics v_rows = row_count;
+  v_count := v_count + v_rows;
+
+  if extract(day from p_today)::int = 1 then
+    v_prev := (p_today - interval '1 month')::date;
+    insert into public.notification_log (user_id, kind, ref)
+    select distinct t.user_id, 'month_summary', to_char(v_prev, 'YYYY-MM')
+    from public.transactions t
+    where t.user_id is not null and t.status = 'confirmed'
+      and coalesce(t.paid_on, t.occurred_on) >= v_prev and coalesce(t.paid_on, t.occurred_on) < p_today
+      and public.notification_enabled(t.user_id, 'month_summary')
+    on conflict (user_id, kind, ref) do nothing;
+    get diagnostics v_rows = row_count;
+    v_count := v_count + v_rows;
+  end if;
+
+  return v_count;
+end;
+$$;
+
+-- 20. Noite (21h de Brasília): lembrete para anotar, só para quem ligou
+--     (RF-47) e ainda não anotou nada hoje. SECURITY DEFINER: mesmo motivo do
+--     item 19.
+create function public.job_enqueue_evening_on(p_today date) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_rows integer := 0;
+begin
+  if p_today is null then
+    return 0;
+  end if;
+  insert into public.notification_log (user_id, kind, ref)
+  select np.user_id, 'daily_reminder', p_today::text
+  from public.notification_prefs np
+  where np.kind = 'daily' and np.enabled
+    and exists (select 1 from public.push_subscriptions ps where ps.user_id = np.user_id)
+    and not exists (
+      select 1 from public.transactions t
+      where t.user_id = np.user_id and t.status = 'confirmed'
+        and (t.created_at at time zone 'America/Sao_Paulo')::date = p_today
+    )
+  on conflict (user_id, kind, ref) do nothing;
+  get diagnostics v_rows = row_count;
+  return v_rows;
+end;
+$$;
+
+-- 21. Avisos da família (RN-22d, RN-22e; decisão 108): cada aviso gravado
+--     pelo Plano 7 entra na fila de quem continua na família. Quem está saindo
+--     ainda aparece como participante nesta hora, e é pulado pelo member_id;
+--     quem está excluindo o cadastro perde a linha na cascata. A fila guarda
+--     só o id do aviso: o que ele diz é lido de family_events na hora do envio
+--     (item 18), só para quem ainda participa — as mesmas colunas que a tela
+--     da família mostra.
+--     Nunca recusa: um problema com o aviso não pode impedir alguém de sair
+--     da família nem de excluir o cadastro.
+--     SECURITY DEFINER: grava na fila de outras pessoas da família.
+create function public.family_event_notify() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  begin
+    insert into public.notification_log (user_id, kind, ref)
+    select fm.user_id, 'family_event', new.id::text
+    from public.family_members fm
+    where fm.family_id = new.family_id and fm.left_at is null and fm.user_id is not null
+      and (new.member_id is null or fm.id <> new.member_id)
+      and public.notification_enabled(fm.user_id, 'family_event')
+      and exists (select 1 from public.push_subscriptions ps where ps.user_id = fm.user_id)
+    on conflict (user_id, kind, ref) do nothing;
+  exception when others then
+    raise warning 'family_event_notify: %', sqlstate;
+  end;
+  return null;
+end;
+$$;
+
+create trigger family_events_notify after insert on public.family_events
+  for each row execute function public.family_event_notify();
+
+-- 22. Pegar um lote para enviar (rota da tarefa, com o segredo). Para cada
+--     linha ainda não enviada (até 3 tentativas, com 15 minutos entre elas, e
+--     só as dos últimos 2 dias): confere de novo a chave e monta os dados
+--     (item 18). Sem dados, ou sem canal nenhum para enviar (a pessoa
+--     desativou o aparelho), a linha é encerrada sem envio.
+--     Devolve só o que a entrega precisa — nunca o id da pessoa:
+--     - n_claim: o lote. Quem encerra só mexe nas linhas dele (item 23);
+--     - n_subscriptions: as inscrições de push de quem recebe ({ id, endpoint,
+--       p256dh, auth }); vazia se o push desta linha já saiu numa tentativa
+--       anterior;
+--     - n_email: só no resumo do mês, o e-mail confirmado; vazio se o e-mail
+--       desta linha já saiu.
+--     É o único lugar de onde endereços de push e e-mails saem do banco.
+--     Lote de 20 por padrão, 50 no máximo (cabe no tempo de uma chamada pela
+--     API). VOLATILE: a API só aceita POST, o segredo nunca vai numa URL.
+--     SECURITY DEFINER: a fila e as inscrições não têm acesso pela API; o que
+--     autoriza é o segredo (por isso pode ser chamada pelo papel anon).
+create function public.job_claim_notifications(p_secret text, p_limit integer)
+returns table (n_claim uuid, n_id uuid, n_kind text, n_params jsonb, n_email text, n_subscriptions jsonb)
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_claim uuid := gen_random_uuid();
+  r record;
+  v_params jsonb;
+  v_email text;
+  v_subs jsonb;
+begin
+  perform private.job_require(p_secret);
+  for r in
+    select nl.id, nl.user_id, nl.kind, nl.ref, nl.push_sent_at, nl.email_sent_at
+    from public.notification_log nl
+    where nl.sent_at is null and nl.attempts < 3
+      and (nl.claimed_at is null or nl.claimed_at < now() - interval '15 minutes')
+      and nl.created_at > now() - interval '2 days'
+    order by nl.created_at, nl.id
+    limit least(greatest(coalesce(p_limit, 20), 1), 50)
+    for update skip locked
+  loop
+    v_params := null;
+    v_email := null;
+    v_subs := '[]'::jsonb;
+    -- Uma linha com problema é encerrada; não trava a fila das outras pessoas.
+    begin
+      if public.notification_enabled(r.user_id, r.kind) then
+        v_params := public.notification_params(r.user_id, r.kind, r.ref);
+      end if;
+    exception when others then
+      raise warning 'job_claim_notifications: %', sqlstate;
+      v_params := null;
+    end;
+    if v_params is not null then
+      if r.push_sent_at is null then
+        v_subs := coalesce((
+          select jsonb_agg(jsonb_build_object('id', ps.id, 'endpoint', ps.endpoint, 'p256dh', ps.p256dh, 'auth', ps.auth)
+                           order by ps.created_at, ps.id)
+          from public.push_subscriptions ps where ps.user_id = r.user_id
+        ), '[]'::jsonb);
+      end if;
+      if r.kind = 'month_summary' and r.email_sent_at is null then
+        select u.email::text into v_email
+          from auth.users u where u.id = r.user_id and u.email_confirmed_at is not null;
+      end if;
+    end if;
+    if v_params is null or (v_email is null and v_subs = '[]'::jsonb) then
+      update public.notification_log nl set sent_at = now() where nl.id = r.id;
+      continue;
+    end if;
+    update public.notification_log nl
+      set claimed_at = now(), claim_id = v_claim, attempts = nl.attempts + 1
+      where nl.id = r.id;
+    n_claim := v_claim;
+    n_id := r.id;
+    n_kind := r.kind;
+    n_params := v_params;
+    n_email := v_email;
+    n_subscriptions := v_subs;
+    return next;
+  end loop;
+end;
+$$;
+
+-- 23. Depois de enviar UMA linha (a rota chama logo depois do envio de cada
+--     linha; se a execução estourar o tempo, só as linhas em andamento ficam
+--     sem registro). Cada canal diz o que aconteceu:
+--       'sent'   — saiu agora (fica gravado: uma nova tentativa não repete);
+--       'none'   — não havia o que enviar por este canal (sem aparelho, sem
+--                  e-mail, canal já enviado antes, inscrições que não valem
+--                  mais, canal desligado no servidor);
+--       'failed' — falhou; a linha fica aberta para a próxima tentativa.
+--     A linha é encerrada quando nenhum canal falhou.
+--     Só alcança a linha do lote informado (p_claim), ainda aberta e pega há
+--     menos de uma hora: um encerramento atrasado, de uma execução que
+--     estourou o tempo, não mexe no que outra execução está entregando.
+--     p_dead: inscrições que o serviço de push disse que não valem mais. Só
+--     apaga as que são da pessoa desta linha (no máximo 10: é o limite de
+--     aparelhos por pessoa). Quem tem o segredo não apaga a inscrição de mais
+--     ninguém.
+--     Devolve verdadeiro se a linha era deste lote e foi atualizada.
+--     SECURITY DEFINER: mesmo motivo do item 22.
+create function public.job_finish_notification(
+  p_secret text, p_claim uuid, p_id uuid, p_push text, p_email text, p_dead uuid[]
+) returns boolean
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_user uuid;
+begin
+  perform private.job_require(p_secret);
+  if p_claim is null or p_id is null
+     or p_push is null or p_push not in ('sent', 'none', 'failed')
+     or p_email is null or p_email not in ('sent', 'none', 'failed')
+     or coalesce(cardinality(p_dead), 0) > 10 then
+    raise exception 'permission denied' using errcode = '42501';
+  end if;
+  select nl.user_id into v_user
+    from public.notification_log nl
+    where nl.id = p_id and nl.claim_id = p_claim and nl.sent_at is null
+      and nl.claimed_at > now() - interval '1 hour'
+    for update;
+  if not found then
+    return false;
+  end if;
+  delete from public.push_subscriptions ps
+    where ps.user_id = v_user and ps.id = any (coalesce(p_dead, '{}'::uuid[]));
+  update public.notification_log nl set
+    push_sent_at = case when p_push = 'sent' then coalesce(nl.push_sent_at, now()) else nl.push_sent_at end,
+    email_sent_at = case when p_email = 'sent' then coalesce(nl.email_sent_at, now()) else nl.email_sent_at end,
+    sent_at = case when p_push <> 'failed' and p_email <> 'failed' then now() end
+  where nl.id = p_id;
+  return true;
+end;
+$$;
+
+-- 24. Disparo: se há algo a enviar, chama a rota da tarefa (pg_net). O Vault
+--     do Supabase guarda o endereço e o CÓDIGO DE DISPARO, nunca o segredo:
+--       select vault.create_secret('https://…/api/jobs/notificacoes', 'iris_job_url');
+--       select vault.create_secret('<código de disparo>', 'iris_job_trigger');
+--     O código de disparo é HMAC-SHA256(JOB_SECRET, 'iris-job-trigger-v1') em
+--     base64url (43 caracteres), calculado fora do banco. Dele não se chega ao
+--     segredo; quem o tiver só consegue pedir à rota que entregue um lote (o
+--     que é idempotente), e não chama as funções dos itens 22 e 23. A rota
+--     confere o código e usa o segredo do próprio ambiente.
+--     O endereço só pode ser https (ou http para a máquina local): um erro de
+--     digitação não manda o código em texto aberto.
+--     Sem os dois, não faz nada. Nunca lança erro (o agendador não para).
+--     SECURITY DEFINER: lê o Vault e a fila.
+create function public.job_dispatch() returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_url text;
+  v_token text;
+begin
+  if not exists (
+    select 1 from public.notification_log nl
+    where nl.sent_at is null and nl.attempts < 3
+      and (nl.claimed_at is null or nl.claimed_at < now() - interval '15 minutes')
+      and nl.created_at > now() - interval '2 days'
+  ) then
+    return false;
+  end if;
+  begin
+    select ds.decrypted_secret into v_url from vault.decrypted_secrets ds where ds.name = 'iris_job_url';
+    select ds.decrypted_secret into v_token from vault.decrypted_secrets ds where ds.name = 'iris_job_trigger';
+    if v_url is null or v_token is null or char_length(v_url) > 2048
+       or v_token !~ '^[A-Za-z0-9_-]{43}$' then
+      return false;
+    end if;
+    if v_url !~ '^https://[^[:space:]]+$'
+       and v_url !~ '^http://(localhost|127\.0\.0\.1|host\.docker\.internal)(:[0-9]{1,5})?/[^[:space:]]*$' then
+      return false;
+    end if;
+    perform net.http_post(
+      url := v_url,
+      body := '{}'::jsonb,
+      headers := jsonb_build_object('content-type', 'application/json', 'x-iris-job-trigger', v_token),
+      timeout_milliseconds := 20000
+    );
+    return true;
+  exception when others then
+    raise warning 'job_dispatch: %', sqlstate;
+    return false;
+  end;
+end;
+$$;
+
+-- 25. As tarefas que a agenda chama. SECURITY DEFINER: chamam as internas.
+create function public.job_enqueue_morning() returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_count integer;
+begin
+  -- Rede de segurança: se a tarefa das 00h05 falhou, as contas de hoje nascem aqui.
+  perform public.job_generate_occurrences();
+  v_count := public.job_enqueue_morning_on((now() at time zone 'America/Sao_Paulo')::date);
+  perform public.job_dispatch();
+  return v_count;
+end;
+$$;
+
+create function public.job_enqueue_evening() returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_count integer;
+begin
+  v_count := public.job_enqueue_evening_on((now() at time zone 'America/Sao_Paulo')::date);
+  perform public.job_dispatch();
+  return v_count;
+end;
+$$;
+
+-- Para o script local (scripts/rodar-tarefa.mjs) rodar uma tarefa da agenda na
+-- hora, com o segredo e a chave pública: o agendador chama as funções direto e
+-- não precisa disto. Tarefa desconhecida: nada. SECURITY DEFINER: chama as
+-- internas; o que autoriza é o segredo.
+create function public.job_trigger(p_secret text, p_job text) returns integer
+language plpgsql volatile security definer set search_path = '' as $$
+begin
+  perform private.job_require(p_secret);
+  return case p_job
+    when 'manha' then public.job_enqueue_morning()
+    when 'noite' then public.job_enqueue_evening()
+    when 'ocorrencias' then public.job_generate_occurrences()
+  end;
+end;
+$$;
+
+-- A agenda da Íris (para conferir e para os testes). SECURITY DEFINER: o
+-- esquema cron não é exposto pela API.
+create function public.job_schedules() returns table (jobname text, schedule text, active boolean)
+language sql stable security definer set search_path = '' as $$
+  select j.jobname::text, j.schedule::text, j.active from cron.job j where j.jobname like 'iris-%' order by j.jobname
+$$;
+
+-- Pausar e retomar a agenda da Íris (só service_role). Os testes de banco
+-- pausam antes de rodar e retomam no fim (tests/db/global-setup.ts): uma
+-- tarefa que disparasse no meio de um teste (00h05, 9h, 21h ou a cada 10
+-- minutos) geraria contas e avisos que o teste não espera. Também serve para
+-- desligar os avisos numa emergência sem apagar a agenda. Devolve quantas
+-- tarefas mudou. SECURITY DEFINER: mesmo motivo de job_schedules.
+create function public.job_set_paused(p_paused boolean) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  r record;
+  v_count integer := 0;
+begin
+  if p_paused is null then
+    return 0;
+  end if;
+  for r in select j.jobid from cron.job j where j.jobname like 'iris-%' order by j.jobid loop
+    perform cron.alter_job(r.jobid, active := not p_paused);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+
+revoke execute on function public.family_event_notify() from public, anon, authenticated;
+
+-- Internas e da agenda: service_role aqui é só para os testes de banco e os
+-- scripts locais (regra de ouro 3).
+revoke execute on function
+  public.job_secret_set(text, text),
+  public.notification_params(uuid, text, text),
+  public.job_enqueue_morning_on(date),
+  public.job_enqueue_morning(),
+  public.job_enqueue_evening_on(date),
+  public.job_enqueue_evening(),
+  public.job_dispatch(),
+  public.job_schedules(),
+  public.job_set_paused(boolean)
+from public, anon, authenticated;
+
+grant execute on function
+  public.job_secret_set(text, text),
+  public.notification_params(uuid, text, text),
+  public.job_enqueue_morning_on(date),
+  public.job_enqueue_morning(),
+  public.job_enqueue_evening_on(date),
+  public.job_enqueue_evening(),
+  public.job_dispatch(),
+  public.job_schedules(),
+  public.job_set_paused(boolean)
+to service_role;
+
+-- As três funções com segredo. A rota usa a chave pública sem sessão: é o
+-- papel anon. Uma pessoa com sessão (papel authenticated) recebe 42501 mesmo
+-- com o segredo certo: a sessão de um navegador nunca roda a tarefa.
+revoke execute on function
+  public.job_claim_notifications(text, integer),
+  public.job_finish_notification(text, uuid, uuid, text, text, uuid[]),
+  public.job_trigger(text, text)
+from public, anon, authenticated;
+
+grant execute on function
+  public.job_claim_notifications(text, integer),
+  public.job_finish_notification(text, uuid, uuid, text, text, uuid[]),
+  public.job_trigger(text, text)
+to anon;
+
+-- 26. Agenda. O pg_cron roda em UTC; Brasília = UTC−3, sem horário de verão:
+--       iris-ocorrencias  00h05 de Brasília = 03h05 UTC  → '5 3 * * *'
+--       iris-limpeza      00h15 de Brasília = 03h15 UTC  → '15 3 * * *'
+--       iris-manha        9h de Brasília    = 12h UTC    → '0 12 * * *'
+--       iris-noite        21h de Brasília   = 00h UTC (já o dia seguinte em UTC) → '0 0 * * *'
+--       iris-entrega      a cada 10 minutos              → '*/10 * * * *'
+--     Dentro das funções, "hoje" é sempre o dia de Brasília
+--     ((now() at time zone 'America/Sao_Paulo')::date), nunca o dia em UTC.
+--     A limpeza tem tarefa própria: um erro nela não desfaz a geração das
+--     contas do dia. cron.schedule com nome substitui a tarefa de mesmo nome.
+--     O agendador roda dentro do banco, como dono: não usa chave nem segredo.
+select cron.schedule('iris-ocorrencias', '5 3 * * *', $$select public.job_generate_occurrences();$$);
+select cron.schedule('iris-limpeza', '15 3 * * *', $$select public.job_cleanup();$$);
+select cron.schedule('iris-manha', '0 12 * * *', $$select public.job_enqueue_morning();$$);
+select cron.schedule('iris-noite', '0 0 * * *', $$select public.job_enqueue_evening();$$);
+select cron.schedule('iris-entrega', '*/10 * * * *', $$select public.job_dispatch();$$);
