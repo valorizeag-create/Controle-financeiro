@@ -615,14 +615,15 @@ create trigger family_invites_clear_email before update on public.family_invites
 -- 15. Convidar por e-mail: só o administrador. Ninguém usa a Íris para encher
 --     a caixa de entrada de outra pessoa nem para mandar texto próprio em nome
 --     da Íris. Limites, todos com a mesma resposta ("Limite de convites."):
---     a) 5 por família E 5 por pessoa a cada 24 horas. O limite por pessoa usa
---        created_by, que não muda quando a pessoa encerra a família e cria
---        outra: recriar a família não zera a conta;
+--     a) 5 a cada 24 horas, somando os convites desta família e os de quem
+--        chama (uma conta só: é mais apertado do que 5 de cada). A parte da
+--        pessoa usa created_by, que não muda quando ela encerra a família e
+--        cria outra: recriar a família não zera a conta;
 --     b) 3 para o mesmo endereço a cada 7 dias, somando todas as famílias
 --        (pelo resumo do endereço);
 --     c) 100 no total a cada 24 horas (abaixo da cota gratuita de envio, que é
---        a mesma dos e-mails de recuperação de senha). Aproximado: não há
---        trava global, de propósito.
+--        a mesma dos e-mails de recuperação de senha).
+--     Os três valem também para chamadas simultâneas (travas, no corpo).
 --     Não consulta se o e-mail tem cadastro: a resposta é sempre a mesma.
 --     Devolve só o código e a validade, só para quem pediu (a Server Action
 --     monta o link e envia; o código não é guardado). Nenhum nome sai daqui: o
@@ -653,15 +654,32 @@ begin
     raise exception 'E-mail inválido.';
   end if;
   v_hash := extensions.digest(v_email, 'sha256');
-  -- Mesma ordem de travas de create_family_invite (família, depois convite).
+  -- Travas, sempre nesta ordem (sem impasse): a família (a mesma primeira
+  -- trava de create_family_invite e de aceitar), depois o endereço, depois o
+  -- total. Só esta função pega as duas últimas, e quem as espera nunca
+  -- precisa da família de outra chamada.
   perform 1 from public.families f where f.id = v_family for update;
+  -- a) família e pessoa: chamadas da mesma família esperam na trava acima.
   if (select count(*) from public.family_invites i
       where i.sent_by_email and i.created_at > now() - interval '24 hours'
-        and (i.family_id = v_family or i.created_by = v_uid)) >= 5
-     or (select count(*) from public.family_invites i
-         where i.invited_email_hash = v_hash and i.created_at > now() - interval '7 days') >= 3
-     or (select count(*) from public.family_invites i
-         where i.sent_by_email and i.created_at > now() - interval '24 hours') >= 100 then
+        and (i.family_id = v_family or i.created_by = v_uid)) >= 5 then
+    raise exception 'Limite de convites.';
+  end if;
+  -- b) destinatário: famílias diferentes convidando o mesmo endereço ao mesmo
+  --    tempo esperam aqui, uma de cada vez. Cada comando lê o que já foi
+  --    confirmado antes dele: quem esperou conta o convite de quem passou.
+  perform pg_advisory_xact_lock(hashtextextended(encode(v_hash, 'hex'), 0));
+  if (select count(*) from public.family_invites i
+      where i.invited_email_hash = v_hash and i.created_at > now() - interval '7 days') >= 3 then
+    raise exception 'Limite de convites.';
+  end if;
+  -- c) total: mesma corrida, mesma solução, com uma chave fixa (no espaço de
+  --    chaves de dois inteiros, que não se mistura com o das chaves de
+  --    endereço). A trava dura até o fim desta chamada, que é curta: o e-mail
+  --    é enviado pelo app depois dela.
+  perform pg_advisory_xact_lock(hashtext('iris.family_invites.sent_by_email'), 0);
+  if (select count(*) from public.family_invites i
+      where i.sent_by_email and i.created_at > now() - interval '24 hours') >= 100 then
     raise exception 'Limite de convites.';
   end if;
   -- Confere de novo o papel depois da trava, cancela o convite anterior e cria o novo.
@@ -678,6 +696,9 @@ $$;
 --     avisos antigos (a fila só precisa lembrar do que já avisou por pouco
 --     tempo) e o histórico do agendador (cresce a cada execução). Um problema
 --     no histórico do agendador não impede o resto.
+--     SECURITY DEFINER: mexe em convites e avisos de todas as pessoas e no
+--     histórico do agendador, que não têm gravação pela API. Só o agendador
+--     chama (e service_role, nos testes).
 create function public.job_cleanup() returns void
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -1070,7 +1091,8 @@ create trigger family_events_notify after insert on public.family_events
 --     linha ainda não enviada (até 3 tentativas, com 15 minutos entre elas, e
 --     só as dos últimos 2 dias): confere de novo a chave e monta os dados
 --     (item 18). Sem dados, ou sem canal nenhum para enviar (a pessoa
---     desativou o aparelho), a linha é encerrada sem envio.
+--     desativou o aparelho), a linha é encerrada sem envio. Se montar os
+--     dados der erro, a linha só conta a tentativa e fica para depois.
 --     Devolve só o que a entrega precisa — nunca o id da pessoa:
 --     - n_claim: o lote. Quem encerra só mexe nas linhas dele (item 23);
 --     - n_subscriptions: as inscrições de push de quem recebe ({ id, endpoint,
@@ -1088,12 +1110,20 @@ returns table (n_claim uuid, n_id uuid, n_kind text, n_params jsonb, n_email tex
 language plpgsql volatile security definer set search_path = '' as $$
 declare
   v_claim uuid := gen_random_uuid();
+  v_limit integer := least(greatest(coalesce(p_limit, 20), 1), 50);
+  v_returned integer := 0;
+  v_failed boolean;
   r record;
   v_params jsonb;
   v_email text;
   v_subs jsonb;
 begin
   perform private.job_require(p_secret);
+  -- As condições de "ainda pode ser pega" estão também em job_dispatch
+  -- (item 24) e no teste (plano8-fila.test.ts, claimable): mudou aqui, mude lá.
+  -- Olha até 4 vezes o tamanho do lote: as linhas encerradas sem envio não
+  -- ocupam o lugar das que têm o que enviar (um lote vazio quer dizer, quase
+  -- sempre, fila vazia), e o trabalho de uma chamada continua limitado.
   for r in
     select nl.id, nl.user_id, nl.kind, nl.ref, nl.push_sent_at, nl.email_sent_at
     from public.notification_log nl
@@ -1101,21 +1131,30 @@ begin
       and (nl.claimed_at is null or nl.claimed_at < now() - interval '15 minutes')
       and nl.created_at > now() - interval '2 days'
     order by nl.created_at, nl.id
-    limit least(greatest(coalesce(p_limit, 20), 1), 50)
+    limit v_limit * 4
     for update skip locked
   loop
+    exit when v_returned >= v_limit;
     v_params := null;
     v_email := null;
     v_subs := '[]'::jsonb;
-    -- Uma linha com problema é encerrada; não trava a fila das outras pessoas.
+    v_failed := false;
+    -- Uma linha com problema não trava a fila das outras pessoas: conta a
+    -- tentativa e fica para depois (até 3), sem sair do banco.
     begin
       if public.notification_enabled(r.user_id, r.kind) then
         v_params := public.notification_params(r.user_id, r.kind, r.ref);
       end if;
     exception when others then
       raise warning 'job_claim_notifications: %', sqlstate;
-      v_params := null;
+      v_failed := true;
     end;
+    if v_failed then
+      update public.notification_log nl
+        set claimed_at = now(), attempts = nl.attempts + 1
+        where nl.id = r.id;
+      continue;
+    end if;
     if v_params is not null then
       if r.push_sent_at is null then
         v_subs := coalesce((
@@ -1142,6 +1181,7 @@ begin
     n_params := v_params;
     n_email := v_email;
     n_subscriptions := v_subs;
+    v_returned := v_returned + 1;
     return next;
   end loop;
 end;
@@ -1217,6 +1257,7 @@ declare
   v_url text;
   v_token text;
 begin
+  -- As mesmas condições de job_claim_notifications (item 22): mudou lá, mude aqui.
   if not exists (
     select 1 from public.notification_log nl
     where nl.sent_at is null and nl.attempts < 3

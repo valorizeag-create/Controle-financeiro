@@ -228,8 +228,11 @@ describe('o segredo da tarefa', () => {
       const c = await client.rpc('job_claim_notifications', { p_limit: 10 })
       expect(c.error).not.toBeNull()
       expect(c.data ?? null).toBeNull()
-      const f = await client.rpc('job_finish_notifications', { p_sent: [rowId], p_dead: [] })
+      const f = await client.rpc('job_finish_notification', { p_claim: FAKE.n_claim, p_id: rowId, p_push: 'sent', p_email: 'none', p_dead: [] })
       expect(f.error).not.toBeNull()
+      expect(f.data ?? null).toBeNull()
+      const t = await client.rpc('job_trigger', { p_job: 'ocorrencias' })
+      expect(t.error).not.toBeNull()
     }
     await untouched()
   })

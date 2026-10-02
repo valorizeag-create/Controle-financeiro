@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { admin, newUser, publishable, removeUsers, url, type TestUser } from './helpers'
@@ -257,5 +257,69 @@ describe('limite total de convites por e-mail em 24 horas', () => {
     expect((await invite(tom, 'tambem-nao@teste.iris.dev')).error?.message).toContain('Limite de convites.')
     // O convite por link não entra nessa conta.
     expect((await tom.client.rpc('create_family_invite')).error).toBeNull()
+  })
+})
+
+// As duas corridas abaixo só aparecem com chamadas ao mesmo tempo: sem as travas de
+// create_family_email_invite, cada chamada conta os convites antes de as outras gravarem,
+// e todas passam.
+describe('limites em chamadas simultâneas', () => {
+  const admins: TestUser[] = []
+  let holder: TestUser
+  let full: string
+  const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
+  const sentTo = async (email: string) => {
+    const r = await admin.from('family_invites').select('id', { count: 'exact', head: true }).eq('invited_email_hash', `\\x${sha256(email)}`)
+    if (r.error) throw r.error
+    return r.count
+  }
+  beforeAll(async () => {
+    for (const name of ['Um', 'Dois', 'Três', 'Quatro']) {
+      const u = await newUser(name)
+      admins.push(u)
+      await createFamily(u, `Família ${name}`)
+    }
+    holder = await newUser('Cheia')
+    full = await createFamily(holder, 'Família Simultânea')
+  })
+  afterAll(async () => { await forgetEarlierInvites(); await removeUsers(...admins, holder) })
+
+  test('famílias diferentes convidando o mesmo endereço ao mesmo tempo: o limite de 3 em 7 dias vale', async () => {
+    await forgetEarlierInvites()
+    const target = `simultaneo-${Date.now()}@teste.iris.dev`
+    // Duas famílias, cada uma com uma chamada, ao mesmo tempo: as duas cabem (2 de 3).
+    const firstTwo = await Promise.all([invite(admins[0], target), invite(admins[1], target)])
+    expect(firstTwo.map((r) => r.error)).toEqual([null, null])
+    expect(await sentTo(target)).toBe(2)
+    // Agora as quatro famílias ao mesmo tempo: só cabe mais um.
+    const burst = await Promise.all(admins.map((u) => invite(u, target)))
+    const ok = burst.filter((r) => r.error === null)
+    const refused = burst.filter((r) => r.error !== null)
+    expect(ok.length).toBe(1)
+    expect(refused.length).toBe(3)
+    for (const r of refused) expect(r.error?.message).toContain('Limite de convites.')
+    expect(await sentTo(target)).toBe(3)
+    // E continua valendo depois da rajada.
+    const again = await Promise.all([invite(admins[2], target), invite(admins[3], target)])
+    expect(again.every((r) => r.error?.message.includes('Limite de convites.'))).toBe(true)
+    expect(await sentTo(target)).toBe(3)
+  })
+
+  test('várias famílias ao mesmo tempo, endereços diferentes: o limite total de 100 em 24 horas vale', async () => {
+    await forgetEarlierInvites()
+    const now = new Date().toISOString()
+    const rows = Array.from({ length: 99 }, () => ({
+      family_id: full, token_hash: `\\x${randomBytes(32).toString('hex')}`, expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+      revoked_at: now, sent_by_email: true,
+    }))
+    expect((await admin.from('family_invites').insert(rows)).error).toBeNull()
+    const stamp = Date.now()
+    const burst = await Promise.all(admins.map((u, i) => invite(u, `total-${stamp}-${i}@teste.iris.dev`)))
+    expect(burst.filter((r) => r.error === null).length).toBe(1)
+    for (const r of burst.filter((x) => x.error !== null)) expect(r.error?.message).toContain('Limite de convites.')
+    const total = await admin.from('family_invites').select('id', { count: 'exact', head: true })
+      .eq('sent_by_email', true).gt('created_at', new Date(Date.now() - 86_400_000).toISOString())
+    expect(total.error).toBeNull()
+    expect(total.count).toBe(100)
   })
 })
