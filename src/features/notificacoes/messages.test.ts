@@ -52,6 +52,14 @@ describe('notificationMessage', () => {
     expect(notificationMessage('family_event', { event_kind: 'member_deleted', member_name: null, goal_name: null, amount_cents: null })?.body)
       .toBe('Um membro saiu da família.')
   })
+  test('nomes longos nos avisos da família são cortados em 60 caracteres', () => {
+    const m = notificationMessage('family_event', {
+      event_kind: 'member_left', member_name: 'a'.repeat(500), goal_name: `  ${'m'.repeat(61)}  `, amount_cents: 100,
+    })
+    const person = `${'a'.repeat(59)}…`
+    expect(m?.body).toBe(`${person} saiu da família, e R$${NBSP}1,00 da meta ${'m'.repeat(59)}… voltaram para ${person}.`)
+    expect(notificationMessage('family_event', { ...SAMPLES.family_event, member_name: 'a'.repeat(60) })?.body).toContain('a'.repeat(60))
+  })
   test('todo aviso: destino da lista fixa, sem exclamação, sem "baix"', () => {
     for (const kind of NOTIFICATION_KINDS) {
       const m = notificationMessage(kind, SAMPLES[kind])

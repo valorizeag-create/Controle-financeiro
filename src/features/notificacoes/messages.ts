@@ -18,10 +18,16 @@ const incomeSchema = z.object({ name, id, due_on: isoDate })
 const budgetSchema = z.object({ name })
 const goalSchema = z.object({ name, id, remaining_cents: z.number().int().min(1).max(MAX_CENTS) })
 const summarySchema = z.object({ month: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/) })
+// Nome de pessoa e de meta nos avisos da família: no máximo 60 caracteres no
+// texto (o mesmo limite dos outros nomes); o que passar disso é cortado.
+const shortName = z.string().transform((s) => {
+  const chars = Array.from(s.trim())
+  return chars.length > 60 ? `${chars.slice(0, 59).join('')}…` : chars.join('')
+}).nullable().optional()
 const familySchema = z.object({
   event_kind: z.enum(['member_left', 'member_deleted']),
-  member_name: z.string().nullable().optional(),
-  goal_name: z.string().nullable().optional(),
+  member_name: shortName,
+  goal_name: shortName,
   amount_cents: z.number().int().min(0).max(MAX_CENTS).nullable().optional(),
 })
 
