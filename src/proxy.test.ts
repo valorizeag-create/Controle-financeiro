@@ -14,3 +14,15 @@ test('as páginas do app continuam passando', () => {
     expect(matcher.test(path), path).toBe(true)
   }
 })
+
+test('robots e sitemap passam pelo proxy (públicos pela lista); a imagem de compartilhamento não passa', () => {
+  expect(matcher.test('/robots.txt')).toBe(true)
+  expect(matcher.test('/sitemap.xml')).toBe(true)
+  expect(matcher.test('/opengraph-image.png')).toBe(false)
+})
+
+test('service worker, manifest, ícones e a rota da tarefa seguem fora do proxy (a landing não os alcança)', () => {
+  for (const path of ['/sw.js', '/manifest.webmanifest', '/icons/icon-192.png', '/apple-icon.png', '/icon.png', '/api/jobs/notificacoes']) {
+    expect(matcher.test(path), path).toBe(false)
+  }
+})

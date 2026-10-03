@@ -76,3 +76,13 @@ test('páginas públicas do Plano 9: só o caminho exato', () => {
   expect(isAnonOnlyPath('/confirmar-email')).toBe(false)
   expect(isAnonOnlyPath('/cadastro-excluido')).toBe(false)
 })
+
+test('/ é só para quem não entrou; robots e sitemap são públicos, por caminho exato', () => {
+  expect(isPublicPath('/')).toBe(true)
+  expect(isAnonOnlyPath('/')).toBe(true)
+  expect(isPublicPath('/robots.txt')).toBe(true)
+  expect(isPublicPath('/sitemap.xml')).toBe(true)
+  expect(isPublicPath('/robots.txt/x')).toBe(false)
+  expect(isPublicPath('/sitemap.xml.bak')).toBe(false)
+  expect(isAnonOnlyPath('/termos')).toBe(false)
+})

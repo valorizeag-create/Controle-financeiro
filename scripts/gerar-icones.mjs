@@ -27,19 +27,30 @@ const adaptavel = (px) => `<svg xmlns="http://www.w3.org/2000/svg" width="${px}"
 const selo = (px) => `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 32 32">
 <g transform="translate(16 16) scale(1.45) translate(-16 -16)">${olho(BRANCO, null)}</g></svg>`
 
+// Imagem de compartilhamento (Open Graph): fundo brand-wash e o logo centralizado, sem texto
+// (a fonte do sistema varia de máquina para máquina; o título vai no texto alternativo e nas meta tags).
+const OG_LARGURA = 1200
+const OG_ALTURA = 630
+const OG_LOGO = 360
+const compartilhamento = `<svg xmlns="http://www.w3.org/2000/svg" width="${OG_LARGURA}" height="${OG_ALTURA}" viewBox="0 0 ${OG_LARGURA} ${OG_ALTURA}">
+<rect width="${OG_LARGURA}" height="${OG_ALTURA}" fill="#EEF4E9"/>
+<g transform="translate(${(OG_LARGURA - OG_LOGO) / 2} ${(OG_ALTURA - OG_LOGO) / 2}) scale(${OG_LOGO / 32})"><circle cx="16" cy="16" r="16" fill="${VERDE}"/>${olho()}</g></svg>`
+
+// [caminho, svg, largura, altura]
 const saidas = [
-  ['public/icons/icon-192.png', normal(192), 192],
-  ['public/icons/icon-512.png', normal(512), 512],
-  ['src/app/icon.png', normal(192), 192],
-  ['public/icons/maskable-192.png', adaptavel(192), 192],
-  ['public/icons/maskable-512.png', adaptavel(512), 512],
-  ['src/app/apple-icon.png', adaptavel(180), 180],
-  ['public/icons/badge-96.png', selo(96), 96],
+  ['public/icons/icon-192.png', normal(192), 192, 192],
+  ['public/icons/icon-512.png', normal(512), 512, 512],
+  ['src/app/icon.png', normal(192), 192, 192],
+  ['public/icons/maskable-192.png', adaptavel(192), 192, 192],
+  ['public/icons/maskable-512.png', adaptavel(512), 512, 512],
+  ['src/app/apple-icon.png', adaptavel(180), 180, 180],
+  ['public/icons/badge-96.png', selo(96), 96, 96],
+  ['src/app/opengraph-image.png', compartilhamento, OG_LARGURA, OG_ALTURA],
 ]
 
 await mkdir('public/icons', { recursive: true })
-for (const [arquivo, svg, px] of saidas) {
-  await sharp(Buffer.from(svg), { density: 384 }).resize(px, px).png().toFile(arquivo)
+for (const [arquivo, svg, largura, altura] of saidas) {
+  await sharp(Buffer.from(svg), { density: 384 }).resize(largura, altura).png().toFile(arquivo)
   console.log('ok', arquivo)
 }
 
