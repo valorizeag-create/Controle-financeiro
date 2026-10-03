@@ -26,7 +26,7 @@ export function InitialBalanceForm({ action, submitLabel, defaultValue = '' }: {
           defaultValue={err?.values?.initialBalance ?? defaultValue}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? 'initialBalance-error' : 'initialBalance-hint'}
-          className={`num h-16 border-0 border-b-2 bg-transparent text-[40px] font-bold text-brand-ink outline-none placeholder:text-[#a3a3a3] ${error ? 'border-error-ink' : 'border-brand'}`}
+          className={`num h-16 border-0 border-b-2 bg-transparent text-[40px] font-bold text-brand-ink placeholder:text-[#a3a3a3] ${error ? 'border-error-ink' : 'border-brand'}`}
         />
         {error && <span id="initialBalance-error" className="text-sm text-error-ink">{error}</span>}
       </div>

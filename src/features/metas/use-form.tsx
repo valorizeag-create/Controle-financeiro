@@ -40,7 +40,7 @@ export function UseGoalForm({ goalId, balanceCents, categories, family = false }
           onChange={(ev) => setAmount(ev.target.value)}
           aria-invalid={e.amount ? true : undefined}
           aria-describedby={e.amount ? 'amount-error' : undefined}
-          className={`num h-16 border-0 border-b-2 bg-transparent text-[40px] font-bold text-brand-ink outline-none placeholder:text-[#a3a3a3] ${
+          className={`num h-16 border-0 border-b-2 bg-transparent text-[40px] font-bold text-brand-ink placeholder:text-[#a3a3a3] ${
             e.amount ? 'border-error-ink' : 'border-brand'
           }`}
         />

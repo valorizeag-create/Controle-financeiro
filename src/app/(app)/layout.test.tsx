@@ -20,4 +20,5 @@ test('pular para o conteúdo vem antes do menu e aponta para o conteúdo da tela
   const first = container.querySelector('a') as HTMLAnchorElement
   expect(first.textContent).toBe('Pular para o conteúdo')
   expect(container.querySelector('#conteudo')?.textContent).toContain('Seu mês')
+  expect(container.querySelectorAll('main')).toHaveLength(1)
 })

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { PERIOD_OPTIONS, periodHref, type Period } from './period'
 
 const INPUT =
-  'min-h-11 rounded-control border border-control bg-card px-3 text-[15px] text-ink focus-visible:shadow-[0_0_0_3px_rgba(160,232,112,.45)]'
+  'min-h-11 rounded-control border border-control bg-card px-3 text-[15px] text-ink'
 
 export function PeriodFilter({ period, de, ate }: { period: Period; de: string; ate: string }) {
   return (

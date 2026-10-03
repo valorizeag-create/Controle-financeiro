@@ -18,7 +18,7 @@ export function FiltersBar({ filters, categories, categoryName, cards, cardName 
 
   return (
     <div className="flex flex-col gap-3.5">
-      <form role="search" action="/extrato" className="flex h-12 items-center gap-2.5 rounded-panel border border-control bg-card px-3.5 text-muted">
+      <form role="search" action="/extrato" className="flex h-12 items-center gap-2.5 rounded-panel border border-control bg-card px-3.5 text-muted focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-text">
         <input type="hidden" name="mes" value={filters.month} />
         {filters.categoryId && <input type="hidden" name="categoria" value={filters.categoryId} />}
         {!filters.categoryId && filters.kind && !filters.cardId && <input type="hidden" name="tipo" value={isIncome ? 'entradas' : 'gastos'} />}
