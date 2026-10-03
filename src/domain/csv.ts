@@ -16,7 +16,8 @@ const FORMULA_START = /^\t|^\s*[=+\-@\u2212\uFF1D\uFF0B\uFF0D\uFF20]/
  */
 export function csvText(value: string | null | undefined): string {
   if (value == null || value === '') return ''
-  let text = value.replace(/\r\n|\r|\n/g, ' ')
+  // Caracteres de controle (NUL etc.) saem antes da conferência; TAB, CR e LF seguem o tratamento abaixo.
+  let text = value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n|\r|\n/g, ' ')
   if (FORMULA_START.test(text)) text = `'${text}`
   return `"${text.replace(/"/g, '""')}"`
 }

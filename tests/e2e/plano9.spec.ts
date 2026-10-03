@@ -291,7 +291,7 @@ test('desktop: sessão com mais de 15 minutos — excluir o cadastro e trocar o 
   expect(await userExists(u.id)).toBe(true)
 
   // Sair e entrar de novo: a sessão nova é recente.
-  await page.getByRole('button', { name: 'Sair da Íris' }).click()
+  await page.getByRole('main').getByRole('button', { name: 'Sair da Íris', exact: true }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Sair' }).click()
   await expect(page).toHaveURL(/\/entrar$/)
   await entrar(page, u.email)

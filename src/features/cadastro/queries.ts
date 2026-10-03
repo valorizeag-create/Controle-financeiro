@@ -5,14 +5,13 @@ import { fetchGoalMovements } from '@/features/metas/queries'
 import { createClient, requireUser } from '@/lib/supabase/server'
 import { isSessionRecent } from './reauth'
 
-export async function loadSignIn(): Promise<{ hasPassword: boolean; pendingEmail: string | null; sessionRecent: boolean }> {
+export async function loadSignIn(): Promise<{ hasPassword: boolean; sessionRecent: boolean }> {
   const supabase = await createClient()
   const [{ data }, sessionRecent] = await Promise.all([supabase.auth.getUser(), isSessionRecent(supabase)])
   const user = data.user
   const providers = user?.app_metadata?.providers
   return {
     hasPassword: Array.isArray(providers) && providers.includes('email'),
-    pendingEmail: user?.new_email ?? null,
     sessionRecent,
   }
 }

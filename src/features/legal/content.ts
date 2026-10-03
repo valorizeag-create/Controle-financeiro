@@ -192,6 +192,7 @@ export function privacyDoc(c: LegalController): LegalDoc {
             'Ao excluir o cadastro, seus dados pessoais são apagados.',
             'Os gastos que você registrou numa família que continua existindo ficam no histórico dela como "Ex-membro", sem o seu nome. A sua parte nas metas da família sai delas.',
             'Um resumo cifrado do endereço de e-mail convidado para uma família fica por até 7 dias, sem ligação com quem convidou, mesmo depois da exclusão do cadastro.',
+            'Um convite pendente que outra família enviou para o seu endereço de e-mail guarda esse endereço até vencer, por até 7 dias, mesmo depois da exclusão do cadastro.',
             'O registro de que um aviso foi enviado fica por até 90 dias, ligado ao seu cadastro: o tipo do aviso, a que item, mês ou dia ele se refere, quando foi preparado e enviado e se a entrega deu certo, sem o texto do aviso.',
             'Registros técnicos e cópias de segurança dos serviços de hospedagem seguem os prazos desses serviços.',
           ],

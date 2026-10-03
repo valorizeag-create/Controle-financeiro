@@ -23,6 +23,9 @@ test.each([
   ['＋1', `"'＋1"`],
   ['－1', `"'－1"`],
   ['＠x', `"'＠x"`],
+  ['\u0000=1+1', `"'=1+1"`],
+  ['\u0001@x', `"'@x"`],
+  ['\u001F\u007F-10', `"'-10"`],
   ['=cmd|\' /C calc\'!A0', `"'=cmd|' /C calc'!A0"`],
 ])('célula que viraria fórmula ganha apóstrofo: %j', (input, expected) => {
   expect(csvText(input)).toBe(expected)

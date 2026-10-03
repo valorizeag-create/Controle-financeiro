@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { isValidElement, type ReactNode } from 'react'
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const ID = '3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
 const OTHER = '11111111-1111-4111-8111-111111111111'
@@ -46,6 +46,14 @@ const tx = (over: Record<string, unknown>) => ({
   occurredOn: '2026-10-05', dueOn: '2026-10-05', paidOn: null, paymentMethod: null, cardId: null, cardDeleted: false,
   installmentPlanId: null, installmentNumber: null, goalId: null, familyId: null, ...over,
 })
+
+afterEach(() => vi.useRealTimers())
+
+// Esquenta os módulos das páginas: o primeiro import dinâmico, com a máquina ocupada, passava dos 5 s do teste.
+beforeAll(async () => {
+  await import("./contas/page")
+  await import("./familia/contas/page")
+}, 60_000)
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })

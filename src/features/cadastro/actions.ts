@@ -13,11 +13,10 @@ import { endLocalSession } from './session'
 import { CONFIRM_HINT, REAUTH_DELETE, REAUTH_EMAIL, type ConfirmEmailState } from './state'
 
 // A sessão acabou entre a conferência e a chamada: nada foi apagado, a pessoa só precisa entrar de novo.
-function sessionEnded(error: { code?: string; message?: string; status?: number }): boolean {
+function sessionEnded(error: { code?: string; message?: string }): boolean {
   const message = error.message ?? ''
   return (
     error.code === 'PGRST301' ||
-    error.status === 401 ||
     message.includes('Sessão necessária') ||
     message.startsWith('permission denied for function')
   )
@@ -64,12 +63,12 @@ export async function requestEmailChange(_: FormState, fd: FormData): Promise<Fo
   } catch {
     return errorState({ message: UNEXPECTED, values })
   }
-  // A mesma resposta para endereço livre, endereço de outro cadastro e limite de envio (respostas 4xx).
+  // A mesma resposta para endereço livre e endereço de outro cadastro (respostas 4xx).
   // Falha de verdade não vira "enviado": rede (auth-js devolve status 0), servidor (5xx), sessão (401/403),
-  // sessão ausente e qualquer erro sem status.
+  // limite de envio (429: nada foi enviado), sessão ausente e qualquer erro sem status.
   if (error) {
     const status = error.status
-    const failed = !status || status >= 500 || status === 401 || status === 403 || error.name === 'AuthSessionMissingError'
+    const failed = !status || status >= 500 || status === 401 || status === 403 || status === 429 || error.name === 'AuthSessionMissingError'
     if (failed) return errorState({ message: UNEXPECTED, values })
   }
   return { status: 'sent' }

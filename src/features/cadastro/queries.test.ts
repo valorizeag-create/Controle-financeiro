@@ -68,13 +68,13 @@ beforeEach(() => {
   h.supabase = fake()
 })
 
-test('loadSignIn: senha, troca pendente e entrada recente vêm do próprio cadastro', async () => {
-  setUser({ app_metadata: { providers: ['email', 'google'] }, new_email: 'nova@teste.iris.dev' })
+test('loadSignIn: senha e entrada recente vêm do próprio cadastro', async () => {
+  setUser({ app_metadata: { providers: ['email', 'google'] } })
   rpcData('session_is_recent', true)
-  expect(await q.loadSignIn()).toEqual({ hasPassword: true, pendingEmail: 'nova@teste.iris.dev', sessionRecent: true })
+  expect(await q.loadSignIn()).toEqual({ hasPassword: true, sessionRecent: true })
   setUser({ app_metadata: { providers: ['google'] } })
   rpcError('session_is_recent', 'caiu')
-  expect(await q.loadSignIn()).toEqual({ hasPassword: false, pendingEmail: null, sessionRecent: false })
+  expect(await q.loadSignIn()).toEqual({ hasPassword: false, sessionRecent: false })
 })
 
 test('loadDeletionContext sem família: tudo é apagado, sem parte e sem troca de administração', async () => {

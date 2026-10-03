@@ -11,7 +11,7 @@ vi.mock('@/features/perfil/queries', () => ({
 vi.mock('@/features/notificacoes/queries', () => ({ loadNotificationPrefs: async () => ({}) }))
 vi.mock('@/features/notificacoes/reminders-section', () => ({ RemindersSection: () => null }))
 vi.mock('@/features/familia/queries', () => ({ loadFamilySummaryOrNull: async () => null }))
-vi.mock('@/features/cadastro/queries', () => ({ loadSignIn: async () => ({ hasPassword: h.hasPassword, pendingEmail: null, sessionRecent: true }) }))
+vi.mock('@/features/cadastro/queries', () => ({ loadSignIn: async () => ({ hasPassword: h.hasPassword, sessionRecent: true }) }))
 
 const { default: ConfiguracoesPage } = await import('./page')
 const show = async () => render(await ConfiguracoesPage({ searchParams: Promise.resolve({}) }))

@@ -24,7 +24,7 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: async () => h.supabase, 
     return h.user
   },
 }))
-vi.mock('./queries', () => ({ loadSignIn: async () => ({ hasPassword: h.hasPassword, pendingEmail: null, sessionRecent: true }) }))
+vi.mock('./queries', () => ({ loadSignIn: async () => ({ hasPassword: h.hasPassword, sessionRecent: true }) }))
 vi.mock('@/lib/supabase/stateless', () => ({ createStatelessClient: () => h.stateless }))
 vi.mock('./session', () => ({ endLocalSession: h.endLocalSession }))
 vi.mock('next/navigation', () => ({
@@ -82,7 +82,6 @@ describe('deleteAccount', () => {
     [{ code: '42501', message: 'Sessão necessária.' }],
     [{ code: '42501', message: 'permission denied for function delete_my_account' }],
     [{ code: 'PGRST301', message: 'JWT expired' }],
-    [{ status: 401, message: 'x' }],
   ])('sessão que acabou no meio (%j): encerra neste aparelho e leva a /entrar', async (error) => {
     rpcQueue.delete_my_account = [{ data: null, error }]
     await expect(actions.deleteAccount(idle, form({ confirm: 'EXCLUIR' }))).rejects.toMatchObject({ url: '/entrar' })
@@ -203,8 +202,6 @@ describe('requestEmailChange', () => {
 
   test.each([
     ['endereço de outro cadastro', { name: 'AuthApiError', code: 'email_exists', status: 422 }],
-    ['limite de envio', { code: 'over_email_send_rate_limit', status: 429 }],
-    ['limite de pedidos', { code: 'over_request_rate_limit', status: 429 }],
     ['endereço recusado pelo serviço', { code: 'email_address_invalid', status: 400 }],
   ])('mesma resposta para %s', async (_name, error) => {
     recent(true)
@@ -218,6 +215,8 @@ describe('requestEmailChange', () => {
     ['erro sem status', { message: 'algo' }],
     ['sessão vencida', { name: 'AuthApiError', status: 401 }],
     ['sem permissão', { name: 'AuthApiError', status: 403 }],
+    ['limite de envio (nada foi enviado)', { code: 'over_email_send_rate_limit', status: 429 }],
+    ['limite de pedidos', { code: 'over_request_rate_limit', status: 429 }],
     ['sessão ausente', { name: 'AuthSessionMissingError', status: 400 }],
   ])('falha de %s: aviso genérico (não depende do endereço)', async (_name, error) => {
     recent(true)
