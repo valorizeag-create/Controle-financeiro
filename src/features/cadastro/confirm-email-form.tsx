@@ -2,8 +2,10 @@
 
 import { useActionState, useEffect } from 'react'
 import { Button } from '@/ui/button'
+import { FormAlert } from '@/ui/form-alert'
+import { UNEXPECTED } from '@/features/auth/errors'
 import { confirmEmailChange } from './actions'
-import { TOKEN_HASH } from './schemas'
+import { TOKEN_HASH } from './token'
 import { confirmIdle } from './state'
 
 const INVALID = 'Este link não vale mais. Peça a troca de novo em Configurações.'
@@ -13,9 +15,10 @@ const STATUS_CLASS = 'rounded-panel bg-brand-wash px-4 py-3 text-[15px] text-bra
 export function ConfirmEmailForm({ tokenHash }: { tokenHash: string | null }) {
   const [state, formAction, pending] = useActionState(confirmEmailChange, confirmIdle)
 
-  // O código do link é de uso único: depois do clique ele sai da barra de endereço.
+  // O código do link é de uso único: depois de confirmar (ou de saber que não vale) ele sai da barra de endereço.
+  // Em falha passageira ele fica: o link continua valendo e a pessoa pode tentar de novo.
   useEffect(() => {
-    if (state.status !== 'idle') window.history.replaceState(null, '', '/confirmar-email')
+    if (state.status === 'half' || state.status === 'done' || state.status === 'invalid') window.history.replaceState(null, '', '/confirmar-email')
   }, [state.status])
 
   if (state.status === 'half') return <p role="status" className={STATUS_CLASS}>Falta um passo. Confirme também pelo link enviado ao outro endereço.</p>
@@ -24,6 +27,7 @@ export function ConfirmEmailForm({ tokenHash }: { tokenHash: string | null }) {
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="token_hash" value={tokenHash} />
+      {state.status === 'error' && <FormAlert>{UNEXPECTED}</FormAlert>}
       <Button type="submit" disabled={pending}>Confirmar troca de e-mail</Button>
     </form>
   )

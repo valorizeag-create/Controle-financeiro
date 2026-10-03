@@ -54,3 +54,21 @@ test('depois do clique o código sai da barra de endereço; antes, nada muda', (
   expect(window.location.search).toBe('')
   expect(window.location.pathname).toBe('/confirmar-email')
 })
+
+test('falha passageira: aviso calmo, o botão continua e o código fica na barra de endereço', () => {
+  window.history.replaceState(null, '', `/confirmar-email?token_hash=${TOKEN}`)
+  h.state = { status: 'error' }
+  const { container } = render(<ConfirmEmailForm tokenHash={TOKEN} />)
+  expect(screen.getByRole('alert').textContent).toBe('Algo não saiu como esperado do nosso lado. Tente novamente em instantes.')
+  expect(screen.getByRole('button', { name: 'Confirmar troca de e-mail' })).toBeTruthy()
+  expect((container.querySelector('input[name="token_hash"]') as HTMLInputElement).value).toBe(TOKEN)
+  expect(screen.queryByText(INVALID)).toBeNull()
+  expect(window.location.search).toContain(TOKEN)
+})
+
+test('link que não vale: o código sai da barra de endereço', () => {
+  window.history.replaceState(null, '', `/confirmar-email?token_hash=${TOKEN}`)
+  h.state = { status: 'invalid' }
+  render(<ConfirmEmailForm tokenHash={TOKEN} />)
+  expect(window.location.search).toBe('')
+})

@@ -190,8 +190,19 @@ describe('requestEmailChange', () => {
     spies.forEach((spy) => spy.mockRestore())
   })
 
+  test('erros e respostas neutras também não escrevem em log', async () => {
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
+    for (const error of [{ status: 422, code: 'email_exists' }, { status: 0 }, { status: 429 }]) {
+      recent(true)
+      updateUser = vi.fn(async () => ({ error }))
+      await actions.requestEmailChange(idle, form({ email: 'nova@teste.iris.dev' }))
+    }
+    for (const spy of spies) expect(spy).not.toHaveBeenCalled()
+    spies.forEach((spy) => spy.mockRestore())
+  })
+
   test.each([
-    ['endereço de outro cadastro', { code: 'email_exists', status: 422 }],
+    ['endereço de outro cadastro', { name: 'AuthApiError', code: 'email_exists', status: 422 }],
     ['limite de envio', { code: 'over_email_send_rate_limit', status: 429 }],
     ['limite de pedidos', { code: 'over_request_rate_limit', status: 429 }],
     ['endereço recusado pelo serviço', { code: 'email_address_invalid', status: 400 }],
@@ -202,13 +213,23 @@ describe('requestEmailChange', () => {
   })
 
   test.each([
-    ['servidor', { status: 500 }],
-    ['rede', { message: 'fetch failed' }],
-    ['sessão vencida', { status: 401 }],
-    ['sem permissão', { status: 403 }],
+    ['servidor', { name: 'AuthApiError', status: 500, code: 'unexpected_failure' }],
+    ['rede (auth-js devolve status 0)', { name: 'AuthRetryableFetchError', status: 0 }],
+    ['erro sem status', { message: 'algo' }],
+    ['sessão vencida', { name: 'AuthApiError', status: 401 }],
+    ['sem permissão', { name: 'AuthApiError', status: 403 }],
+    ['sessão ausente', { name: 'AuthSessionMissingError', status: 400 }],
   ])('falha de %s: aviso genérico (não depende do endereço)', async (_name, error) => {
     recent(true)
     updateUser = vi.fn(async () => ({ error }))
+    expect(await actions.requestEmailChange(idle, form({ email: 'nova@teste.iris.dev' }))).toMatchObject({ status: 'error', message: UNEXPECTED })
+  })
+
+  test('exceção ao pedir: também o aviso genérico, sem lançar', async () => {
+    recent(true)
+    updateUser = vi.fn(async () => {
+      throw new Error('boom')
+    })
     expect(await actions.requestEmailChange(idle, form({ email: 'nova@teste.iris.dev' }))).toMatchObject({ status: 'error', message: UNEXPECTED })
   })
 })
@@ -247,16 +268,49 @@ describe('confirmEmailChange', () => {
     expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'done' })
   })
 
-  test('link vencido, usado ou inventado: a mesma resposta', async () => {
-    verifyOtp = vi.fn(async () => ({ data: { session: null, user: null }, error: { code: 'otp_expired', status: 403 } }))
+  test.each([
+    ['vencido (otp_expired)', { name: 'AuthApiError', code: 'otp_expired', status: 403 }],
+    ['inventado ou já usado (404)', { name: 'AuthApiError', status: 404 }],
+    ['código recusado (422)', { name: 'AuthApiError', code: 'validation_failed', status: 422 }],
+    ['pedido fora do formato (400)', { name: 'AuthApiError', code: 'validation_failed', status: 400 }],
+  ])('link %s: a mesma resposta', async (_name, error) => {
+    verifyOtp = vi.fn(async () => ({ data: { session: null, user: null }, error }))
     expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'invalid' })
   })
 
-  test('falha ao consultar: também vira link que não vale, sem lançar', async () => {
+  test.each([
+    ['rede (status 0)', { name: 'AuthRetryableFetchError', status: 0 }],
+    ['servidor (500)', { name: 'AuthApiError', status: 500 }],
+    ['indisponível (503)', { name: 'AuthRetryableFetchError', status: 503 }],
+    ['limite de pedidos (429)', { name: 'AuthApiError', code: 'over_request_rate_limit', status: 429 }],
+    ['erro sem status', { message: 'algo' }],
+  ])('falha passageira, %s: erro genérico, o link continua valendo', async (_name, error) => {
+    verifyOtp = vi.fn(async () => ({ data: { session: null, user: null }, error }))
+    expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'error' })
+  })
+
+  test('exceção ao consultar: erro genérico, sem lançar', async () => {
     verifyOtp = vi.fn(async () => {
       throw new Error('fetch failed')
     })
-    expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'invalid' })
+    expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'error' })
+  })
+
+  test('segunda confirmação: a sessão que o serviço devolve é encerrada no cliente descartável', async () => {
+    const signOut = vi.fn(async () => ({ error: null }))
+    h.stateless = { auth: { verifyOtp: async () => ({ data: { session: { access_token: 'x' }, user: { id: 'u1' } }, error: null }), signOut } }
+    expect(await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))).toEqual({ status: 'done' })
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' })
+  })
+
+  test('o código do link e o e-mail novo nunca vão para o console, em nenhum caminho', async () => {
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
+    for (const error of [null, { status: 0 }, { status: 403 }]) {
+      verifyOtp = vi.fn(async () => ({ data: { session: null, user: null }, error }))
+      await actions.confirmEmailChange(confirmIdle, form({ token_hash: TOKEN }))
+    }
+    for (const spy of spies) expect(spy).not.toHaveBeenCalled()
+    spies.forEach((spy) => spy.mockRestore())
   })
 
   test('confirmar não usa a sessão do navegador (o beforeEach faz qualquer uso dela lançar)', async () => {

@@ -56,22 +56,49 @@ export async function requestEmailChange(_: FormState, fd: FormData): Promise<Fo
   if (!(await loadSignIn()).hasPassword) return errorState({ message: UNEXPECTED, values })
   const supabase = await createClient()
   if (!(await isSessionRecent(supabase))) return errorState({ message: REAUTH_EMAIL, code: 'reauth', values })
-  const { error } = await supabase.auth.updateUser({ email: parsed.data.email })
-  // A mesma resposta para endereço livre, endereço de outro cadastro e limite de envio.
-  const status = error ? (error as { status?: number }).status : undefined
-  if (error && (status === undefined || status >= 500 || status === 401 || status === 403)) return errorState({ message: UNEXPECTED, values })
+  // updateUser com o cliente da sessão (PKCE) deixa um verificador e um registro de fluxo que o link por código
+  // (verifyOtp) não usa. É inofensivo; não trocar por exchangeCodeForSession.
+  let error: { status?: number; name?: string } | null
+  try {
+    error = (await supabase.auth.updateUser({ email: parsed.data.email })).error
+  } catch {
+    return errorState({ message: UNEXPECTED, values })
+  }
+  // A mesma resposta para endereço livre, endereço de outro cadastro e limite de envio (respostas 4xx).
+  // Falha de verdade não vira "enviado": rede (auth-js devolve status 0), servidor (5xx), sessão (401/403),
+  // sessão ausente e qualquer erro sem status.
+  if (error) {
+    const status = error.status
+    const failed = !status || status >= 500 || status === 401 || status === 403 || error.name === 'AuthSessionMissingError'
+    if (failed) return errorState({ message: UNEXPECTED, values })
+  }
   return { status: 'sent' }
+}
+
+// Só erro do cliente que de fato quer dizer "vencido, usado ou inventado" é link que não vale.
+// Rede (status 0), servidor (5xx), limite (429) e exceção são falhas passageiras: o link continua valendo.
+function isDeadLink(error: { status?: number }): boolean {
+  const status = error.status
+  return typeof status === 'number' && status >= 400 && status < 500 && status !== 429
 }
 
 export async function confirmEmailChange(_: ConfirmEmailState, fd: FormData): Promise<ConfirmEmailState> {
   const token = String(fd.get('token_hash') ?? '')
   if (!TOKEN_HASH.test(token)) return { status: 'invalid' }
   // Cliente sem cookies: confirmar não lê nem troca a sessão de quem está neste navegador.
+  const client = createStatelessClient()
   try {
-    const { data, error } = await createStatelessClient().auth.verifyOtp({ type: 'email_change', token_hash: token })
-    if (error) return { status: 'invalid' }
-    return { status: data.session ? 'done' : 'half' }
+    const { data, error } = await client.auth.verifyOtp({ type: 'email_change', token_hash: token })
+    if (error) return isDeadLink(error) ? { status: 'invalid' } : { status: 'error' }
+    if (!data.session) return { status: 'half' }
+    // A sessão que o serviço devolve vive só neste cliente descartável: encerra para não deixar sessão órfã.
+    try {
+      await client.auth.signOut({ scope: 'local' })
+    } catch {
+      // nada a fazer
+    }
+    return { status: 'done' }
   } catch {
-    return { status: 'invalid' }
+    return { status: 'error' }
   }
 }

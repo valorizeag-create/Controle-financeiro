@@ -16,7 +16,7 @@ export default async function EmailPage() {
     <main className="mx-auto flex max-w-[560px] flex-col gap-5 px-4 pt-4 md:px-9 md:pt-7">
       <PageHeader title="Trocar e-mail" backHref="/configuracoes" />
       {sign.sessionRecent ? (
-        <EmailForm currentEmail={user.email} pendingEmail={sign.pendingEmail} />
+        <EmailForm currentEmail={user.email} />
       ) : (
         <>
           <FormAlert>{REAUTH_EMAIL}</FormAlert>

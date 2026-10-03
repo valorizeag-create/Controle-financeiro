@@ -12,7 +12,7 @@ import { requestEmailChange } from './actions'
 const SENT =
   'Pronto. Se o novo endereço puder ser usado, os links de confirmação já estão a caminho: um no e-mail atual e outro no novo. A troca só vale depois de confirmar nos dois.'
 
-export function EmailForm({ currentEmail, pendingEmail }: { currentEmail: string; pendingEmail: string | null }) {
+export function EmailForm({ currentEmail }: { currentEmail: string }) {
   const [state, formAction, pending] = useActionState(requestEmailChange, idle)
   const err = state.status === 'error' ? state : null
   return (
@@ -23,9 +23,6 @@ export function EmailForm({ currentEmail, pendingEmail }: { currentEmail: string
         <p role="status" className="rounded-panel bg-brand-wash px-4 py-3 text-[15px] text-brand-ink">{SENT}</p>
       ) : (
         <>
-          {pendingEmail && (
-            <p className="text-base text-ink">Troca pendente para {pendingEmail}. Ela só vale depois de confirmar pelos dois links.</p>
-          )}
           <form key={err ? err.submission : 'idle'} action={formAction} noValidate className="flex flex-col gap-4">
             <TextField name="email" type="email" label="Novo e-mail" autoComplete="email" defaultValue={err?.values?.email} error={err?.fieldErrors?.email} />
             {err?.message && <FormAlert>{err.message}</FormAlert>}
