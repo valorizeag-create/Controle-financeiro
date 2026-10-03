@@ -243,6 +243,77 @@ Decisões do controlador ao longo da execução:
 - **`job_set_paused`** (pausar o agendador) é uma função de produção usada pelos testes de banco; só o papel de serviço a chama e também serve de chave de emergência.
 - **Revisão da Task 11:** o botão do aviso "Marcar como paga" abre uma confirmação que não existia no servidor (a página quebrava ao renderizar com o painel aberto) e não aparecia para conta vencida; ambos corrigidos, com testes das duas páginas com o destino do aviso.
 
+## Plano 9
+
+Decisões 137 a 156 como ficaram depois da execução e das revisões (as alterações estão marcadas em cada linha). Os textos jurídicos e as decisões de hospedagem pedem a sua revisão antes do lançamento.
+
+| # | Decisão | Motivo |
+|---|---|---|
+| 137 | Baixar meus dados gera **um arquivo CSV só, em blocos** (Cadastro, Registros, Contas e entradas que se repetem, Compras parceladas, Cartões, Metas, Movimentos das metas, Planejamento, Categorias, Lembretes, Família). Separador ponto e vírgula, UTF-8 com a marca que o Excel reconhece, datas `dd/mm/aaaa`, valores `1234,56`. Nome: `iris-meus-dados-AAAA-MM-DD.csv`. (interpretação — confirme) | A7 A; RF-52; abre direto no Excel em português; sem dependência nova. |
+| 138 | O arquivo traz só o que é da pessoa, inclusive as contas da família que ela criou e a parte dela nas metas da família. **Não traz**: nada de outros participantes, endereços técnicos dos aparelhos (push), a fila de avisos, e-mails de convidados nem identificadores internos. *Alterada na execução:* os registros também trazem quando foram pagos, a forma de pagamento, a parcela (n de N) e a compra parcelada a que pertencem; as contas que se repetem trazem a nota e como se paga. Também **não traz** (a página e a política dizem o que traz): as famílias de que a pessoa já saiu, se algum aparelho recebe avisos, o histórico de avisos enviados, os convites que ela criou, a data em que concluiu o onboarding e a data de uso das metas. | RN-17; LGPD; pendência do Plano 8. |
+| 139 | Toda célula de texto vai entre aspas; a que começaria com `=`, `+`, `-`, `@` ou tabulação ganha um apóstrofo; quebra de linha vira espaço. | Uma nota como "=1+1" não pode virar fórmula na planilha de ninguém. |
+| 140 | O download é um link simples (sem pré-carregamento), só com sessão, nunca guardado (navegador, intermediários, service worker), enviado em partes. Falha no meio interrompe o download, com uma mensagem genérica; pedido vindo de outro site não baixa nada. *Alterada na execução:* a sessão é lida antes de começar a enviar (lida durante o envio, o servidor perdia o acesso e o arquivo saía vazio). | Review Focus 3; decisão 113. |
+| 141 | Excluir o cadastro **sem chave de serviço**: função do banco `delete_my_account()`, sem parâmetro, que só enxerga quem chama, apaga a linha de `auth.users` e deixa a cascata e a regra da família (Plano 7) agirem. A migração para ao ser aplicada se o banco não permitir isso. *Alterada na execução:* a conferência na aplicação é mais rígida (também `audit_log_entries`, `flow_state`, `auth.uid()`/`auth.jwt()` e a segurança por linha ligada para o dono da função) e a função confere de novo ao rodar, para "não achei" nunca ser confundido com "já excluído"; só o papel `authenticated` executa. | Decisão 133; pedido de segurança. |
+| 142 | **Entrada recente = sessão criada há no máximo 15 minutos**, conferida dentro do banco pela sessão que vem no token (sessão encerrada não vale). Quem está com a sessão mais antiga vê "Por segurança, saia e entre de novo antes de…", com o botão "Sair da Íris" — o mesmo padrão da troca de senha (decisão 23) — e serve igual para quem entra com senha ou com o Google. Vale para excluir o cadastro (no banco) e para trocar o e-mail (na ação). Renovar o token não renova a entrada; um link de recuperação aberto a partir do e-mail cria sessão e conta como entrada. (interpretação — confirme) | Decisões 9 e 23; Review Focus 5. |
+| 143 | Depois de excluir: a sessão termina naquele aparelho, a página pública "Seu cadastro foi excluído." aparece, e o navegador apaga a inscrição de lembretes e o que a Íris guardou nele. Outros aparelhos caem em "Entrar" na próxima tela. *Alterada na execução:* a limpeza do navegador roda na própria página "Seu cadastro foi excluído." (a sessão já não existe no servidor) e uma pessoa que ainda tem sessão é levada ao início em vez de ver essa página. | RF-53; LGPD; decisão 117. |
+| 144 | Tela de exclusão: quem não deixa nada vê o texto da copy; quem tem gastos numa família que continua vê o texto do RF-53 e "Isso não pode ser desfeito."; com parte nas metas da família, "Sua parte nas metas da família ({valor}) também sairá delas." (soma das partes positivas nas metas ativas); administradora com outras pessoas: "A administração da família passa para quem participa há mais tempo." (texto novo). Sem vermelho e sem ícone de alerta. *Alterada na execução:* a exclusão da administradora **não é bloqueada** (nem exige passar a administração antes): o papel passa sozinho a quem participa há mais tempo, como já fazia o banco desde o Plano 7 (decisão 109), e a tela avisa. Quem teve gastos numa família que depois terminou também vê o texto do RF-53 (conservador). (interpretação — confirme) | RF-53, RN-22e, RN-25, decisão 109; V5; conflito 2. |
+| 145 | Dois toques ou duas abas: a segunda chamada encontra o cadastro já excluído e termina igual, sem erro. Impasse no banco (40P01): uma nova tentativa, só nesse caso. *Alterada na execução:* as duas chamadas ao mesmo tempo foram examinadas no banco (a segunda não confunde "já excluído" com "entrada antiga"). | Review Focus 1; pendência do Plano 7. |
+| 146 | **Família encerrada não guarda o nome**: vira "Família encerrada" na hora, por qualquer caminho. Quando a exclusão do cadastro deixa uma família encerrada sem nada de outra pessoa, o que sobrou dela (participações anônimas, convites, avisos, metas sem movimento e a própria família) é apagado. Se ainda há algo de quem saiu antes e continua com cadastro, a linha fica, sem nome, até essa pessoa também excluir. *Ampliada na execução:* se ninguém com cadastro participa mais, nenhum gasto da família tem dono, não há conta que se repete e nenhum movimento de meta tem dono, a varredura apaga também o que restava sem dono (gastos, partes usadas, metas e a família). (interpretação — confirme) | Pendência do Plano 7; LGPD (não guardar sem necessidade). |
+| 147 | O que fica depois da exclusão é só o histórico sem nome de uma família que continua (RN-24, decisão 109) e, por até 7 dias, um convite pendente que outra família tenha enviado para aquele e-mail e o resumo (SHA-256) desse endereço no registro dos limites de convite. | RN-24; decisão 129. |
+| 148 | `account_leftovers` (só o papel de serviço): diz onde ainda existe algo de um cadastro. Os testes a usam para provar a exclusão, e você pode usá-la no banco hospedado para conferir um pedido de exclusão. Ela não vê o que o dono da função não consegue ler e não confere `storage` (o app não usa). | LGPD; prova da exclusão. |
+| 149 | A exclusão também apaga os rastros da pessoa no serviço de login que não saem sozinhos (registro de acessos e pedidos de login em andamento) e trava todas as famílias da pessoa, em ordem, antes de apagar. | LGPD; duas exclusões ao mesmo tempo. |
+| 150 | Trocar e-mail: pedido em Configurações → E-mail; o Supabase envia um link ao endereço atual e outro ao novo, e a troca só vale com os dois. A tela responde sempre a mesma frase. O link abre uma página com botão (abrir o link não confirma nada) e confirmar não inicia sessão em quem confirma. *Alterada na revisão:* **sai** "Uma troca pendente aparece na tela" (recarregar a tela revelaria se o endereço tinha cadastro). Falha de rede, do servidor ou da sessão ao pedir mostra o aviso calmo de erro, nunca "enviado"; falha passageira ao confirmar mostra o aviso de erro e mantém o link. (interpretação — confirme) | RF-51; decisão 22; Review Focus 4. |
+| 151 | Quem entra só com o Google vê o e-mail apenas para leitura. (interpretação — confirme) | Conflito 5. |
+| 152 | Modelos de e-mail do Supabase Auth em português para a troca de e-mail e para a confirmação de cadastro (este fica pronto; a confirmação continua desligada). | Pendência do Plano 8. |
+| 153 | No ambiente local, o limite de e-mails do Supabase Auth sobe de 2 para 20 por hora. No projeto hospedado o limite é o do painel. | Cada troca envia dois e-mails; os testes precisam de mais de um. |
+| 154 | Termos e Política: páginas públicas, texto num arquivo só, em rascunho com aviso visível (que diz que a revisão é do responsável e de um advogado) e sem indexação até você preencher o responsável, o contato, o provedor de e-mail e a data da revisão; enquanto isso, cada campo vazio aparece marcado "[a definir antes do lançamento]". Nenhum nome, CNPJ, endereço ou e-mail foi inventado. | RF-54; RNF-07; texto jurídico pede revisão. |
+| 155 | Concordância: a frase da copy no cadastro ("Ao criar seu cadastro, você concorda com…"), agora também em "Entrar" (o Google cria cadastro por lá). Sem caixa de marcar e sem registrar a versão aceita. (interpretação — confirme) | Copy; os requisitos não pedem caixa. |
+| 156 | Supabase Pro e domínio próprio ficam só documentados, com o que cada escolha muda. | Pedido do projeto; etapa-2 §5. |
+
+**Conflitos encontrados na especificação** (do plano; os de número 1 a 3 pedem a sua decisão)
+1. **Copy "Excluir sua conta" / "Excluir minha conta · Manter minha conta" / "Sua conta foi excluída." × terminologia fixa (etapa-2 §1.1: "conta" só para conta a pagar).** Vale a terminologia, como desde o Plano 1 ("Criar meu cadastro"): "Excluir seu cadastro", "Excluir meu cadastro · Manter meu cadastro", "Seu cadastro foi excluído. Obrigado por ter usado a Íris.". **Confirme.**
+2. **Copy "Todos os seus dados serão apagados de forma permanente…" × RF-53 e RN-24 (os gastos da família continuam no histórico dela, sem o nome).** Para quem tem gastos numa família que continua, "todos" não é verdade. Decisão 144: o texto da copy aparece só para quem não deixa nada; o texto aprovado do RF-53, seguido de "Isso não pode ser desfeito.", para quem deixa gastos na família. **Confirme.**
+3. **RNF-07 "dados no Brasil (região São Paulo)" × Netlify.** O banco fica em São Paulo, mas as páginas e as ações do servidor passam pela hospedagem da Netlify, que pode rodar fora do Brasil. A política diz isso com todas as letras; se a exigência for "nada fora do Brasil", é uma decisão de hospedagem que só você pode tomar. **Precisa da sua decisão antes do lançamento.**
+4. **"A Íris nunca diz se um endereço tem cadastro" × Supabase Auth.** O serviço responde `email_exists` a quem pede a troca; a tela esconde (mesma resposta), mas quem chama a API direto, com a própria sessão, vê. Limite conhecido, registrado. O cadastro por e-mail tem o mesmo comportamento desde o Plano 1 ("Esse e-mail já tem um cadastro. Quer entrar?", da copy).
+5. **RF-51 "editar e-mail" × quem entra com o Google.** Trocar o e-mail de um cadastro sem senha deixaria o e-mail da Íris diferente do e-mail do Google, sem ganho. A troca só é oferecida a cadastros com senha (decisão 151).
+6. **A7 A "CSV" × "todos os dados" (tabelas diferentes).** Um arquivo só, em blocos, em vez de vários arquivos compactados (decisão 137).
+7. **Copy "Nunca 'Enviar'" × botão "Enviar link".** A própria copy usa "Enviar link" na recuperação de senha; reaproveitado.
+8. **Etapa-2 §5 "Supabase Pro no lançamento" × regra "só planos gratuitos, nada contratado".** O plano só documenta; a decisão e a contratação são suas.
+9. **Copy da landing, seção 8: "Você pode exportar ou excluir tudo quando quiser." × RN-24.** "Excluir tudo" tem a mesma tensão do conflito 2; fica para o Plano 10 decidir a frase.
+10. **Etapa-3 §6 lista "exportar, excluir cadastro" dentro de Configurações × telas próprias.** São páginas sob `/configuracoes/…`, no mesmo padrão de "Nome" e "Saldo inicial".
+11. **README "Antes de publicar (Plano 8)" × lista de lançamento do Plano 9.** A seção foi renomeada para "Lista de lançamento: o que depende de você" e continua a numeração; nenhum item do Plano 8 saiu.
+12. **Copy "Rodapé do cadastro" só na tela de cadastro × "Continuar com o Google" na tela de entrar, que também cria cadastro.** A mesma frase aprovada aparece nas duas telas (decisão 155).
+
+**Decisões do controlador ao longo da execução:**
+- **RNF-07 aceito como decisão sua, dita com franqueza.** O banco fica em São Paulo; o código das páginas na Netlify pode rodar fora do Brasil. A Política de privacidade diz isso e que a forma de tratar a transferência está em definição pelo responsável. Custo se a decisão for outra: mudar de hospedagem ou reescrever esse trecho.
+- **"Cadastro", não "conta", nos textos de exclusão** (a terminologia aprovada no Plano 2 vale mais que a copy).
+- **"Todos os seus dados serão apagados…" só quando nada fica.** Para quem deixa gastos numa família, o texto do RF-53.
+- **Entrada recente = 15 minutos** desde que a sessão foi criada; quem entrou só com o Google não troca o e-mail (a troca nem é oferecida), mas exclui o cadastro normalmente.
+- **A administradora que exclui o cadastro** não precisa passar o papel antes: ele passa sozinho a quem participa há mais tempo (decisão 109 e regra do Plano 7), e a exclusão por LGPD nunca é bloqueada. Texto novo: "A administração da família passa para quem participa há mais tempo."
+- **Limites de convite por e-mail sobrevivem à exclusão** (revisão da Task 2): um registro próprio guarda só o resumo do endereço e a data, por cerca de 7 dias, sem ligação com quem convidou nem com a família. Sem isso, criar e excluir cadastros zeraria os limites. Custo se a decisão for outra: manter as linhas dos convites, mais simples, com o risco do reset.
+- **A varredura de família encerrada foi ampliada** (apaga o que restou sem dono quando ninguém com cadastro participa mais). Custo se a decisão for outra: remover o último bloco de `sweep_ended_family`; a família sem ninguém ficaria no banco, sem nome.
+- **`email_exists` ainda é visível** para quem chama a API do Supabase Auth direto com a própria sessão: limite conhecido, não resolvível no app.
+- **A linha "Troca pendente para {e-mail}" saiu** (enumeração ao recarregar). Pedido de troca com limite de envio atingido (429) **não** deve dizer que os links foram enviados: deve mostrar o aviso calmo "Algo não saiu como esperado do nosso lado. Tente novamente em instantes." (como o limite vale para qualquer endereço, não revela cadastro). Esta troca está nos ajustes finais ainda abertos (`docs/progresso.md`).
+- **Convite pendente enviado por outra família para o e-mail de quem excluiu o cadastro** fica até vencer (7 dias): limpar seria um oráculo de cadastro.
+- **Textos jurídicos em rascunho, com avisos honestos** (revisão da Task 9): "baixar tudo" virou "baixar o que registrou"; a política lista o que o arquivo não traz; o texto sobre a família descreve tudo o que é compartilhado; o registro de avisos enviados é descrito como é (ligado ao cadastro, 90 dias, sem o texto); o caminho de cada direito é indicado; "apagados na hora" virou "apagados"; promessas incondicionais viraram "como a lei pede" e "antecedência razoável".
+- **O que não é exportado** (para registro): famílias de que a pessoa já saiu, se algum aparelho recebe avisos, histórico de avisos enviados, convites criados, data do onboarding e data de uso das metas.
+
+**Para você confirmar** (resumo): as interpretações das decisões 137, 142, 144, 146, 150, 151 e 155; "cadastro" no lugar de "conta" (conflito 1); a frase da copy só para quem não deixa nada (conflito 2); a ampliação da varredura e o registro de limites de convite (acima); e todos os textos da lista "Plano 9" em "Textos novos usados".
+
+**Para a revisão jurídica** (pontos ⚖; sua revisão e, de preferência, de um advogado, antes do lançamento):
+- Termos, seção 3 (Gratuita): "Se isso mudar um dia, você será avisado antes…" — compromisso de aviso e de poder baixar ou excluir os dados.
+- Termos, seção 4 (O que a Íris não é): limite de responsabilidade ("Confira valores importantes antes de decidir com base neles.") e a negativa de aconselhamento financeiro.
+- Termos, seção 8 (Disponibilidade): aviso "com antecedência razoável" se o serviço for encerrado.
+- Termos, seção 9 (Encerramento): suspensão de cadastro que descumpra os termos.
+- Termos, seção 11 (Contato e lei aplicável): quem é o responsável, o contato, a lei brasileira e o foro (hoje não há foro indicado).
+- Política, seção 1 (Quem cuida dos seus dados): identificação do responsável e do encarregado (o mesmo contato).
+- Política, seção 4 (Para que os dados são usados): **base legal** do tratamento (hoje: execução do serviço pedido ao criar o cadastro, e consentimento para os lembretes no aparelho).
+- Política, seção 6 (Quem ajuda a Íris a funcionar): servidores da Supabase em São Paulo; **Netlify com servidores possivelmente fora do Brasil** (transferência internacional, RNF-07); provedor de e-mail (e se o Supabase Auth usa o mesmo).
+- Política, seção 8 (Por quanto tempo): prazos das cópias de segurança e dos registros técnicos dos serviços; os 7 dias do resumo do endereço convidado; os 90 dias do registro de avisos.
+- Política, seção 9 (Seus direitos): caminho de cada direito da LGPD (art. 18), uso do contato para os que não têm tela, ANPD.
+- Política, seção 10 (Segurança): aviso em caso de incidente ("como a lei pede").
+- Política, seção 11 (Idade): idade mínima (hoje "pensada para adultos"; menores de 18 só com um responsável).
+
 ## Textos novos usados (fora da copy oficial)
 
 Aprovados antes: "Falta o seu nome.", "Falta a senha.", "Use até {n} caracteres.", "Escolha o dia.", "Crie uma nova senha.", "Salvar nova senha", "Voltar", formas de pagamento (Pix, Dinheiro, Boleto, Débito, Crédito, Outra forma, Não informar).
@@ -315,3 +386,239 @@ Plano 8: 39 textos novos, para aprovação, exatamente como estão no código (a
 Reaproveitados (já aprovados; não contam como novos): "Instalar a Íris", "Adicione a Íris à sua tela de início para abrir com um toque e receber lembretes.", "No iPhone: toque em Compartilhar e depois em "Adicionar à Tela de Início".", "Adicionar à tela de início", "Agora não", "Lembretes", "App", "Contas perto do vencimento", "Planejado quase no limite", "Meta perto de ser concluída", "Resumo do mês", "Lembrete para anotar", "Todo dia às 21h", "Tentar de novo", "Convite enviado · aguardando", "Reenviar", "Cancelar convite", "Confira o e-mail. Parece que falta alguma coisa.", "Voltar", as sete frases de "Notificações" da copy (por exemplo "{conta} vence amanhã. Quer marcar como paga?" e "Hoje é o dia de {conta}."), "Sem conexão no momento. Assim que voltar, a gente tenta de novo.", "Marcar {conta} como paga?", "Marcar como paga", "Conta marcada como paga.", "Alterações salvas.", "Ver meu mês", "Você recebeu um convite", "Crie uma nova senha.", "A família já está completa.", "Só quem administra a família pode fazer isso.", as frases da decisão 108 (também usadas no push de aviso da família) e "Íris — Veja para onde seu dinheiro vai".
 
 Ainda sem texto (pendência do ajuste final): quando o aviso de push chega com dados que não servem, o service worker hoje não mostra nada; está decidido mostrar um aviso neutro no lugar, e o texto dele será mais um item para aprovação.
+
+Plano 9: textos novos, para aprovação, exatamente como estão no código (a lista do plano `docs/superpowers/plans/2026-10-02-iris-plano-9-seus-dados.md` tinha 32; a revisão acrescentou os cabeçalhos "Pago em", "Compra parcelada", "Nota" e "Como paga" e o valor "Compra de {data}", trocou o aviso de rascunho e tirou o texto 14).
+
+*Excluir o cadastro*
+- "A administração da família passa para quem participa há mais tempo."
+- "Por segurança, saia e entre de novo antes de excluir o cadastro."
+
+*Baixar meus dados*
+- "Um arquivo com tudo o que você registrou na Íris: registros, contas que se repetem, cartões, metas, planejamento e categorias. Abre no Excel e em outras planilhas."
+- "O arquivo traz só o que é seu. Nada de outras pessoas da família entra nele."
+- "Baixar arquivo" (link)
+- Títulos dos blocos do arquivo: "Cadastro", "Registros", "Contas e entradas que se repetem", "Compras parceladas", "Cartões", "Metas", "Movimentos das metas", "Planejamento", "Categorias", "Lembretes", "Família"
+- Cabeçalhos do arquivo. Cadastro: "Nome", "E-mail", "Quanto você tinha ao começar", "Cadastro criado em". Registros: "Data", "Tipo", "Situação", "Valor", "Categoria", "De onde veio", "Nota", "Como pagou", "Parcela", "Gasto da família", "Pago com a meta", "Parte paga pela meta", "Vencimento", "Pago em", "Compra parcelada". Contas e entradas que se repetem: "Nome", "Tipo", "Valor", "Categoria", "De onde veio", "Frequência", "Dia", "Mês", "Começou em", "Encerrada em", "Conta da família", "Nota", "Como paga". Compras parceladas: "Data da compra", "Total", "Parcelas", "Situação", "Encerrada em". Cartões: "Apelido", "Tipo", "Cor". Metas: "Nome", "Valor da meta", "Prazo", "Situação", "Meta da família". Movimentos das metas: "Data", "Meta", "Movimento", "Valor". Planejamento: "Mês", "Categoria", "Planejado". Categorias: "Nome". Lembretes: "Lembrete", "Ligado". Família: "Família", "Papel", "Desde".
+- Valores do arquivo: "Sim", "Não", "Gasto", "Entrada", "Confirmado", "A pagar", "A receber", "Conta", "Em andamento", "Quitada", "Devolvida", "Ativa", "Usada", "Excluída", "Voltou ao sair da família", "Administra", "Participa", "Meta da família" (meta que a pessoa não alcança mais) e "Compra de {data}" (ligação do registro à compra parcelada)
+- Nome do arquivo: `iris-meus-dados-AAAA-MM-DD.csv`
+
+*Trocar e-mail (telas)*
+- "Trocar e-mail" (título)
+- "E-mail atual" e "Novo e-mail" (rótulos)
+- "Esse já é o seu e-mail."
+- "Pronto. Se o novo endereço puder ser usado, os links de confirmação já estão a caminho: um no e-mail atual e outro no novo. A troca só vale depois de confirmar nos dois."
+- "Por segurança, saia e entre de novo antes de trocar o e-mail."
+- "Confirmar troca de e-mail" (título e botão)
+- "Falta um passo. Confirme também pelo link enviado ao outro endereço."
+- "E-mail alterado. Use o novo endereço para entrar."
+- "Este link não vale mais. Peça a troca de novo em Configurações."
+- (Retirado na revisão: "Troca pendente para {e-mail}. Ela só vale depois de confirmar pelos dois links.")
+
+*E-mail de troca de e-mail* (modelo do Supabase, `supabase/templates/email_change.html`)
+- Assunto: "Confirme a troca de e-mail na Íris"
+- "Confirme a troca de e-mail." (título)
+- "Recebemos um pedido para trocar o e-mail do seu cadastro na Íris para {novo e-mail}."
+- "A troca só vale depois de confirmar pelos dois links: o enviado ao e-mail atual e o enviado ao novo."
+- "Confirmar troca de e-mail" (link)
+- "Se não foi você, é só ignorar este e-mail. O e-mail do cadastro continua o mesmo."
+
+*E-mail de confirmação de cadastro* (modelo pronto; desligado, `supabase/templates/confirmation.html`)
+- Assunto: "Confirme seu e-mail na Íris"
+- "Confirme seu e-mail." (título) e "Confirmar e-mail" (link)
+- "Falta só confirmar o e-mail do seu cadastro na Íris."
+- "Se não foi você, é só ignorar este e-mail."
+
+*Termos e Privacidade* (a ordem e o texto são os de `src/features/legal/content.ts`; cada campo marcado "[a definir antes do lançamento]" é preenchido por você em `src/features/legal/controller.ts`)
+- "Rascunho em revisão. Este texto ainda será revisado pelo responsável pela Íris e por um advogado antes do lançamento." (aviso de rascunho; substitui o texto 28 do plano)
+- "Atualizado em {data}."
+- "[a definir antes do lançamento]" (marca de campo que só o dono preenche)
+- Rótulos de acessibilidade das páginas: "Íris, página inicial" (logo) e "Textos legais" (links para as duas páginas)
+- O texto dos Termos de uso e o da Política de privacidade, por extenso, abaixo.
+
+***Termos de uso***
+
+1. **O que é a Íris**
+
+   A Íris é um app gratuito para anotar o que entra e o que sai e enxergar o seu mês. Os números que ela mostra vêm do que você anota.
+
+2. **Seu cadastro**
+
+   Para usar a Íris você cria um cadastro com e-mail e senha, ou entra com o Google.
+
+   O cadastro é pessoal. Cuide da sua senha e não a compartilhe.
+
+   Use um e-mail que você acompanha: é por ele que a Íris envia o link para criar uma nova senha.
+
+3. **Gratuita**
+
+   A Íris é gratuita e não pede dados de cartão para funcionar.
+
+   Se isso mudar um dia, você será avisado antes e poderá baixar ou excluir os seus dados.
+
+4. **O que a Íris não é**
+
+   - Não é banco e não movimenta dinheiro.
+   - Não se conecta ao seu banco e não pede senha de banco.
+   - Não dá conselho de investimento nem promete resultado.
+
+   A Íris mostra o que está acontecendo. As decisões continuam sendo suas. Confira valores importantes antes de decidir com base neles.
+
+5. **Família**
+
+   Quem cria uma família passa a administrá-la e pode convidar outras pessoas.
+
+   Tudo o que alguém marca como da família aparece para quem participa dela: os gastos da família, as contas da família e as metas da família.
+
+   Quem administra pode ajustar e excluir gastos da família e remover participantes.
+
+   O que você não marca como da família continua privado.
+
+6. **Uso combinado**
+
+   - Não use a Íris para atividade ilegal.
+   - Não tente acessar dados de outras pessoas.
+   - Não envie convites a quem não quer recebê-los.
+   - Não sobrecarregue nem tente derrubar o serviço.
+
+7. **Seus dados**
+
+   O que você anota é seu. Você pode baixar o que registrou em Configurações → Seus dados → Baixar meus dados e excluir o cadastro em Configurações → Seus dados → Excluir meu cadastro, quando quiser.
+
+   A Política de privacidade explica o que a Íris guarda, o que o arquivo traz e para quê.
+
+8. **Disponibilidade**
+
+   A Íris precisa de conexão com a internet para funcionar.
+
+   Ela pode ficar fora do ar por algum tempo, mudar ou ser encerrada. Se for encerrada, a Íris vai avisar com antecedência razoável para você baixar os seus dados.
+
+9. **Encerramento**
+
+   Você pode excluir o seu cadastro quando quiser.
+
+   A Íris pode suspender um cadastro que descumpra estes termos.
+
+10. **Mudanças nestes termos**
+
+   Se estes termos mudarem de forma importante, a Íris avisa antes de a mudança valer.
+
+11. **Contato e lei aplicável**
+
+   A Íris é mantida por [a definir antes do lançamento]. Para falar sobre estes termos, escreva para [a definir antes do lançamento].
+
+   Estes termos seguem a lei brasileira.
+
+***Política de privacidade***
+
+1. **Quem cuida dos seus dados**
+
+   A Íris é mantida por [a definir antes do lançamento], que decide como os dados são tratados.
+
+   Para falar sobre os seus dados, inclusive com a pessoa encarregada de cuidar deles (encarregado), escreva para [a definir antes do lançamento].
+
+2. **O que a Íris guarda**
+
+   - Seu cadastro: nome, e-mail e senha. A senha fica guardada de forma protegida (um resumo cifrado, nunca a senha em si).
+   - Se você entra com o Google (quando essa opção está ativa): o nome, o e-mail e um identificador que o Google informa. Nunca a sua senha do Google.
+   - O que você anota: gastos, entradas, contas a pagar e a receber, compras parceladas, metas, planejamento, categorias e notas.
+   - Cartões: só o apelido, o tipo e a cor. Nenhum número de cartão.
+   - Família, se você participar de uma: o nome da família, quem participa e o que é marcado como da família (gastos, contas da família e metas).
+   - Lembretes: quais estão ligados e, se você ativar os lembretes num aparelho, o endereço técnico que o navegador fornece para a Íris enviar avisos a ele.
+   - Convites por e-mail: o endereço de quem foi convidado fica guardado, e só quem administra a família o vê, enquanto o convite está pendente. Um resumo cifrado desse endereço fica por até 7 dias, só para limitar a quantidade de convites, sem ligação com quem convidou.
+   - Registros técnicos: como em todo site, os serviços que hospedam a Íris registram dados de acesso, como endereço IP, data, hora e tipo de navegador.
+
+3. **O que a Íris não faz**
+
+   - Não se conecta ao seu banco e não pede senha de banco.
+   - Não guarda número de cartão.
+   - Não vende nem aluga dados.
+   - Não mostra publicidade.
+   - Não usa ferramentas de medição de audiência nem rastreadores.
+
+4. **Para que os dados são usados**
+
+   - Para mostrar o seu mês e calcular os números a partir do que você anota.
+   - Para manter o seu acesso seguro.
+   - Para enviar os lembretes e os e-mails que você deixou ligados.
+   - Para o espaço da família, quando você participa de uma.
+
+   A Íris trata esses dados para prestar o serviço que você pediu ao criar o cadastro. Os lembretes no aparelho dependem da sua permissão, que você pode retirar quando quiser, em Configurações → Lembretes (veja a seção sobre os seus direitos).
+
+5. **O que a família vê**
+
+   Quem participa de uma família vê os gastos, as contas da família e as metas da família que forem marcados como da família, os nomes e os papéis de quem participa e os avisos da família.
+
+   Numa meta da família, cada pessoa vê o total da meta e só a sua própria parte.
+
+   O Disponível e as entradas de cada pessoa nunca aparecem para a família.
+
+   Os outros participantes também não veem os seus cartões nem as suas metas pessoais.
+
+6. **Quem ajuda a Íris a funcionar**
+
+   - Supabase: guarda o banco de dados e cuida do login. O banco fica em servidores em São Paulo.
+   - Netlify: hospeda o site e executa o código das páginas. Esse código pode funcionar em servidores fora do Brasil e, quando funciona, os seus dados passam por lá enquanto você usa o app. Como tratar essa transferência para o exterior ainda está em definição pelo responsável pela Íris.
+   - [a definir antes do lançamento]: envia os e-mails da Íris (convites, avisos e resumo do mês). Os e-mails de confirmação do cadastro e de nova senha saem pelo serviço de login (Supabase); se eles usam o mesmo provedor, isso ainda está a confirmar.
+   - Serviço de avisos do seu navegador (Google, Mozilla, Apple ou Microsoft): entrega os lembretes ao aparelho. O conteúdo viaja cifrado.
+   - Google: só se você escolher entrar com o Google.
+
+   Esses serviços tratam os dados só para a Íris funcionar.
+
+7. **Cookies e o que fica no aparelho**
+
+   A Íris usa só o necessário para funcionar:
+
+   - cookies de sessão, que mantêm você dentro do app;
+   - um cookie que dura alguns segundos, para mostrar avisos como "Anotado.";
+   - no armazenamento do aparelho: a página "Sem conexão", um ícone e pequenas preferências, como a sua escolha de não ver de novo o convite para ativar lembretes.
+
+   Não há cookies de publicidade nem de medição.
+
+   Também não há rastreadores de terceiros.
+
+8. **Por quanto tempo**
+
+   - Enquanto o seu cadastro existir.
+   - Ao excluir o cadastro, seus dados pessoais são apagados.
+   - Os gastos que você registrou numa família que continua existindo ficam no histórico dela como "Ex-membro", sem o seu nome. A sua parte nas metas da família sai delas.
+   - Um resumo cifrado do endereço de e-mail convidado para uma família fica por até 7 dias, sem ligação com quem convidou, mesmo depois da exclusão do cadastro.
+   - O registro de que um aviso foi enviado fica por até 90 dias, ligado ao seu cadastro: o tipo do aviso, a que item, mês ou dia ele se refere, quando foi preparado e enviado e se a entrega deu certo, sem o texto do aviso.
+   - Registros técnicos e cópias de segurança dos serviços de hospedagem seguem os prazos desses serviços.
+
+9. **Seus direitos**
+
+   A qualquer momento você pode:
+
+   - corrigir o que anotou, editando nas próprias telas;
+   - baixar uma cópia do que registrou, numa planilha em formato CSV, em Configurações → Seus dados → Baixar meus dados (acesso e portabilidade);
+   - excluir o cadastro, em Configurações → Seus dados → Excluir meu cadastro;
+   - retirar a permissão para avisos, em Configurações → Lembretes: "Desativar neste aparelho" para os avisos no aparelho e os interruptores para os lembretes e os e-mails;
+   - pedir, por [a definir antes do lançamento], a confirmação de que a Íris trata dados seus, a anonimização ou o bloqueio do que for desnecessário e informações sobre com quem os dados são compartilhados (veja a seção sobre quem ajuda a Íris);
+   - retirar o seu consentimento em geral, também por [a definir antes do lançamento].
+
+   O arquivo para baixar traz o seu cadastro, seus registros, as contas a pagar e as entradas que se repetem, as compras parceladas, os cartões, as metas e seus movimentos, o planejamento, as categorias, quais lembretes estão ligados e a família de que você participa hoje. Ele não traz as famílias de que você já saiu, se algum aparelho recebe avisos, o histórico de avisos enviados nem os convites que você criou.
+
+   Você também pode procurar a Autoridade Nacional de Proteção de Dados (ANPD).
+
+10. **Segurança**
+
+   O acesso é sempre por conexão cifrada (HTTPS).
+
+   Cada pessoa só alcança os próprios dados e o que é da família, se participa de uma. Essa regra é aplicada dentro do banco de dados, não só nas telas.
+
+   Nenhum sistema é infalível. Se houver um incidente que afete os seus dados, a Íris avisa você, como a lei pede.
+
+11. **Idade**
+
+   A Íris é pensada para adultos. Menores de 18 anos só devem usar com um responsável.
+
+12. **Mudanças nesta política**
+
+   Se esta política mudar de forma importante, a Íris avisa antes de a mudança valer.
+
+*Banco*
+- "Família encerrada" (nome que substitui o de uma família encerrada; nenhuma tela o mostra)
+
+**Adaptados da copy por causa da terminologia fixa (conflito 1; não contam como novos, mas peço a confirmação):** "Excluir seu cadastro", "Excluir meu cadastro", "Manter meu cadastro", "Seu cadastro foi excluído. Obrigado por ter usado a Íris."
+
+**Reaproveitados (já aprovados; não contam como novos):** "Todos os seus dados serão apagados de forma permanente: registros, categorias, metas e planejamentos. Isso não pode ser desfeito." (copy), "Seus dados pessoais serão apagados. Os gastos que você registrou na família continuam no histórico dela, sem o seu nome." (RF-53), "Sua parte nas metas da família ({valor}) também sairá delas." (RN-22e), "Baixar meus dados antes", "Digite EXCLUIR para confirmar.", "Termos de uso", "Política de privacidade", "Ao criar seu cadastro, você concorda com os Termos de uso e a Política de privacidade.", "Enviar link", "Confira o e-mail. Parece que falta alguma coisa.", "Algo não saiu como esperado do nosso lado. Tente novamente em instantes.", "Sair da Íris", "Se o link não abrir, copie este endereço no navegador:", "Íris — Veja para onde seu dinheiro vai", "Guardou", "Tirou", "Usou", "Todo mês", "Todo ano", "Crédito", "Débito", os nomes das cores dos cartões, os oito rótulos de Lembretes, "Aqui aparecem só os gastos marcados como da família.", "O Disponível e as entradas de cada pessoa nunca aparecem aqui.", "E-mail ou senha não conferem. Tente de novo ou crie uma nova senha.", e, do mapa de Configurações do Plano 2 (protótipo `Configuracoes`): "Seus dados", "Baixar meus dados", "Excluir meu cadastro".

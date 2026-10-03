@@ -34,3 +34,8 @@ export function jobTestIsLocal(env: Env = process.env): boolean {
 export function inviteTestIsLocal(env: Env = process.env): boolean {
   return isLocalUrl(env.NEXT_PUBLIC_SUPABASE_URL) && isLocalHost(env.SMTP_HOST)
 }
+
+// A troca de e-mail é enviada pelo Supabase Auth: com o banco local, os e-mails caem na caixa local.
+export function authEmailTestIsLocal(env: Env = process.env): boolean {
+  return isLocalUrl(env.NEXT_PUBLIC_SUPABASE_URL)
+}

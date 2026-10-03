@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
-import { inviteTestIsLocal, isLocalHost, isLocalUrl, jobTestIsLocal } from '../../../tests/e2e/local-only'
+import { authEmailTestIsLocal, inviteTestIsLocal, isLocalHost, isLocalUrl, jobTestIsLocal } from '../../../tests/e2e/local-only'
 
 // Os testes de ponta a ponta da tarefa e do convite por e-mail entregam avisos e enviam e-mail.
 // Esta guarda decide se eles podem rodar: só com tudo na própria máquina.
@@ -43,6 +43,13 @@ describe('guarda "só local" dos testes de ponta a ponta', () => {
     expect(inviteTestIsLocal({ NEXT_PUBLIC_SUPABASE_URL: LOCAL_DB, SMTP_HOST: 'smtp.resend.com' })).toBe(false)
     expect(inviteTestIsLocal({ NEXT_PUBLIC_SUPABASE_URL: HOSTED_DB, SMTP_HOST: '127.0.0.1' })).toBe(false)
     expect(inviteTestIsLocal({})).toBe(false)
+  })
+
+  test('troca de e-mail: só com o banco local', () => {
+    expect(authEmailTestIsLocal({ NEXT_PUBLIC_SUPABASE_URL: LOCAL_DB })).toBe(true)
+    expect(authEmailTestIsLocal({ NEXT_PUBLIC_SUPABASE_URL: HOSTED_DB })).toBe(false)
+    expect(authEmailTestIsLocal({ NEXT_PUBLIC_SUPABASE_URL: HOSTED_DB, SMTP_HOST: '127.0.0.1' })).toBe(false)
+    expect(authEmailTestIsLocal({})).toBe(false)
   })
 
   test('os dois testes que entregam ou enviam usam a guarda antes de criar qualquer coisa', () => {

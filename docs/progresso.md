@@ -268,7 +268,7 @@ Roteiro: [etapa-7-roteiro.md](etapa-7-roteiro.md). Decisões tomadas durante o d
 
 **Pendências levadas a outros planos**
 - Plano 9: tela de excluir cadastro (as inscrições, preferências e avisos já saem na cascata); exportar no CSV não inclui endereços de push; a política de privacidade precisa citar push, e-mail e o resumo (SHA-256) do endereço convidado guardado por 7 dias; e-mail de confirmação de cadastro (se a confirmação por e-mail for ligada no Supabase hospedado) e de troca de e-mail precisam de texto.
-- Plano 9 (lançamento): tudo do README, "Antes de publicar: o que depende de você (Plano 8)".
+- Plano 9 (lançamento): tudo do README, agora consolidado em "Lista de lançamento: o que depende de você" (feito no Plano 9).
 - Plano 10: Configurações → Lembretes e "Instalar a Íris" no desktop com layout próprio; acessibilidade adiada pelo Plano 7 continua lá.
 - Depois da v1, se fizer falta: tela de avisos dentro do app; escolher o horário do lembrete; aviso de conta que vence no dia 1 já na véspera; trocar o nome da família.
 
@@ -295,11 +295,11 @@ Continuam por fazer:
 - Margem de área segura no aviso "Sem conexão" (Plano 10).
 - Sem teste para o ramo "falha ao montar os dados" da pegada do lote (não dá para provocar pela API).
 - README, item 4 de "Antes de publicar": o script lê só o `.env.local`, então o segredo de produção precisa passar por lá uma vez (deixar isso explícito, ou aceitar o valor por uma variável de uso único).
-- README, item 1: um domínio próprio não é gratuito (dizer isso ou citar a alternativa de remetente único verificado); o projeto gratuito do Supabase pausa por inatividade (o agendador para junto); o resumo do mês por e-mail não tem teto diário e divide a cota do SMTP com a recuperação de senha.
+- README, item 1: ~~um domínio próprio não é gratuito~~ e ~~o projeto gratuito do Supabase pausa por inatividade~~ (feito no Plano 9: itens 12 e 13 da lista de lançamento); o resumo do mês por e-mail não tem teto diário e divide a cota do SMTP com a recuperação de senha.
 - O teste de ponta a ponta da tarefa pode falhar por disputa com o agendador local (pausar com `job_set_paused` e consultar `attempts` em laço); o do "Sem conexão" depende de `context.setOffline(true)` também cortar as chamadas do service worker.
 - A regra do proxy exclui o prefixo `api/jobs/`, não só a rota da tarefa.
 - A descrição do manifest ("Anote seus gastos em segundos e entenda seu mês de um jeito simples.") é uma variação da descrição aprovada do site e não está na lista dos textos novos: aprovar ou trocar pela frase aprovada.
-- `.gitignore` sem a entrada `.claude/`.
+- ~~`.gitignore` sem a entrada `.claude/`~~ (feito no Plano 9).
 
 **Pendências menores adiadas (registradas no livro-razão da execução)**
 - Tarefa 1: tag igual para aviso da família e de planejado (colisão); UUID em maiúsculas é descartado; teste de `PREF_ORDER` ordena antes de comparar.
@@ -310,3 +310,75 @@ Continuam por fazer:
 - Tarefas 9 e 10: 8 itens em `task-9-review.md`; uma ação do servidor parada ainda pode atrasar o "Sair" (o Next serializa ações); tentar de novo o RPC de apagar; mover `isStandalone`/`isIOS` para um módulo de plataforma; flash da tela de instalar; layout de desktop de `/configuracoes/instalar` (Plano 10); linhas de inscrição que sobram depois de uma falha ao apagar são removidas na próxima entrega (404/410).
 - Tarefa 11: 7 itens em `task-11-review.md`; renomear `inviteReturn` (também usado por `src/features/familia/view-model.ts`); restringir o retorno a "só criar cadastro" de convite; consulta mais estreita do livro-razão nos avisos de planejado (hoje lê o mês inteiro se há planejamento). (O comportamento das páginas com o destino do aviso também é coberto de ponta a ponta, em `plano8.spec.ts`.)
 - Tarefa 12: o envio do e-mail é aguardado dentro da ação (até 4 s + 4 s + 5 s) em vez de `after()`, para poder mostrar o aviso de "não enviado"; o campo do e-mail é limpo depois de cada envio, inclusive depois de um erro; a mensagem de sucesso devolve ao navegador o endereço digitado (não é guardado nem registrado).
+
+## Plano 9 — Seus dados e lançamento · concluído em 2026-10-02
+
+**Entregue**
+- Configurações → Seus dados: Baixar meus dados, Termos de uso, Política de privacidade e Excluir meu cadastro.
+- Baixar meus dados: um arquivo CSV (abre no Excel) com tudo o que é da pessoa — cadastro, registros (com a data em que foram pagos, a forma de pagamento, a parcela e a compra parcelada), contas e entradas que se repetem, compras parceladas, cartões, metas e movimentos, planejamento, categorias, lembretes e a família atual. Nada de outras pessoas. Texto que viraria fórmula na planilha sai neutralizado. Só com sessão, nunca guardado, enviado em partes.
+- Excluir meu cadastro: aviso conforme a família (o texto da copy só para quem não deixa nada; o do RF-53 quando há gastos na família), a parte nas metas da família com o valor, a frase sobre a administração da família quando ela passa para outra pessoa, "Baixar meus dados antes", palavra EXCLUIR. Depois: sessão encerrada, página "Seu cadastro foi excluído.", nada pessoal no banco.
+- Trocar e-mail (cadastro com senha): pedido em Configurações → E-mail, confirmação nos dois endereços, página de confirmação com botão. Quem entra só com o Google vê o e-mail apenas para leitura.
+- Termos de uso e Política de privacidade em páginas públicas, em rascunho, com aviso visível, os campos que só o dono preenche marcados e sem indexação.
+- Pendências de planos anteriores fechadas: troca de e-mail (decisão 22); nova tentativa em impasse na exclusão; nome de família encerrada; frase dos Termos também em "Entrar"; e-mails de troca de e-mail e de confirmação de cadastro (modelos); CSV sem endereços de push; política citando push, e-mail e o resumo do endereço convidado; `.claude/` no `.gitignore`.
+
+**Segurança e privacidade**
+- Nenhuma chave de serviço no app: a exclusão é uma função do banco, sem parâmetro, que só enxerga quem chama e exige entrada recente (sessão criada há no máximo 15 minutos, conferida no banco). O teste `no-service-key.test.ts` continua passando.
+- O que fica depois da exclusão: numa família que continua, os gastos marcados como da família ("Ex-membro", sem nome), a parte já usada numa compra da família, o aviso sem nome e a participação anônima. Numa família que termina com a pessoa, nada (a limpeza vai além do plano: apaga também linhas sem dono quando ninguém com cadastro participa mais). Por até 7 dias: um convite pendente que outra família mandou para o e-mail da pessoa e o resumo (SHA-256) do endereço convidado no registro dos limites de convite, sem ligação com quem convidou.
+- Os limites de convite por e-mail (por endereço e no total) passaram a ser contados num registro próprio (`invite_email_ledger`: só o resumo do endereço e a data, 7 dias), para que criar e excluir cadastros não zere os limites (revisão da Task 2).
+- A exclusão também apaga os rastros no serviço de login que não saem sozinhos (registro de acessos e pedidos de login em andamento) e trava todas as famílias da pessoa em ordem antes de apagar, para duas exclusões ao mesmo tempo não deixarem família encerrada para trás. `account_leftovers` (só o papel de serviço) prova o que sobra.
+- A troca de e-mail responde igual para qualquer endereço; o link não confirma sozinho (abrir a página não muda nada), não inicia sessão e sai da barra de endereço depois de usado; falha de rede ou do servidor nunca diz que enviou nem queima o link.
+- Download: pedido vindo de outro site não baixa nada; falha no meio do envio interrompe o arquivo com uma mensagem genérica; sem sessão, 307 para Entrar.
+
+**Testes**
+- Unitários e de componentes: 1321 passando (171 arquivos), incluindo a guarda "só local" da troca de e-mail. Tipos, lint e build sem erros.
+- Banco (`plano9`: 19 testes; `plano8-convite` e `notify-helpers` adaptados ao registro de limites, sem afirmação alterada) e ponta a ponta (`plano9.spec.ts`: 6 testes — celular: 2, desktop: 4; 12 entradas em `--list`): **pendentes**, dependem do Docker (mesma pendência dos Planos 1 a 8). O teste da troca de e-mail só roda com o banco local; o da sessão antiga também precisa do `docker exec` no contêiner do banco local (`supabase_db_Planilha_financeira`, ou `E2E_DB_CONTAINER`) e fica marcado como pulado sem ele.
+- Uma execução do `npm test` teve uma falha intermitente em `pay-pages`/pay-target (Plano 8: relógio falso que não volta ao normal), sem relação com o Plano 9; a seguinte passou inteira. Está em "Ajustes finais" abaixo.
+
+**Ao rodar o banco pela primeira vez (Docker)** — o SQL do Plano 9 nunca foi executado, só lido
+- `npx supabase db reset && npm run test:db && npm run test:e2e`. Esperado: `plano9` 19 testes e todos os dos Planos 1 a 8 (em especial `plano7-familia`, `plano7-saida` e `plano8-convite`, que passam pelo gatilho do nome da família e pelo registro de limites).
+- A migração para no bloco 0 se o papel que a aplica não tiver SELECT e DELETE em `auth.users`, `auth.audit_log_entries` e `auth.flow_state`, SELECT em `auth.sessions`, USAGE no esquema `auth`, EXECUTE em `auth.uid()` e `auth.jwt()`, ou se a segurança por linha valer para o dono da função nessas tabelas. Se parar: não usar a chave de serviço no app. Saídas, para decisão: (a) conceder os privilégios ao papel no projeto, se o Supabase permitir; (b) mover a exclusão para uma função do Supabase (Edge Function) fora de `src/`, com o segredo guardado só no Supabase.
+- Se `auth.sessions` não puder ser lida: trocar o corpo de `session_recent_at` pela data de entrada que vem no próprio token (`amr`), numa migração nova.
+- `account_leftovers` vazio depois de excluir é o que prova a exclusão. Se sobrar uma linha de `auth` (por exemplo `auth.audit_log_entries`, `auth.flow_state`, `auth.one_time_tokens`), acrescentar o `delete` correspondente em `delete_my_account`, numa migração nova, dentro de um bloco protegido como os outros dois. Ela não vê o que o papel não consegue ver (compare `pg_tables where schemaname = 'auth'`) e não confere `storage`, que o app não usa.
+- Sessão antiga: nenhum teste de banco consegue envelhecer uma sessão pela API; o e2e da sessão antiga faz isso pelo `psql` do contêiner. Sem ele: `update auth.sessions set created_at = now() - interval '16 minutes' where user_id = 'ID';` e a exclusão deve ser recusada ("Entrada recente necessária.").
+- Conferir que `auth.jwt() ->> 'session_id'` vem preenchido; que `supabase.auth.verifyOtp({ type: 'email_change', token_hash })` devolve sessão só na segunda confirmação (é como a ação distingue "falta um passo" de "alterado"); e que o modelo `email_change.html` recebe um `{{ .TokenHash }}` diferente em cada endereço.
+- Medir a exclusão de um cadastro grande: a limpeza do registro de acessos varre `auth.audit_log_entries` sem índice, dentro do limite de tempo do papel `authenticated` (8 s no Supabase hospedado). Se estourar, a exclusão volta atrás inteira (nada é apagado pela metade).
+- Os testes do Plano 7 que encerram uma família agora passam pelo gatilho do nome: conferir `plano7-familia` e `plano7-saida`.
+- A caixa de e-mail local: se a mensagem do Supabase Auth vier só em HTML, o teste já lê os dois campos (`Text` e `HTML`).
+
+**Verificar na hospedagem e em aparelho de verdade (não dá para provar localmente)**
+- Download autenticado de um cadastro grande num deploy de prévia da Netlify, e o que acontece se a conexão cair no meio do envio (o download deve falhar, não terminar "completo"); o teste de ponta a ponta do download é um portão de lançamento.
+- `after()` na Netlify (também do Plano 8).
+- No Supabase hospedado: "Secure email change" e "Secure password change" ligados, "Site URL", modelos de e-mail, SMTP próprio e limite de e-mails por hora (README, item 15). Sem "Secure password change", qualquer sessão antiga troca a senha e entra de novo, o que anula a regra dos 15 minutos.
+- O banco hospedado precisa ser Postgres 17 ou mais novo, na região São Paulo.
+
+**Limites conhecidos**
+- Quem chama a API do Supabase Auth direto, com a própria sessão, recebe "esse e-mail já tem cadastro" ao tentar trocar para um endereço existente, e não passa pela conferência de entrada recente da troca de e-mail. As telas da Íris nunca mostram isso; os limites de envio são os do Supabase.
+- "Entrada recente" mede a criação da sessão, não a atividade: qualquer entrada que cria sessão conta, inclusive um link de recuperação aberto a partir do e-mail (quem tem a caixa de e-mail já controla o cadastro). Com "Secure password change" ligado, uma sessão de até 24 horas ainda consegue trocar a senha, entrar de novo e excluir.
+- Um token de sessão já emitido vale até vencer (até 1 hora) depois da exclusão, mas não lê nem grava nada.
+- Os nomes das metas de uma família encerrada que ainda guarda algo de outra pessoa ficam no banco, sem ligação com quem excluiu o cadastro; ninguém os lê. A família encerrada em que alguém que saiu antes ainda tem cadastro fica, sem nome, até essa pessoa também excluir.
+- Um convite pendente enviado por outra família para o e-mail de quem excluiu o cadastro fica até vencer (7 dias); limpar seria um oráculo de cadastro.
+- O limite por pessoa e por família (5 convites em 24 horas) volta a zero quando uma família com um só membro é encerrada junto com a exclusão; os limites por endereço e no total valem de qualquer jeito.
+- O arquivo "Baixar meus dados" não traz: as famílias de que a pessoa já saiu, se algum aparelho recebe avisos, o histórico de avisos enviados, os convites que ela criou, a data em que concluiu o onboarding e a data de uso das metas. A política de privacidade e a página dizem o que traz; a página diz "tudo o que você registrou". O arquivo não é um retrato único do banco (uma anotação feita durante o envio pode duplicar ou pular uma linha).
+- Backups e registros técnicos do Supabase e da Netlify seguem os prazos desses serviços e ficam fora do alcance da exclusão.
+- Se o envio do arquivo for interrompido depois de começar, o navegador pode mostrar o download como falho, sem o arquivo parcial como "completo"; o comportamento na Netlify não foi verificado.
+- Depois de sair e entrar de novo, a pessoa volta a Configurações por conta própria (o retorno automático só existe para convite e pagamento de conta).
+- O registro de que um aviso foi enviado fica 90 dias ligado ao cadastro (tipo, referência, datas e resultado, sem o texto) e sai na exclusão.
+
+**Ajustes finais combinados (Plano 9, ainda abertos na data desta nota)**
+- Remover caracteres de controle (NUL e semelhantes) das células do CSV antes da conferência de fórmula (`src/domain/csv.ts`).
+- Teste intermitente do Plano 8 (`pay-pages`/pay-target): restaurar o relógio falso ao fim de cada teste.
+- `sessionEnded` em `src/features/cadastro/session.ts` tem um ramo morto (`error.status === 401`; o status vem no resultado, não no erro).
+- Troca de e-mail: limite de envio (429) ao pedir a troca deve mostrar "Algo não saiu como esperado do nosso lado. Tente novamente em instantes." (hoje cai na resposta neutra "Pronto…", que diz que os links estão a caminho). Como o limite vale para qualquer endereço, não revela cadastro.
+- Remover `pendingEmail` de `loadSignIn()` (código morto desde que a linha "Troca pendente" saiu, risco de revelar se o endereço tem cadastro ao recarregar) e a afirmação do teste que o cobre.
+
+**Pendências menores adiadas (registradas no livro-razão da execução)**
+- Tarefa 1: sem teto de tamanho por célula; `csvMoney`/`csvDate` confiam nos tipos; o apóstrofo de neutralização aparece literalmente no Excel.
+- Tarefa 2: o limite por pessoa/família volta a zero com a família de um só membro varrida; o registro de limites não tem chave primária; a varredura do registro de acessos sem índice; mais itens em `task-2-review.md`.
+- Tarefas 3 e 4: renovação do token no meio da exportação não chega ao navegador (login de novo, raro); 7 itens em `task-3-review.md`.
+- Tarefas 5 e 6: uma permissão faltando em `delete_my_account` desconectaria a pessoa repetidas vezes (a migração concede); o campo EXCLUIR aceita maiúscula automática e corretor no celular (precisa de props em `TextField`); 9 itens em `task-5-review.md`.
+- Tarefas 7 e 8: sem teste de página para `/configuracoes/e-mail` e `/confirmar-email`; recarregar depois de "falta um passo" ou "alterado" mostra "Este link não vale mais"; 9 itens em `task-7-review.md`.
+- Tarefas 9 e 10: lista do dono, links sublinhados e outros itens em `task-9-review.md`; contraste e visual das páginas novas não foram vistos no navegador.
+
+**Pendências levadas a outros planos**
+- Plano 10: landing (seção Confiança só depois da lista de lançamento, itens 16 a 18, RF-57; a frase "Você pode exportar ou excluir tudo quando quiser." tem a mesma tensão do conflito 2 do Plano 9); layout de desktop das telas novas.
+- Depois da v1, se fizer falta: digitar a senha de novo em vez de sair e entrar; cancelar uma troca de e-mail pendente; limpeza completa de famílias encerradas em que alguém que saiu ainda tem cadastro; registrar a versão dos Termos aceita por cada cadastro; exportar as famílias antigas e o histórico de avisos.
