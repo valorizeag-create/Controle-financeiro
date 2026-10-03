@@ -42,13 +42,18 @@ test('a política diz o que o app faz de verdade', () => {
   for (const fact of [
     'Nenhum número de cartão.', 'Supabase', 'servidores em São Paulo', 'Netlify', 'pode funcionar em servidores fora do Brasil',
     'ainda está em definição', 'por até 7 dias', 'por até 90 dias', 'Não há cookies de publicidade nem de medição.',
-    'rastreadores de terceiros', 'Configurações → Baixar meus dados', 'Configurações → Excluir meu cadastro',
+    'rastreadores de terceiros', 'Configurações → Seus dados → Baixar meus dados', 'Configurações → Seus dados → Excluir meu cadastro',
+    'planilha em formato CSV', 'Desativar neste aparelho', 'Configurações → Lembretes', 'anonimização ou o bloqueio', 'retirar o seu consentimento em geral',
+    'os nomes e os papéis de quem participa', 'só a sua própria parte', 'o que é da família, se participa de uma',
+    'a que item, mês ou dia ele se refere', 'ligado ao seu cadastro', 'ainda está a confirmar', 'um resumo cifrado, nunca a senha em si',
     'como "Ex-membro", sem o seu nome', 'Google, Mozilla, Apple ou Microsoft', 'Autoridade Nacional de Proteção de Dados',
     'Ele não traz as famílias de que você já saiu',
   ]) {
     expect(p, fact).toContain(fact)
   }
   expect(p).not.toMatch(/baixar tudo/i)
+  expect(p).not.toMatch(/Aqui aparecem|só o tipo do aviso|ninguém consegue lê-la/)
+  expect(text(termsDoc(filled))).toContain('Configurações → Seus dados → Excluir meu cadastro')
 })
 
 test('terminologia e tom: "conta" só para contas a pagar; sem exclamação; sem "baixe o app"', () => {

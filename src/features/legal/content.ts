@@ -69,7 +69,7 @@ export function termsDoc(c: LegalController): LegalDoc {
       {
         heading: 'Seus dados',
         blocks: [
-          'O que você anota é seu. Você pode baixar o que registrou em Configurações → Baixar meus dados e excluir o cadastro em Configurações → Excluir meu cadastro, quando quiser.',
+          'O que você anota é seu. Você pode baixar o que registrou em Configurações → Seus dados → Baixar meus dados e excluir o cadastro em Configurações → Seus dados → Excluir meu cadastro, quando quiser.',
           'A Política de privacidade explica o que a Íris guarda, o que o arquivo traz e para quê.',
         ],
       },
@@ -114,7 +114,7 @@ export function privacyDoc(c: LegalController): LegalDoc {
         heading: 'O que a Íris guarda',
         blocks: [
           [
-            'Seu cadastro: nome, e-mail e senha. A senha fica guardada de forma cifrada; ninguém consegue lê-la.',
+            'Seu cadastro: nome, e-mail e senha. A senha fica guardada de forma protegida (um resumo cifrado, nunca a senha em si).',
             'Se você entra com o Google (quando essa opção está ativa): o nome, o e-mail e um identificador que o Google informa. Nunca a sua senha do Google.',
             'O que você anota: gastos, entradas, contas a pagar e a receber, compras parceladas, metas, planejamento, categorias e notas.',
             'Cartões: só o apelido, o tipo e a cor. Nenhum número de cartão.',
@@ -146,15 +146,16 @@ export function privacyDoc(c: LegalController): LegalDoc {
             'Para enviar os lembretes e os e-mails que você deixou ligados.',
             'Para o espaço da família, quando você participa de uma.',
           ],
-          'A Íris trata esses dados para prestar o serviço que você pediu ao criar o cadastro. Os lembretes no aparelho dependem da sua permissão, que você pode retirar quando quiser.',
+          'A Íris trata esses dados para prestar o serviço que você pediu ao criar o cadastro. Os lembretes no aparelho dependem da sua permissão, que você pode retirar quando quiser, em Configurações → Lembretes (veja a seção sobre os seus direitos).',
         ],
       },
       {
         heading: 'O que a família vê',
         blocks: [
-          'Aqui aparecem só os gastos marcados como da família.',
-          'O Disponível e as entradas de cada pessoa nunca aparecem aqui.',
-          'Os outros participantes também não veem os seus cartões, as suas metas pessoais nem quanto você guardou numa meta da família: só o total da meta.',
+          'Quem participa de uma família vê os gastos, as contas da família e as metas da família que forem marcados como da família, os nomes e os papéis de quem participa e os avisos da família.',
+          'Numa meta da família, cada pessoa vê o total da meta e só a sua própria parte.',
+          'O Disponível e as entradas de cada pessoa nunca aparecem para a família.',
+          'Os outros participantes também não veem os seus cartões nem as suas metas pessoais.',
         ],
       },
       {
@@ -163,7 +164,7 @@ export function privacyDoc(c: LegalController): LegalDoc {
           [
             'Supabase: guarda o banco de dados e cuida do login. O banco fica em servidores em São Paulo.',
             'Netlify: hospeda o site e executa o código das páginas. Esse código pode funcionar em servidores fora do Brasil e, quando funciona, os seus dados passam por lá enquanto você usa o app. Como tratar essa transferência para o exterior ainda está em definição pelo responsável pela Íris.',
-            `${mail}: envia os e-mails da Íris (confirmações, nova senha, convites e resumo do mês).`,
+            `${mail}: envia os e-mails da Íris (convites, avisos e resumo do mês). Os e-mails de confirmação do cadastro e de nova senha saem pelo serviço de login (Supabase); se eles usam o mesmo provedor, isso ainda está a confirmar.`,
             'Serviço de avisos do seu navegador (Google, Mozilla, Apple ou Microsoft): entrega os lembretes ao aparelho. O conteúdo viaja cifrado.',
             'Google: só se você escolher entrar com o Google.',
           ],
@@ -191,7 +192,7 @@ export function privacyDoc(c: LegalController): LegalDoc {
             'Ao excluir o cadastro, seus dados pessoais são apagados.',
             'Os gastos que você registrou numa família que continua existindo ficam no histórico dela como "Ex-membro", sem o seu nome. A sua parte nas metas da família sai delas.',
             'Um resumo cifrado do endereço de e-mail convidado para uma família fica por até 7 dias, sem ligação com quem convidou, mesmo depois da exclusão do cadastro.',
-            'O registro de que um aviso foi enviado fica por até 90 dias: só o tipo do aviso, sem o texto.',
+            'O registro de que um aviso foi enviado fica por até 90 dias, ligado ao seu cadastro: o tipo do aviso, a que item, mês ou dia ele se refere, quando foi preparado e enviado e se a entrega deu certo, sem o texto do aviso.',
             'Registros técnicos e cópias de segurança dos serviços de hospedagem seguem os prazos desses serviços.',
           ],
         ],
@@ -201,10 +202,12 @@ export function privacyDoc(c: LegalController): LegalDoc {
         blocks: [
           'A qualquer momento você pode:',
           [
-            'ver e corrigir o que anotou, nas próprias telas;',
-            'baixar o que registrou, em Configurações → Baixar meus dados;',
-            'excluir o cadastro, em Configurações → Excluir meu cadastro;',
-            `tirar dúvidas ou pedir qualquer um desses direitos por ${contact}.`,
+            'corrigir o que anotou, editando nas próprias telas;',
+            'baixar uma cópia do que registrou, numa planilha em formato CSV, em Configurações → Seus dados → Baixar meus dados (acesso e portabilidade);',
+            'excluir o cadastro, em Configurações → Seus dados → Excluir meu cadastro;',
+            'retirar a permissão para avisos, em Configurações → Lembretes: "Desativar neste aparelho" para os avisos no aparelho e os interruptores para os lembretes e os e-mails;',
+            `pedir, por ${contact}, a confirmação de que a Íris trata dados seus, a anonimização ou o bloqueio do que for desnecessário e informações sobre com quem os dados são compartilhados (veja a seção sobre quem ajuda a Íris);`,
+            `retirar o seu consentimento em geral, também por ${contact}.`,
           ],
           'O arquivo para baixar traz o seu cadastro, seus registros, as contas a pagar e as entradas que se repetem, as compras parceladas, os cartões, as metas e seus movimentos, o planejamento, as categorias, quais lembretes estão ligados e a família de que você participa hoje. Ele não traz as famílias de que você já saiu, se algum aparelho recebe avisos, o histórico de avisos enviados nem os convites que você criou.',
           'Você também pode procurar a Autoridade Nacional de Proteção de Dados (ANPD).',
@@ -214,7 +217,7 @@ export function privacyDoc(c: LegalController): LegalDoc {
         heading: 'Segurança',
         blocks: [
           'O acesso é sempre por conexão cifrada (HTTPS).',
-          'Cada pessoa só alcança os próprios dados. Essa regra é aplicada dentro do banco de dados, não só nas telas.',
+          'Cada pessoa só alcança os próprios dados e o que é da família, se participa de uma. Essa regra é aplicada dentro do banco de dados, não só nas telas.',
           'Nenhum sistema é infalível. Se houver um incidente que afete os seus dados, a Íris avisa você, como a lei pede.',
         ],
       },
