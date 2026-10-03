@@ -7,6 +7,7 @@ import { BottomNav } from '@/features/shell/bottom-nav'
 import { MainFrame } from '@/features/shell/main-frame'
 import { Sidebar } from '@/features/shell/sidebar'
 import { Toast } from '@/features/shell/toast'
+import { SkipLink } from '@/ui/skip-link'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireUser()
@@ -15,6 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (needsOnboarding(profile)) redirect('/boas-vindas')
   return (
     <div className="flex min-h-dvh">
+      <SkipLink />
       <Sidebar displayName={profile?.display_name ?? ''} />
       <MainFrame>{children}</MainFrame>
       <BottomNav />

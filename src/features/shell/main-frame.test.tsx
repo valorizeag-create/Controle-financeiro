@@ -30,3 +30,10 @@ test('não deixa faixa vazia sob os painéis de Anotar e Editar', () => {
     unmount()
   }
 })
+
+test('é o alvo do "Pular para o conteúdo" e recebe o foco', () => {
+  const { container } = render(<MainFrame><p>conteúdo</p></MainFrame>)
+  const frame = container.firstChild as HTMLElement
+  expect(frame.id).toBe('conteudo')
+  expect(frame.getAttribute('tabindex')).toBe('-1')
+})

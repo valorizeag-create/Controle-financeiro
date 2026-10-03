@@ -15,6 +15,11 @@ describe('OfflineBanner', () => {
     render(<OfflineBanner />)
     expect(screen.queryByRole('status')).toBeNull()
   })
+  test('respeita a área segura do topo (iPhone)', () => {
+    render(<OfflineBanner />)
+    setOnline(false)
+    expect(screen.getByRole('status').className).toContain('pt-[max(0.5rem,env(safe-area-inset-top))]')
+  })
   test('sem conexão, o aviso da copy; quando volta, some', () => {
     render(<OfflineBanner />)
     setOnline(false)
