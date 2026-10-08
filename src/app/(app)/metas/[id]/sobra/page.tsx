@@ -18,8 +18,8 @@ export default async function SobraPage({ params }: Props) {
   if (data.goal.status !== 'used' || summary.balanceCents <= 0) redirect(`/metas/${id}`)
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[rgba(18,40,1,.32)] px-4">
+    <main className="flex min-h-dvh items-center justify-center bg-[rgba(18,40,1,.32)] px-4">
       <LeftoverPrompt goalId={id} leftoverCents={summary.balanceCents} />
-    </div>
+    </main>
   )
 }

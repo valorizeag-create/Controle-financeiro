@@ -17,7 +17,7 @@ export default async function ReceberPage({ params }: Props) {
   const title = txName(tx, [])
 
   return (
-    <div className="min-h-dvh bg-[rgba(18,40,1,.32)] md:flex md:justify-end">
+    <main className="min-h-dvh bg-[rgba(18,40,1,.32)] md:flex md:justify-end">
       <section aria-labelledby="receber-titulo" data-sheet className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-5 bg-card px-4 pb-8 pt-4 md:mx-0 md:w-[480px] md:max-w-none md:px-7 md:shadow-sheet">
         <div className="flex items-center gap-2">
           <div className="flex flex-1 flex-col">
@@ -28,6 +28,6 @@ export default async function ReceberPage({ params }: Props) {
         </div>
         <ReceiveForm id={tx.id} amountCents={tx.amountCents} />
       </section>
-    </div>
+    </main>
   )
 }
