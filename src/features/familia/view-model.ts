@@ -38,7 +38,7 @@ export type FamiliaPageView =
       kind: 'member'
       name: string
       isAdmin: boolean
-      members: { userId: string; label: string; initial: string; caption: string; isMe: boolean; isAdmin: boolean }[]
+      members: { userId: string; label: string; actionName: string; initial: string; caption: string; isMe: boolean; isAdmin: boolean }[]
       invite: { id: string; caption: string; email: string | null } | null
       canInvite: boolean
       events: string[]
@@ -55,12 +55,19 @@ export function buildFamiliaPage(input: { family: MyFamily | null; today: ISODat
     if (b.userId === family.meId) return 1
     return a.joinedAt.localeCompare(b.joinedAt)
   })
+  const labelOf = (m: (typeof ordered)[number]) => (m.userId === family.meId ? 'Você' : (m.displayName ?? 'Membro'))
+  const labelCount = new Map<string, number>()
+  for (const m of ordered) labelCount.set(labelOf(m), (labelCount.get(labelOf(m)) ?? 0) + 1)
+  const seen = new Map<string, number>()
   const members = ordered.map((m) => {
     const isMe = m.userId === family.meId
-    const label = isMe ? 'Você' : (m.displayName ?? 'Membro')
+    const label = labelOf(m)
+    const n = (seen.get(label) ?? 0) + 1
+    seen.set(label, n)
     return {
       userId: m.userId as string,
       label,
+      actionName: (labelCount.get(label) ?? 0) > 1 ? `${label} (${n})` : label,
       initial: (isMe ? (m.displayName ?? label) : label).trim().charAt(0).toUpperCase(),
       caption: m.role === 'admin' ? 'Administra a família' : `Membro desde ${sinceLabel(m.joinedAt, today)}`,
       isMe,

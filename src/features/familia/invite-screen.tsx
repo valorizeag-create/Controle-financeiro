@@ -12,7 +12,7 @@ export function InviteScreen({ view, transientError = false }: { view: InviteVie
     case 'invalid':
       return (
         <>
-          <p className="text-base text-ink">Este convite não vale mais. Peça um novo link a quem convidou você.</p>
+          <h1 className="text-[22px] font-semibold leading-snug tracking-tight text-ink">Este convite não vale mais. Peça um novo link a quem convidou você.</h1>
           <Button href="/inicio">Ver meu mês</Button>
         </>
       )
@@ -28,7 +28,7 @@ export function InviteScreen({ view, transientError = false }: { view: InviteVie
     case 'has-family':
       return (
         <>
-          <p className="text-base text-ink">Você já participa de uma família. Para entrar em outra, saia da atual primeiro.</p>
+          <h1 className="text-[22px] font-semibold leading-snug tracking-tight text-ink">Você já participa de uma família. Para entrar em outra, saia da atual primeiro.</h1>
           <Button href="/familia">Ver a família</Button>
         </>
       )

@@ -61,3 +61,11 @@ test('pronto: enquanto envia, o botão fica desativado e um segundo toque não e
   })
   expect(button.disabled).toBe(false)
 })
+
+test('convite que não vale mais e quem já tem família: a frase é o título da página', () => {
+  render(<InviteScreen view={{ kind: 'invalid' }} />)
+  expect(screen.getByRole('heading', { level: 1, name: 'Este convite não vale mais. Peça um novo link a quem convidou você.' })).toBeTruthy()
+  cleanup()
+  render(<InviteScreen view={{ kind: 'has-family' }} />)
+  expect(screen.getByRole('heading', { level: 1, name: 'Você já participa de uma família. Para entrar em outra, saia da atual primeiro.' })).toBeTruthy()
+})

@@ -15,8 +15,8 @@ type Member = Extract<FamiliaPageView, { kind: 'member' }>
 const view = (p: Partial<Member> = {}): FamiliaPageView => ({
   kind: 'member', name: 'Família Souza', isAdmin: true,
   members: [
-    { userId: 'u1', label: 'Você', initial: 'C', caption: 'Administra a família', isMe: true, isAdmin: true },
-    { userId: 'u2', label: 'Alex', initial: 'A', caption: 'Membro desde agosto', isMe: false, isAdmin: false },
+    { userId: 'u1', label: 'Você', actionName: 'Você', initial: 'C', caption: 'Administra a família', isMe: true, isAdmin: true },
+    { userId: 'u2', label: 'Alex', actionName: 'Alex', initial: 'A', caption: 'Membro desde agosto', isMe: false, isAdmin: false },
   ],
   invite: { id: 'i1', caption: 'Convite pendente · vale até 4 de outubro', email: null },
   canInvite: true, events: ['Jordan saiu da família.'], leave: 'admin-with-others', ...p,

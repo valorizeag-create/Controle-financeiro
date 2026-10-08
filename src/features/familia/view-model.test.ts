@@ -196,3 +196,19 @@ test('administrador pode alterar qualquer conta que se repete', () => {
   expect(v.recurring[0].canManage).toBe(true)
   expect(v.recurring[0].caption).toBe('Todo mês · dia 5 · criada por Ex-membro')
 })
+
+test('nomes repetidos ganham a posição nos botões de remover e de tornar administrador; nomes únicos, não', () => {
+  const m = (userId: string, displayName: string, joinedAt: string) => ({ userId, role: 'member' as const, displayName, joinedAt, leftAt: null })
+  const family = fam({
+    members: [
+      { userId: 'u1', role: 'admin', displayName: 'Camila', joinedAt: '2026-07-01T12:00:00Z', leftAt: null },
+      m('u2', 'Ana', '2026-08-01T12:00:00Z'),
+      m('u3', 'Ana', '2026-08-02T12:00:00Z'),
+      m('u4', 'Bruno', '2026-08-03T12:00:00Z'),
+    ],
+  })
+  const view = buildFamiliaPage({ family, today: '2026-10-03' })
+  const others = view.kind === 'member' ? view.members.filter((x) => !x.isMe) : []
+  expect(others.map((x) => x.actionName)).toEqual(['Ana (1)', 'Ana (2)', 'Bruno'])
+  expect(others.map((x) => x.label)).toEqual(['Ana', 'Ana', 'Bruno'])
+})

@@ -50,8 +50,8 @@ export function MetasList({ view }: { view: MetasView }) {
       )}
 
       {view.family.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="px-1 text-sm font-semibold text-inactive">Da família</h2>
+        <section aria-labelledby="metas-da-familia" className="flex flex-col gap-2">
+          <h2 id="metas-da-familia" className="px-1 text-sm font-semibold text-inactive">Da família</h2>
           <div className="grid gap-2 lg:grid-cols-2">
             {view.family.map((f) => (
               <Link

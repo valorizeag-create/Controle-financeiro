@@ -86,3 +86,12 @@ test('desktop: os cartões de cada lista ficam em duas colunas a partir de 1024 
     expect(list.className).toContain('lg:grid-cols-2')
   }
 })
+
+test('"Da família" é uma região com nome, como "Só suas"', () => {
+  const view: MetasView = {
+    totalCents: 0, empty: false, active: [], concluded: [],
+    family: [{ id: 'f1', name: 'Reforma da casa', percent: 40, remainingCents: 60000, myPartCents: 20000 }],
+  }
+  render(<MetasList view={view} />)
+  expect(screen.getByRole('region', { name: 'Da família' })).toBeTruthy()
+})

@@ -90,7 +90,7 @@ export function FamiliaPage({ view, erro }: { view: FamiliaPageView; erro?: stri
                     </div>
                     {view.isAdmin && !m.isMe && (
                       <div className="pl-[54px]">
-                        <MemberActions userId={m.userId} name={m.label} />
+                        <MemberActions userId={m.userId} name={m.actionName} />
                       </div>
                     )}
                   </div>
