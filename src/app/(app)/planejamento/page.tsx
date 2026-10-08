@@ -7,6 +7,7 @@ import { BudgetLines } from '@/features/planejamento/budget-lines'
 import { MonthNav } from '@/features/seu-mes/month-nav'
 import { Button } from '@/ui/button'
 import { Card } from '@/ui/card'
+import { AsideColumn, Columns, MainColumn, WIDE } from '@/ui/columns'
 import { FormAlert } from '@/ui/form-alert'
 import { Money } from '@/ui/money'
 import { PageHeader } from '@/ui/page-header'
@@ -21,7 +22,7 @@ export default async function PlanejamentoPage({ searchParams }: Props) {
   const v = buildPlanejamento({ month, today, categories, transactions, budgets })
 
   return (
-    <main className="mx-auto flex max-w-[720px] flex-col gap-4 px-4 pt-4 pb-6 md:px-9 md:pt-7">
+    <main className={`mx-auto flex max-w-[720px] ${WIDE} flex-col gap-4 px-4 pt-4 pb-6 md:px-9 md:pt-7`}>
       <PageHeader title="Quanto você quer usar este mês" backHref="/mais" backOnMobileOnly />
       <p className="m-0 text-[15px] text-ink">Defina um valor para cada área. A Íris mostra quanto ainda está disponível.</p>
       <MonthNav month={month} label={monthLabel(month)} basePath="/planejamento" />
@@ -42,22 +43,33 @@ export default async function PlanejamentoPage({ searchParams }: Props) {
           )}
         </Card>
       ) : (
-        <>
-          <section className="flex flex-col gap-1.5 rounded-card border border-brand-wash-border bg-brand-wash p-4">
-            <span className="text-sm text-brand-text">{v.heroLabel}</span>
-            <Money cents={v.totalCents} className="text-[26px] font-bold tracking-tight text-brand-ink" />
-            <span className="text-sm text-brand-ink">{v.withinText}</span>
-          </section>
-          <Card>
-            <BudgetLines lines={v.lines} showAdjust />
-          </Card>
-          <Button variant="secondary" href={v.editHref}>Planejar outra categoria</Button>
-        </>
+        <Columns>
+          <AsideColumn row={1}>
+            <section className="flex flex-col gap-1.5 rounded-card border border-brand-wash-border bg-brand-wash p-4">
+              <span className="text-sm text-brand-text">{v.heroLabel}</span>
+              <Money cents={v.totalCents} className="text-[26px] font-bold tracking-tight text-brand-ink" />
+              <span className="text-sm text-brand-ink">{v.withinText}</span>
+            </section>
+          </AsideColumn>
+          <MainColumn>
+            <Card>
+              <BudgetLines lines={v.lines} showAdjust />
+            </Card>
+            <Button variant="secondary" href={v.editHref}>Planejar outra categoria</Button>
+          </MainColumn>
+          <AsideColumn row={2}>
+            <p className="m-0 px-1 text-sm leading-snug text-muted">
+              O que é &quot;Planejado&quot;? Quanto você decidiu usar em cada área este mês. Serve de referência, não é uma regra.
+            </p>
+          </AsideColumn>
+        </Columns>
       )}
 
-      <p className="m-0 px-1 text-sm leading-snug text-muted">
-        O que é &quot;Planejado&quot;? Quanto você decidiu usar em cada área este mês. Serve de referência, não é uma regra.
-      </p>
+      {v.empty && (
+        <p className="m-0 px-1 text-sm leading-snug text-muted">
+          O que é &quot;Planejado&quot;? Quanto você decidiu usar em cada área este mês. Serve de referência, não é uma regra.
+        </p>
+      )}
     </main>
   )
 }
