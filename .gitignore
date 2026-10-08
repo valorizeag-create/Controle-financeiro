@@ -28,3 +28,6 @@ Thumbs.db
 .vscode/
 .idea/
 .claude/
+
+# Cópia privada da copy (nunca vai para o git)
+/docs/copy/

@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:db": "vitest run --config vitest.db.config.ts",
     "test:e2e": "playwright test",
+    "textos": "node scripts/conferir-textos.mjs",
     "icons": "node scripts/gerar-icones.mjs",
     "job:notificacoes": "node scripts/rodar-tarefa.mjs",
     "job:configurar": "node scripts/configurar-tarefa.mjs"
