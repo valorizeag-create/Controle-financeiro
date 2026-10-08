@@ -397,7 +397,7 @@ Continuam por fazer:
 - Axe nas páginas públicas e nas principais telas do app, no celular e no desktop (README, "Acessibilidade (axe)"), sem desligar nenhuma regra.
 
 **Testes**
-- Unitários e de componentes (`npm test`): 1403 passando em 192 arquivos (inclui os 21 de `scripts/conferir-textos/core.test.mjs`). Tipos, lint e build sem erros; o build lista `/`, `/robots.txt`, `/sitemap.xml` e a imagem de compartilhamento como estáticos.
+- Unitários e de componentes (`npm test`): 1415 passando em 193 arquivos (inclui os 25 de `scripts/conferir-textos/core.test.mjs`). Tipos, lint e build sem erros; o build lista `/`, `/robots.txt`, `/sitemap.xml` e a imagem de compartilhamento como estáticos.
 - Ponta a ponta: `plano10.spec.ts` (6 testes) e `acessibilidade.spec.ts` (3 testes), 18 entradas em `--list` (celular e desktop). Os cinco marcados `@publico` rodaram sem Docker, contra o servidor de desenvolvimento: **8 passaram e 2 foram puladas** (as puladas são do projeto que não se aplica ao teste); numa execução a frio um deles (a landing no desktop) estourou o tempo na primeira compilação do servidor e passou na seguinte. Os quatro testes que precisam de cadastro (quem entrou e abre `/`, colunas a 1440 e 800 px, 375 px das telas que mudaram, axe das telas com dados): **pendentes**, dependem do Docker (mesma pendência dos Planos 1 a 9).
 - `npm run textos` **não rodou de verdade**: precisa da cópia da copy em `docs/copy/documento-base.md`, que é sua e não está na máquina da execução. Sem ela o comando para e diz o que fazer (código 2).
 
@@ -412,9 +412,14 @@ Continuam por fazer:
 - A área segura do aviso "Sem conexão" não tem efeito até a página usar `viewport-fit=cover`.
 
 **Detalhes menores adiados (das revisões)**
-- Teste estático de que cada uma das 8 telas em painel tem exatamente um `<main>`.
+- ~~Teste estático de que cada uma das 8 telas em painel tem exatamente um `<main>`~~ (feito na revisão final: `src/app/(app)/sheet-main.test.ts`).
 - Os testes-guarda leem só `className` literal ou em modelo (não `cn()` nem classes calculadas); a isenção `focus-within` do guarda de foco vale para o arquivo todo; o teste do conteúdo da landing fixa só uma amostra de frases.
 - `robots.txt` lista os nomes das áreas do app (incluindo `/api/` e `/auth/`, que não são páginas rastreáveis); sem caso de teste para `/?next=//…` logado (o comportamento está certo: vai para `/inicio` sem consulta).
-- Relatórios sem categorias não tem teste; `min-h-11` duplicado em um botão da landing; Configurações: invólucros repetidos e sem recuo; `loose` como três props em `Columns`.
+- ~~Relatórios sem categorias não tem teste~~ (feito na revisão final); `min-h-11` duplicado em um botão da landing; Configurações: invólucros repetidos e sem recuo; `loose` como três props em `Columns`.
 - Conferência de textos: o corte de que uma palavra solta em minúscula, sem contexto de tela, é tratada como técnica; textos antigos ou recusados citados em `decisoes-para-revisao.md` contam como aprovados.
-- A tela de sobra da meta não tem `h1` (já era assim).
+- A tela de sobra da meta não tem `h1` (já era assim), e `/anotar` também não: precisa da sua aprovação (um "Anotar" só para leitor de tela).
+
+**Revisão final do Plano 10 (corrigido)**
+- Axe nas telas com dados espera o marco `main` (o `/anotar` não tem `h1`) e confere a rota; os testes em laço (axe público, axe das telas, 375 px, colunas) ganharam tempo para a primeira compilação (`test.slow()` / 180 s), sem tentativas repetidas.
+- A 1024 px a rolagem horizontal agora é conferida em Seu mês, Extrato, Contas, Relatórios, Planejamento e Família (colunas de ~340 px), além de Configurações em duas colunas.
+- Conferência de textos: minúsculas em ternários e `&&` dentro do JSX e prosa sob chaves como `value:` passam a ser conferidas; valores de opção, medidas e classes (`numeric`, `2-digit`, `192x192`, `device-width`, `bg-brand`…) saem por regra, sem entradas em `ignorar.json` (sobraram 15 palavras soltas em minúsculas em `src/`); texto repartido por interpolações ("Oi, {nome}, tudo bem") vira um modelo só.

@@ -59,6 +59,7 @@ test('quem entrou e abre / vai para o Seu mês', async ({ page }) => {
 
 test('desktop: duas colunas a 1440 px, uma coluna a 800 px, sem rolagem horizontal', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop')
+  test.setTimeout(180_000) // rotas compilando a frio no servidor de desenvolvimento
   const u = await makeUser('Elisa')
   await seedExpense(u.id, 'mercado', 89000, 'Feira')
   await seedBudget(u.id, 'mercado', 100000, today.slice(0, 7))
@@ -78,15 +79,19 @@ test('desktop: duas colunas a 1440 px, uma coluna a 800 px, sem rolagem horizont
     expect(Math.abs(a2!.x - m2!.x), `${path}: uma coluna a 800 px`).toBeLessThan(2)
     await expectNoHorizontalScroll(page, `800 ${path}`)
   }
+  // A 1024 px o menu (248) e o respiro deixam ~704 px: a coluna principal e a lateral ficam com ~340 px.
   await page.setViewportSize({ width: 1024, height: 900 })
-  await page.goto('/inicio')
-  await expectNoHorizontalScroll(page, '1024 /inicio')
+  for (const path of ['/inicio', '/extrato', '/contas', '/relatorios', '/planejamento', '/familia']) {
+    await page.goto(path)
+    await expectNoHorizontalScroll(page, `1024 ${path}`)
+  }
   await page.goto('/configuracoes')
   expect(await page.locator('[data-settings-columns]').evaluate((el) => getComputedStyle(el).columnCount)).toBe('2')
 })
 
 test('celular: 375 px sem rolagem horizontal nas telas que mudaram', async ({ page }, info) => {
   test.skip(info.project.name !== 'celular')
+  test.setTimeout(180_000)
   const u = await makeUser('Fábio')
   await seedExpense(u.id, 'mercado', 89000, 'Feira')
   await entrar(page, u.email)

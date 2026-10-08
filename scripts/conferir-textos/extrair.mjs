@@ -32,12 +32,30 @@ const CHAMADAS_TECNICAS = new Set([
 const PALAVRAS_TAILWIND = new Set(['flex', 'grid', 'block', 'hidden', 'inline', 'truncate', 'relative', 'absolute', 'fixed', 'sticky', 'underline'])
 const PEDACO_TAILWIND = /^(?:[a-z0-9]+:)*!?-?[a-z][\w\-[\]/.()%#:,]*$/
 
+// Valores de opções (Intl, viewport, estados de API…) que aparecem como valores de mapas: nunca são prosa.
+const VALORES_DE_OPCAO = new Set([
+  'numeric', 'long', 'short', 'narrow', 'auto', 'always', 'never', 'none', 'default', 'inherit', 'initial',
+  'device-width', 'standalone', 'unauthorized', 'forbidden', 'monthly', 'weekly', 'daily', 'yearly',
+  'true', 'false', 'null', 'undefined', 'lax', 'strict', 'same-origin', 'include', 'omit', 'GET', 'POST',
+])
+const PREFIXO_TAILWIND = /^(?:bg|text|font|border|ring|shadow|rounded|p[xytrbl]?|m[xytrbl]?|w|h|size|min|max|gap|space|divide|z|opacity|fill|stroke|outline|items|justify|self|place|leading|tracking|line|sr|col|row|order|basis|grow|shrink|inset|top|left|right|bottom|translate|scale|rotate|transition|duration|ease|animate|cursor|select|overflow|object|aspect|from|via|to|brand|ink|surface|geist)-[a-z0-9[\]/.%-]+$/
+/** Fichas de código de uma palavra só: números, medidas, opções e classes do Tailwind. */
+function ehFichaDeCodigo(t) {
+  if (/\s/.test(t)) return false
+  if (/^\d+x\d+$/.test(t) || /^\d+(?:-digit)?$/.test(t)) return true
+  if (VALORES_DE_OPCAO.has(t)) return true
+  if (t.startsWith('--')) return true // variável CSS
+  // classe do Tailwind / token de design: prefixo conhecido + hífen (bg-brand, text-ink, font-geist-sans)
+  return PREFIXO_TAILWIND.test(t)
+}
+
 const temLetra = (s) => /\p{L}/u.test(s)
 
 /** Texto que, pela forma, é código e não prosa. `visivel`: o contexto já garante que é texto de tela. */
 export function ehTecnico(s, visivel = false) {
   const t = s.trim()
   if (!temLetra(t)) return true
+  if (ehFichaDeCodigo(t)) return true
   if (/<\/?[a-z!][^>]*>/i.test(t)) return true // marcação HTML
   if (/^(?:\/|#|https?:|mailto:)/.test(t) || t.includes('://')) return true
   if (/^(?:text|application|image|audio|video|font|multipart)\/[\w.+-]+(?:\s*;.*)?$/i.test(t)) return true // tipos MIME
@@ -109,11 +127,33 @@ function contextoTecnico(node) {
     if (CHAMADAS_TECNICAS.has(nomeDaChamada(p))) return true
     if (ts.isNewExpression(p) && ts.isPropertyAccessExpression(p.expression)) return true // new Intl.X(...)
   }
-  if (ts.isPropertyAssignment(p) && p.initializer === node && (CHAVES_TECNICAS.has(nomeDe(p.name)) || nomeDe(p.name).includes('-'))) return true
+  if (ts.isPropertyAssignment(p) && p.initializer === node && (CHAVES_TECNICAS.has(nomeDe(p.name)) || nomeDe(p.name).includes('-'))) {
+    // Chave técnica com prosa dentro (value: 'Receitas e despesas'): continua candidata.
+    return !pareceProsa(textoDe(node))
+  }
+  return false
+}
+
+/** Com espaço ou acento e sem cara de código: é frase, mesmo sob uma chave técnica. */
+function pareceProsa(t) {
+  if (t === null) return false
+  return (/\s/.test(t.trim()) || /[^\x00-\x7f]/.test(t)) && !ehTecnico(t)
+}
+
+/** O literal é ramo de um ternário ou lado direito de &&, || ou ?? dentro de {…} entre filhos de um elemento JSX. */
+function ramoDeExpressaoJsx(node) {
+  let atual = node
+  for (let p = node.parent; p; atual = p, p = p.parent) {
+    if (ts.isParenthesizedExpression(p) || ts.isAsExpression(p) || ts.isNonNullExpression(p)) continue
+    if (ts.isConditionalExpression(p) && p.condition !== atual) continue
+    if (ts.isBinaryExpression(p) && p.right === atual && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(p.operatorToken.kind)) continue
+    return atual !== node && ts.isJsxExpression(p) && (ts.isJsxElement(p.parent) || ts.isJsxFragment(p.parent))
+  }
   return false
 }
 
 function contextoVisivel(node) {
+  if (ramoDeExpressaoJsx(node)) return true
   const p = node.parent
   if (p && ts.isPropertyAssignment(p) && p.initializer === node && CHAVES_VISIVEIS.has(nomeDe(p.name))) return true
   // valor de um mapa (chave => rótulo), p.ex. { monthly: 'mensal' }
@@ -129,7 +169,47 @@ export function extractStrings(code, fileName) {
   const linhaDe = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1
   const add = (text, pos) => out.push({ text: text.replace(/\s+/g, ' ').trim(), line: linhaDe(pos) })
 
+  // {nome}, {valor + 1}, {fmt(x)}: interpolação simples, que não traz marcação nem lógica de ramos.
+  const interpolacaoSimples = (c) => ts.isJsxExpression(c) && !!c.expression && !c.dotDotDotToken &&
+    !ts.isConditionalExpression(c.expression) && !ts.isBinaryExpression(c.expression) &&
+    !ts.isJsxElement(c.expression) && !ts.isJsxFragment(c.expression) && !ts.isJsxSelfClosingElement(c.expression) &&
+    !ts.isStringLiteral(c.expression) && !ts.isNoSubstitutionTemplateLiteral(c.expression) && !ts.isTemplateExpression(c.expression) &&
+    !(ts.isCallExpression(c.expression) && c.expression.arguments.some(ts.isFunctionLike))
+
+  // Texto repartido por interpolações ("Oi, {nome}, tudo bem") vira um modelo só: "Oi, {}, tudo bem".
+  function juntarFilhos(filhos) {
+    const juntados = new Set()
+    for (let i = 0; i < filhos.length; ) {
+      const f = filhos[i]
+      if (!(ts.isJsxText(f) || interpolacaoSimples(f))) { i++; continue }
+      let j = i
+      while (j < filhos.length && (ts.isJsxText(filhos[j]) || interpolacaoSimples(filhos[j]))) j++
+      const corrida = filhos.slice(i, j)
+      const textos = corrida.filter((c) => ts.isJsxText(c))
+      if (corrida.some(interpolacaoSimples) && textos.some((c) => temLetra(c.text))) {
+        const modelo = corrida.map((c) => (ts.isJsxText(c) ? c.text : '{}')).join('')
+        const primeiro = textos.find((c) => temLetra(c.text))
+        add(modelo, primeiro.getFullStart() + primeiro.text.search(/\S/))
+        corrida.forEach((c) => juntados.add(c))
+      }
+      i = j
+    }
+    return juntados
+  }
+
   function visit(node) {
+    if ((ts.isJsxElement(node) || ts.isJsxFragment(node)) && !tratados.has(node)) {
+      const juntados = juntarFilhos(node.children)
+      if (juntados.size) {
+        // as interpolações juntadas podem esconder literais (fmt('x')); o resto segue o caminho normal
+        if (ts.isJsxElement(node)) { visit(node.openingElement) }
+        node.children.forEach((c) => {
+          if (!juntados.has(c)) visit(c)
+          else if (ts.isJsxExpression(c) && c.expression) ts.forEachChild(c.expression, visit)
+        })
+        return
+      }
+    }
     if (ts.isJsxText(node)) {
       const raw = node.text
       if (temLetra(raw)) add(raw, node.getFullStart() + raw.search(/\S/))

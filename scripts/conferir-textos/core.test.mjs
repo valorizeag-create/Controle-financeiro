@@ -212,3 +212,31 @@ test('código de saída: 2 sem a copy, 1 sem arquivos ou com achados, 0 quando t
   expect(ro.status).toBe(0)
   expect(ro.stdout).toContain('1 textos conferidos')
 })
+
+// --- Final do Plano 10: falsos negativos e ruído
+test('minúsculas nos ramos de ternário e && dentro do JSX são texto de tela', () => {
+  const code = `export const A = () => <p>{ok ? 'sim' : 'ontem'} {pago && 'pago'} <i type={k ? 'button' : 'submit'} className={k ? 'flex' : 'hidden'} /></p>`
+  expect(texts(code)).toEqual(['sim', 'ontem', 'pago'])
+})
+
+test('prosa sob chave técnica (value:, label:) continua candidata; código sob a mesma chave não', () => {
+  const code = `
+    const opcoes = [{ value: 'Receitas e despesas' }, { value: 'Ação rápida' }, { type: 'text/csv' }, { id: 'abc_def' }, { kind: 'income' }, { value: 'expense' }]
+  `
+  expect(texts(code, 'f.ts')).toEqual(['Receitas e despesas', 'Ação rápida'])
+})
+
+test('valores de opção, medidas e classes por regra não são ruído de tela', () => {
+  const code = `
+    const o = { a: 'numeric', b: '2-digit', c: 'long', d: '192x192', e: 'device-width', f: 'default', g: 'unauthorized', h: 'monthly', i: 'bg-brand', j: '--font-geist-sans', k: 'text-ink', l: '512' }
+    const p = { m: 'mensal', n: 'guarda-roupa', o: 'Ação' }
+  `
+  expect(texts(code, 'g.ts')).toEqual(['mensal', 'guarda-roupa', 'Ação'])
+})
+
+test('texto repartido por interpolações vira um modelo só', () => {
+  expect(texts('export const A = () => <p>\n  Oi, {nome}, tudo bem\n</p>')).toEqual(['Oi, {}, tudo bem'])
+  expect(texts('export const A = () => <p>Faltam {fmt(valor)} para <b>{meta}</b></p>')).toEqual(['Faltam {} para'])
+  // sem texto ao redor, nada a juntar
+  expect(texts('export const A = () => <p>{a} {b}</p>')).toEqual([])
+})
