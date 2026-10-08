@@ -103,3 +103,20 @@ test('erros da URL: admin e 1 aparecem; valor desconhecido é ignorado', () => {
   rerender(<FamiliaPage view={view()} erro="xyz" />)
   expect(screen.queryByRole('alert')).toBeNull()
 })
+
+test('desktop: participantes e convite à esquerda; avisos, "O que a família vê" e sair à direita, depois no DOM', () => {
+  render(<FamiliaPage view={view()} />)
+  const col = (name: string) => screen.getByRole('heading', { name }).closest('[data-column]')?.getAttribute('data-column')
+  expect(['Quem participa', 'Convidar pessoa'].map(col)).toEqual(['main', 'main'])
+  expect(['Avisos da família', 'O que a família vê'].map(col)).toEqual(['aside', 'aside'])
+  const [main, aside] = [...document.querySelectorAll('[data-column]')]
+  expect(main.getAttribute('data-column')).toBe('main')
+  expect(aside.getAttribute('data-column')).toBe('aside')
+  expect(main.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(document.querySelectorAll('main')).toHaveLength(1)
+})
+
+test('sem família: uma coluna', () => {
+  const { container } = render(<FamiliaPage view={{ kind: 'none' }} />)
+  expect(container.querySelector('[data-columns]')).toBeNull()
+})

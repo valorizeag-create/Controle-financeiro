@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { Card } from '@/ui/card'
+import { AsideColumn, Columns, MainColumn, WIDE } from '@/ui/columns'
 import { FormAlert } from '@/ui/form-alert'
 import { ListCard, ListRow } from '@/ui/list'
 import { PageHeader } from '@/ui/page-header'
@@ -64,73 +65,78 @@ export function FamiliaPage({ view, erro }: { view: FamiliaPageView; erro?: stri
   }
 
   return (
-    <main className="mx-auto flex max-w-[720px] flex-col gap-[18px] px-4 pt-4 md:px-9 md:pt-7">
+    <main className={`mx-auto flex max-w-[720px] ${WIDE} flex-col gap-[18px] px-4 pt-4 md:px-9 md:pt-7`}>
       <PageHeader title={view.name} backHref="/mais" backOnMobileOnly />
       <ErrorAlert erro={erro} />
-      <CardLink href="/inicio/familia" title="Ver o mês da família" caption="Gastos comuns, contas e metas da casa" />
-      <CardLink href="/familia/contas" title="Contas da família" />
+      <Columns loose>
+        <MainColumn loose>
+          <CardLink href="/inicio/familia" title="Ver o mês da família" caption="Gastos comuns, contas e metas da casa" />
+          <CardLink href="/familia/contas" title="Contas da família" />
 
-      <section aria-labelledby="members-title" className="flex flex-col gap-2">
-        <h2 id="members-title" className="px-1 text-sm font-semibold text-inactive">Quem participa</h2>
-        <ListCard>
-          {view.members.map((m) => (
-            <ListRow key={m.userId}>
-              <div className="flex flex-col gap-1 py-3">
-                <div className="flex items-center gap-3.5">
-                  <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sunken text-[15px] font-semibold text-ink">
-                    {m.initial}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[15px] text-ink">{m.label}</span>
-                    <span className="text-[13px] text-muted">{m.caption}</span>
-                  </span>
-                </div>
-                {view.isAdmin && !m.isMe && (
-                  <div className="pl-[54px]">
-                    <MemberActions userId={m.userId} name={m.label} />
+          <section aria-labelledby="members-title" className="flex flex-col gap-2">
+            <h2 id="members-title" className="px-1 text-sm font-semibold text-inactive">Quem participa</h2>
+            <ListCard>
+              {view.members.map((m) => (
+                <ListRow key={m.userId}>
+                  <div className="flex flex-col gap-1 py-3">
+                    <div className="flex items-center gap-3.5">
+                      <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sunken text-[15px] font-semibold text-ink">
+                        {m.initial}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-[15px] text-ink">{m.label}</span>
+                        <span className="text-[13px] text-muted">{m.caption}</span>
+                      </span>
+                    </div>
+                    {view.isAdmin && !m.isMe && (
+                      <div className="pl-[54px]">
+                        <MemberActions userId={m.userId} name={m.label} />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </ListRow>
-          ))}
-        </ListCard>
-      </section>
+                </ListRow>
+              ))}
+            </ListCard>
+          </section>
 
-      {view.isAdmin && (view.invite || view.canInvite) && (
-        <section aria-labelledby="invite-title" className="flex flex-col gap-3">
-          <h2 id="invite-title" className="px-1 text-sm font-semibold text-inactive">Convidar pessoa</h2>
-          {view.invite && (
-            <Card className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-col">
-                {view.invite.email && <p className="break-all text-[15px] text-ink">{view.invite.email}</p>}
-                <p className={view.invite.email ? 'text-[13px] text-muted' : 'text-[15px] text-ink'}>{view.invite.caption}</p>
-              </div>
-              <div className="flex flex-wrap items-start gap-x-4">
-                {view.invite.email && <ResendInvite id={view.invite.id} />}
-                <form action={revokeInvite}>
-                  <input type="hidden" name="id" value={view.invite.id} />
-                  <button type="submit" className="min-h-11 text-sm font-medium text-error-ink">Cancelar convite</button>
-                </form>
-              </div>
-            </Card>
+          {view.isAdmin && (view.invite || view.canInvite) && (
+            <section aria-labelledby="invite-title" className="flex flex-col gap-3">
+              <h2 id="invite-title" className="px-1 text-sm font-semibold text-inactive">Convidar pessoa</h2>
+              {view.invite && (
+                <Card className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-col">
+                    {view.invite.email && <p className="break-all text-[15px] text-ink">{view.invite.email}</p>}
+                    <p className={view.invite.email ? 'text-[13px] text-muted' : 'text-[15px] text-ink'}>{view.invite.caption}</p>
+                  </div>
+                  <div className="flex flex-wrap items-start gap-x-4">
+                    {view.invite.email && <ResendInvite id={view.invite.id} />}
+                    <form action={revokeInvite}>
+                      <input type="hidden" name="id" value={view.invite.id} />
+                      <button type="submit" className="min-h-11 text-sm font-medium text-error-ink">Cancelar convite</button>
+                    </form>
+                  </div>
+                </Card>
+              )}
+              {view.canInvite && <InvitePanel />}
+            </section>
           )}
-          {view.canInvite && <InvitePanel />}
-        </section>
-      )}
+        </MainColumn>
+        <AsideColumn row={1} loose>
+          {view.events.length > 0 && (
+            <section aria-labelledby="events-title" className="flex flex-col gap-2">
+              <h2 id="events-title" className="px-1 text-sm font-semibold text-inactive">Avisos da família</h2>
+              <ListCard>
+                {view.events.map((t, i) => (
+                  <ListRow key={i}><p className="py-3 text-[15px] text-ink">{t}</p></ListRow>
+                ))}
+              </ListCard>
+            </section>
+          )}
 
-      {view.events.length > 0 && (
-        <section aria-labelledby="events-title" className="flex flex-col gap-2">
-          <h2 id="events-title" className="px-1 text-sm font-semibold text-inactive">Avisos da família</h2>
-          <ListCard>
-            {view.events.map((t, i) => (
-              <ListRow key={i}><p className="py-3 text-[15px] text-ink">{t}</p></ListRow>
-            ))}
-          </ListCard>
-        </section>
-      )}
-
-      <Sees />
-      <LeaveFamily mode={view.leave} />
+          <Sees />
+          <LeaveFamily mode={view.leave} />
+        </AsideColumn>
+      </Columns>
     </main>
   )
 }

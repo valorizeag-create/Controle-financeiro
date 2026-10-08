@@ -28,3 +28,14 @@ test('sem cartões: convite calmo para adicionar', () => {
   expect(screen.getByText('Nenhum cartão por enquanto. Adicione um para ver quanto gastou com ele em cada mês.')).toBeTruthy()
   expect(screen.getByRole('link', { name: 'Adicionar' }).getAttribute('href')).toBe('/cartoes/novo')
 })
+
+test('desktop: cartões em duas colunas a partir de 1024 px', () => {
+  const item = (id: string, nickname: string) => ({
+    card: { id, nickname, kind: 'credit' as const, color: 'purple' as const },
+    spentCents: 1000, spentLabel: 'Gasto neste cartão em setembro', gastosHref: `/extrato?cartao=${id}`,
+  })
+  const { container } = render(<CardsList items={[item('k1', 'Nubank'), item('k2', 'Itaú')]} />)
+  const grid = container.querySelector('[data-cards-grid]') as HTMLElement
+  expect(grid.className).toContain('lg:grid-cols-2')
+  expect(grid.children).toHaveLength(2)
+})

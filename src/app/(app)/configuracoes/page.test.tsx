@@ -47,3 +47,15 @@ test('cadastro sem senha: e-mail só para leitura', async () => {
   expect(within(region).getByText('camila@teste.iris.dev')).toBeTruthy()
   expect(within(region).queryByRole('link', { name: /camila@teste\.iris\.dev/ })).toBeNull()
 })
+
+test('desktop: seções em duas colunas de jornal, sem quebrar uma seção ao meio, na ordem do celular', async () => {
+  const { container } = await show()
+  const wrap = container.querySelector('[data-settings-columns]') as HTMLElement
+  expect(wrap.className).toContain('lg:columns-2')
+  for (const region of within(wrap).getAllByRole('region')) expect((region.closest('[data-settings-columns] > *') as HTMLElement).className).toContain('break-inside-avoid')
+  expect(container.querySelector('main')?.className).toContain('lg:max-w-[1180px]')
+  expect(container.querySelectorAll('main')).toHaveLength(1)
+  // a ordem do DOM é a do celular: cadastro, dinheiro, app, dados
+  const titles = within(wrap).getAllByRole('heading', { level: 2 }).map((x) => x.textContent)
+  expect(titles).toEqual(['Seu cadastro', 'Seu dinheiro', 'App', 'Seus dados'])
+})

@@ -15,7 +15,7 @@ export function CardsList({ items }: { items: CartoesItem[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div data-cards-grid className="grid gap-4 lg:grid-cols-2">
       {items.map(({ card, spentCents, spentLabel, gastosHref }) => (
         <article key={card.id} aria-label={card.nickname} className="flex flex-col gap-0">
           <Link href={`/cartoes/${card.id}`} aria-label={`Editar cartão ${card.nickname}`}>

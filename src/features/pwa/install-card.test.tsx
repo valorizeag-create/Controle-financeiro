@@ -70,3 +70,12 @@ describe('InstallCard (RF-07)', () => {
     expect(screen.queryByRole('link', { name: 'Agora não' })).toBeNull()
   })
 })
+
+test('largo (Configurações): duas colunas a partir de 1024 px; no onboarding, nenhuma classe de desktop', () => {
+  const { container, unmount } = render(<InstallCard nextHref="/configuracoes" wide />)
+  expect((container.firstChild as HTMLElement).className).toContain('lg:grid')
+  expect(screen.getByRole('heading', { level: 1, name: 'Instalar a Íris' })).toBeTruthy()
+  unmount()
+  const { container: c2 } = render(<InstallCard nextHref="/boas-vindas/primeiro-gasto" skipWhenInstalled />)
+  expect(c2.innerHTML).not.toMatch(/\blg:/)
+})
