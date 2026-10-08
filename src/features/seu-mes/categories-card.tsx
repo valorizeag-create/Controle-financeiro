@@ -15,7 +15,7 @@ export function CategoriesCard({ categories }: { categories: { name: string; cen
     </li>
   )
   return (
-    <Card className="flex flex-col gap-4 md:col-span-2">
+    <Card className="flex flex-col gap-4 lg:col-span-2">
       <h2 className="text-[17px] font-semibold text-ink">Para onde seu dinheiro vai</h2>
       <ul className="flex flex-col gap-3.5">{top.map((c) => <Row key={c.name} c={c} />)}</ul>
       {rest.length > 0 && (

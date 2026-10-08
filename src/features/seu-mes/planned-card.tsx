@@ -6,7 +6,7 @@ export function PlannedCard({ card }: { card: PlannedCardView }) {
   return (
     <section
       aria-labelledby="planejado"
-      className="flex flex-col gap-4 rounded-card border border-line bg-card p-5 shadow-card md:col-span-2"
+      className="flex flex-col gap-4 rounded-card border border-line bg-card p-5 shadow-card lg:col-span-2"
     >
       <div className="flex items-center justify-between">
         <h2 id="planejado" className="text-[17px] font-semibold text-ink">Planejado</h2>

@@ -71,7 +71,7 @@ function Bills({ bills }: { bills: FamilyMonthView['bills'] }) {
 
 function Categories({ categories }: { categories: FamilyMonthView['categories'] }) {
   return (
-    <Card labelledBy="casa-categorias" className="flex flex-col gap-4 md:col-span-2">
+    <Card labelledBy="casa-categorias" className="flex flex-col gap-4 lg:col-span-2">
       <h2 id="casa-categorias" className={H2}>Para onde vai o dinheiro da casa</h2>
       <ul className="flex flex-col gap-3.5">
         {categories.map((c) => (
@@ -88,7 +88,7 @@ function Categories({ categories }: { categories: FamilyMonthView['categories'] 
 
 function Goals({ goals }: { goals: FamilyMonthView['goals'] }) {
   return (
-    <section aria-labelledby="metas-familia" className="flex flex-col gap-4 rounded-card border border-line bg-card p-5 shadow-card md:col-span-2">
+    <section aria-labelledby="metas-familia" className="flex flex-col gap-4 rounded-card border border-line bg-card p-5 shadow-card lg:col-span-2">
       <div className="flex items-center justify-between">
         <h2 id="metas-familia" className={H2}>Metas da família</h2>
         <Link href="/metas" className={SEE_ALL}>Ver metas</Link>
@@ -143,7 +143,7 @@ function Recent({ recent }: { recent: FamilyMonthView['recent'] }) {
 export function FamilyMonth({ view }: { view: FamilyMonthView }) {
   return (
     <>
-      <div className="grid gap-3 md:grid-cols-3 md:gap-4">
+      <div className="grid gap-3 md:gap-4 lg:grid-cols-3 lg:grid-flow-dense">
         {view.empty ? <EmptyCard /> : <TotalCard view={view} />}
         {view.bills.length > 0 && <Bills bills={view.bills} />}
         {!view.empty && view.categories.length > 0 && <Categories categories={view.categories} />}

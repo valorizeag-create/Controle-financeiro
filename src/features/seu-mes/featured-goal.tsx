@@ -7,7 +7,7 @@ export function FeaturedGoal({ goal }: { goal: NonNullable<SeuMesView['featured'
   return (
     <section
       aria-labelledby="meta-destaque"
-      className="flex flex-col gap-3.5 rounded-card border border-line bg-card p-5 shadow-card md:col-span-2"
+      className="flex flex-col gap-3.5 rounded-card border border-line bg-card p-5 shadow-card lg:col-span-2"
     >
       <div className="flex items-center justify-between">
         <h2 id="meta-destaque" className="text-[17px] font-semibold text-ink">Meta em destaque</h2>
