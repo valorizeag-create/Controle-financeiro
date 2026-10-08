@@ -385,6 +385,36 @@ Continuam por fazer:
 - Plano 10: landing (seção Confiança só depois da lista de lançamento, itens 16 a 18, RF-57; a frase "Você pode exportar ou excluir tudo quando quiser." tem a mesma tensão do conflito 2 do Plano 9); layout de desktop das telas novas.
 - Depois da v1, se fizer falta: digitar a senha de novo em vez de sair e entrar; cancelar uma troca de e-mail pendente; limpeza completa de famílias encerradas em que alguém que saiu ainda tem cadastro; registrar a versão dos Termos aceita por cada cadastro; exportar as famílias antigas e o histórico de avisos.
 
-## Plano 10 — Landing e desktop (em andamento)
+## Plano 10 — Landing e desktop completo · concluído em 2026-10-08
 
-- Tarefa 11 (axe): os links "Termos de uso" e "Política de privacidade" dentro do parágrafo de /entrar e /criar-cadastro só se diferenciavam pela cor (regra `link-in-text-block`); agora são sublinhados. Nenhuma regra do axe foi desligada.
+**Entregue**
+- Landing em `/` com as seções 1–9 da copy, estática (`○` no build), sem rastreador nem script de terceiros; três "Começar a ver meu mês" para o cadastro, "Ver como funciona", "Entrar" e o rodapé com Termos e Privacidade. Quem já entrou e abre `/` vai direto para o Seu mês (o proxy, antes de renderizar; `src/lib/supabase/proxy.test.ts` cobre os caminhos ao redor: convite, retorno de pagamento, onboarding, Termos e Privacidade).
+- SEO: título e descrição da copy, endereço canônico, Open Graph com a imagem do logo provisório, `robots.txt` (só as páginas públicas) e `sitemap.xml` (Termos e Privacidade só quando deixarem de ser rascunho).
+- Seção Confiança com três itens; "Seus dados são seus." espera a liberação (`DATA_RIGHTS_RELEASED`, README, item 20).
+- Desktop a partir de 1024 px: Seu mês e mês da família em três colunas, sem buracos preenchidos fora de ordem; Relatórios, Planejamento, Contas, Extrato, a meta pessoal e Família em duas colunas (principal e lateral de 340 px); Metas e Cartões em grade; Configurações em duas colunas de jornal; Instalar sem o quadro alto. Entre 768 e 1023 px, uma coluna ao lado do menu. Formulários e telas curtas continuam estreitos (decisão 171).
+- Acessibilidade: "Pular para o conteúdo", anel de foco com contraste (e campos que escondiam o anel corrigidos, com teste-guarda), área segura no aviso "Sem conexão", nomes repetidos na família, título das telas de convite, região "Da família", marco principal (`main`) nas telas em painel, links de Termos e Privacidade sublinhados em Entrar e Criar cadastro (achado do axe).
+- Conferência de textos: `npm run textos` (README, "Conferência de textos"), com a cópia da copy privada e fora do git (decisão 175).
+- Axe nas páginas públicas e nas principais telas do app, no celular e no desktop (README, "Acessibilidade (axe)"), sem desligar nenhuma regra.
+
+**Testes**
+- Unitários e de componentes (`npm test`): 1403 passando em 192 arquivos (inclui os 21 de `scripts/conferir-textos/core.test.mjs`). Tipos, lint e build sem erros; o build lista `/`, `/robots.txt`, `/sitemap.xml` e a imagem de compartilhamento como estáticos.
+- Ponta a ponta: `plano10.spec.ts` (6 testes) e `acessibilidade.spec.ts` (3 testes), 18 entradas em `--list` (celular e desktop). Os cinco marcados `@publico` rodaram sem Docker, contra o servidor de desenvolvimento: **8 passaram e 2 foram puladas** (as puladas são do projeto que não se aplica ao teste); numa execução a frio um deles (a landing no desktop) estourou o tempo na primeira compilação do servidor e passou na seguinte. Os quatro testes que precisam de cadastro (quem entrou e abre `/`, colunas a 1440 e 800 px, 375 px das telas que mudaram, axe das telas com dados): **pendentes**, dependem do Docker (mesma pendência dos Planos 1 a 9).
+- `npm run textos` **não rodou de verdade**: precisa da cópia da copy em `docs/copy/documento-base.md`, que é sua e não está na máquina da execução. Sem ela o comando para e diz o que fazer (código 2).
+
+**Pendências que continuam**
+- **Docker:** `npx supabase db reset && npm run test:db && npm run test:e2e`. O axe nas telas com dados (13 telas e Mais) nunca rodou: pode achar violações reais (contraste, nomes), a corrigir na tela, nunca desligando a regra.
+- **Conferência visual a exatamente 1024 px:** as colunas ficam com cerca de 340 px (Extrato, Relatórios, Planejamento e as ações de cada participante em Família). Ninguém viu no navegador.
+- **Sua aprovação visual** da landing (ela não tinha protótipo) e dos layouts de desktop (decisões 158, 161, 162, 166 a 171), no celular e no computador.
+- **Conferência de textos com a sua cópia:** rode `npm run textos`; uma simulação com um documento fictício listou 304 textos de planos anteriores fora das listas. Cada um vai para a lista de textos novos ou para `ignorar.json`, com o motivo.
+- **Contas e Extrato:** o resumo e os filtros ficam antes da lista no DOM; no desktop eles ficam à direita, e o teclado começa por lá (decisão 167).
+- Custo da segunda chamada ao banco (contas da família) em toda leitura do mês de quem não tem família: medir com o banco rodando (Plano 7).
+- A barra âmbar do planejado continua abaixo de 3:1 contra o trilho; o estado sempre aparece em texto (decisão 176).
+- A área segura do aviso "Sem conexão" não tem efeito até a página usar `viewport-fit=cover`.
+
+**Detalhes menores adiados (das revisões)**
+- Teste estático de que cada uma das 8 telas em painel tem exatamente um `<main>`.
+- Os testes-guarda leem só `className` literal ou em modelo (não `cn()` nem classes calculadas); a isenção `focus-within` do guarda de foco vale para o arquivo todo; o teste do conteúdo da landing fixa só uma amostra de frases.
+- `robots.txt` lista os nomes das áreas do app (incluindo `/api/` e `/auth/`, que não são páginas rastreáveis); sem caso de teste para `/?next=//…` logado (o comportamento está certo: vai para `/inicio` sem consulta).
+- Relatórios sem categorias não tem teste; `min-h-11` duplicado em um botão da landing; Configurações: invólucros repetidos e sem recuo; `loose` como três props em `Columns`.
+- Conferência de textos: o corte de que uma palavra solta em minúscula, sem contexto de tela, é tratada como técnica; textos antigos ou recusados citados em `decisoes-para-revisao.md` contam como aprovados.
+- A tela de sobra da meta não tem `h1` (já era assim).
