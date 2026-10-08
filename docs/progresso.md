@@ -384,3 +384,7 @@ Continuam por fazer:
 **Pendências levadas a outros planos**
 - Plano 10: landing (seção Confiança só depois da lista de lançamento, itens 16 a 18, RF-57; a frase "Você pode exportar ou excluir tudo quando quiser." tem a mesma tensão do conflito 2 do Plano 9); layout de desktop das telas novas.
 - Depois da v1, se fizer falta: digitar a senha de novo em vez de sair e entrar; cancelar uma troca de e-mail pendente; limpeza completa de famílias encerradas em que alguém que saiu ainda tem cadastro; registrar a versão dos Termos aceita por cada cadastro; exportar as famílias antigas e o histórico de avisos.
+
+## Plano 10 — Landing e desktop (em andamento)
+
+- Tarefa 11 (axe): os links "Termos de uso" e "Política de privacidade" dentro do parágrafo de /entrar e /criar-cadastro só se diferenciavam pela cor (regra `link-in-text-block`); agora são sublinhados. Nenhuma regra do axe foi desligada.

@@ -14,8 +14,8 @@ export default async function CriarCadastroPage({ searchParams }: { searchParams
       <GoogleButton next={next} />
       <SignUpForm next={next} />
       <p className="text-center text-[13px] text-muted">
-        Ao criar seu cadastro, você concorda com os <Link href="/termos" className="text-brand-text">Termos de uso</Link> e a{' '}
-        <Link href="/privacidade" className="text-brand-text">Política de privacidade</Link>.
+        Ao criar seu cadastro, você concorda com os <Link href="/termos" className="text-brand-text underline">Termos de uso</Link> e a{' '}
+        <Link href="/privacidade" className="text-brand-text underline">Política de privacidade</Link>.
       </p>
       <Link href={withNext('/entrar', next)} className="flex min-h-11 items-center justify-center font-medium text-brand-text">Já tenho cadastro</Link>
     </>

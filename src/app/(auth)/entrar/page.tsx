@@ -14,8 +14,8 @@ export default async function EntrarPage({ searchParams }: { searchParams: Promi
       <GoogleButton next={next} />
       <SignInForm next={next} />
       <p className="text-center text-[13px] text-muted">
-        Ao criar seu cadastro, você concorda com os <Link href="/termos" className="text-brand-text">Termos de uso</Link> e a{' '}
-        <Link href="/privacidade" className="text-brand-text">Política de privacidade</Link>.
+        Ao criar seu cadastro, você concorda com os <Link href="/termos" className="text-brand-text underline">Termos de uso</Link> e a{' '}
+        <Link href="/privacidade" className="text-brand-text underline">Política de privacidade</Link>.
       </p>
       <Link href="/recuperar-senha" className="flex min-h-11 items-center self-end font-medium text-brand-text">Esqueci minha senha</Link>
       <Link href={withNext('/criar-cadastro', next)} className="flex min-h-11 items-center justify-center font-medium text-brand-text">Criar um cadastro</Link>
