@@ -43,7 +43,7 @@ export default async function InicioPage({ searchParams }: { searchParams: Promi
         </div>
       </header>
 
-      <div className="grid gap-3 md:gap-4 lg:grid-cols-3 lg:grid-flow-dense">
+      <div className="grid gap-3 md:gap-4 lg:grid-cols-3">
         <Hero summary={v.summary} />
 
         <div className="flex flex-col gap-3 md:gap-4">

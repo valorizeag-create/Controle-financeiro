@@ -33,19 +33,28 @@ export default async function RelatoriosPage({ searchParams }: Props) {
           <Button href="/anotar">Anotar gasto</Button>
         </Card>
       ) : (
-        <Columns>
-          <MainColumn>
-            <WhatChanged summary={v.summary} changes={v.changes} />
-            {v.chart && <InOutChart bars={v.chart} />}
-            <MonthByMonth months={v.months} />
-          </MainColumn>
-          {v.categories.length > 0 && (
-            <AsideColumn row={1}>
-              <CategoriesCard categories={v.categories} />
-            </AsideColumn>
-          )}
-        </Columns>
+        <ReportBody v={v} />
       )}
     </main>
+  )
+}
+
+// Sem categorias não há o que pôr ao lado: uma coluna só, sem a faixa vazia de 340 px.
+function ReportBody({ v }: { v: ReturnType<typeof buildRelatorios> }) {
+  const main = (
+    <>
+      <WhatChanged summary={v.summary} changes={v.changes} />
+      {v.chart && <InOutChart bars={v.chart} />}
+      <MonthByMonth months={v.months} />
+    </>
+  )
+  if (v.categories.length === 0) return <div className="flex flex-col gap-4">{main}</div>
+  return (
+    <Columns>
+      <MainColumn>{main}</MainColumn>
+      <AsideColumn row={1}>
+        <CategoriesCard categories={v.categories} />
+      </AsideColumn>
+    </Columns>
   )
 }

@@ -5,7 +5,7 @@ import type { MonthSummary } from '@/domain/summary'
 export function Hero({ summary }: { summary: MonthSummary }) {
   const s = summary
   return (
-    <section className="flex flex-col gap-3.5 rounded-hero border border-brand-wash-border bg-brand-wash p-5 lg:col-span-2 md:p-7">
+    <section className="flex flex-col gap-3.5 rounded-hero border border-brand-wash-border bg-brand-wash p-5 md:p-7 lg:col-span-2">
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-medium text-brand-text">Disponível</h2>
         <details className="relative">

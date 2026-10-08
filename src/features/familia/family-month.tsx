@@ -143,7 +143,7 @@ function Recent({ recent }: { recent: FamilyMonthView['recent'] }) {
 export function FamilyMonth({ view }: { view: FamilyMonthView }) {
   return (
     <>
-      <div className="grid gap-3 md:gap-4 lg:grid-cols-3 lg:grid-flow-dense">
+      <div className="grid gap-3 md:gap-4 lg:grid-cols-3">
         {view.empty ? <EmptyCard /> : <TotalCard view={view} />}
         {view.bills.length > 0 && <Bills bills={view.bills} />}
         {!view.empty && view.categories.length > 0 && <Categories categories={view.categories} />}

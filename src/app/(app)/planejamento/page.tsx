@@ -21,6 +21,12 @@ export default async function PlanejamentoPage({ searchParams }: Props) {
   const [{ categories, transactions }, budgets] = await Promise.all([loadLedger(), loadBudgets([month, addMonths(month, -1)])])
   const v = buildPlanejamento({ month, today, categories, transactions, budgets })
 
+  const help = (
+    <p className="m-0 px-1 text-sm leading-snug text-muted">
+        O que é &quot;Planejado&quot;? Quanto você decidiu usar em cada área este mês. Serve de referência, não é uma regra.
+      </p>
+  )
+
   return (
     <main className={`mx-auto flex max-w-[720px] ${WIDE} flex-col gap-4 px-4 pt-4 pb-6 md:px-9 md:pt-7`}>
       <PageHeader title="Quanto você quer usar este mês" backHref="/mais" backOnMobileOnly />
@@ -58,18 +64,12 @@ export default async function PlanejamentoPage({ searchParams }: Props) {
             <Button variant="secondary" href={v.editHref}>Planejar outra categoria</Button>
           </MainColumn>
           <AsideColumn row={2}>
-            <p className="m-0 px-1 text-sm leading-snug text-muted">
-              O que é &quot;Planejado&quot;? Quanto você decidiu usar em cada área este mês. Serve de referência, não é uma regra.
-            </p>
+            {help}
           </AsideColumn>
         </Columns>
       )}
 
-      {v.empty && (
-        <p className="m-0 px-1 text-sm leading-snug text-muted">
-          O que é &quot;Planejado&quot;? Quanto você decidiu usar em cada área este mês. Serve de referência, não é uma regra.
-        </p>
-      )}
+      {v.empty && help}
     </main>
   )
 }
