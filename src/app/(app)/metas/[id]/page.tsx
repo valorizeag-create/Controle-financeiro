@@ -7,6 +7,7 @@ import { resolveGoal } from '@/features/metas/resolve-goal'
 import { buildFamilyGoalDetail, buildGoalDetail } from '@/features/metas/view-model'
 import { GoalHero, GoalActions, GoalHistory } from '@/features/metas/goal-detail'
 import { FamilyGoalDetail } from '@/features/metas/family-goal-detail'
+import { AsideColumn, Columns, MainColumn, WIDE } from '@/ui/columns'
 import { FormAlert } from '@/ui/form-alert'
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ erro?: string }> }
@@ -20,7 +21,7 @@ export default async function MetaPage({ params, searchParams }: Props) {
   const familyView = data.kind === 'family' ? buildFamilyGoalDetail({ goal: data.goal, movements: data.movements, today, uses: data.uses }) : null
   const view = familyView ?? buildGoalDetail({ goal: data.goal, movements: data.movements, today })
   return (
-    <main className="mx-auto flex max-w-[560px] flex-col gap-3.5 px-4 pt-4 md:px-9 md:pt-7">
+    <main className={`mx-auto flex max-w-[560px] ${data.kind === 'personal' ? WIDE : ''} flex-col gap-3.5 px-4 pt-4 md:px-9 md:pt-7`}>
       <header className="flex items-center gap-2">
         <Link href="/metas" aria-label="Voltar" className="-ml-2 flex size-11 shrink-0 items-center justify-center rounded-full text-[#262626] hover:bg-sunken">
           <ChevronLeft className="size-5" aria-hidden="true" />
@@ -36,11 +37,15 @@ export default async function MetaPage({ params, searchParams }: Props) {
       {data.kind === 'family' && familyView ? (
         <FamilyGoalDetail goal={data.goal} view={familyView} isAdmin={data.isAdmin} canEdit={data.canEdit} />
       ) : (
-        <>
-          <GoalHero view={view} />
-          <GoalActions view={view} />
-          <GoalHistory goalId={id} items={view.history} />
-        </>
+        <Columns>
+          <MainColumn>
+            <GoalHero view={view} />
+            <GoalActions view={view} />
+          </MainColumn>
+          <AsideColumn row={1}>
+            <GoalHistory goalId={id} items={view.history} />
+          </AsideColumn>
+        </Columns>
       )}
     </main>
   )

@@ -72,3 +72,17 @@ test('só metas da família: sem "Só suas" e sem o convite de lista vazia', () 
   expect(screen.queryByRole('heading', { name: 'Só suas' })).toBeNull()
   expect(screen.getByRole('heading', { name: 'Da família' })).toBeTruthy()
 })
+
+test('desktop: os cartões de cada lista ficam em duas colunas a partir de 1024 px', () => {
+  const view: MetasView = {
+    totalCents: 428000, empty: false, concluded: [],
+    active: [summary({ id: 'g1', name: 'Viagem para Salvador' })],
+    family: [{ id: 'f1', name: 'Casa nova', percent: 40, remainingCents: 1000, myPartCents: 500 } as MetasView['family'][number]],
+  }
+  render(<MetasList view={view} />)
+  for (const name of ['Só suas', 'Da família']) {
+    const list = screen.getByRole('heading', { name }).nextElementSibling as HTMLElement
+    expect(list.className).toContain('grid')
+    expect(list.className).toContain('lg:grid-cols-2')
+  }
+})

@@ -27,7 +27,7 @@ export function MetasList({ view }: { view: MetasView }) {
       {view.active.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="px-1 text-sm font-semibold text-inactive">Só suas</h2>
-          <div className="flex flex-col gap-2">
+          <div className="grid gap-2 lg:grid-cols-2">
             {view.active.map((s) => (
               <Link
                 key={s.goal.id}
@@ -52,7 +52,7 @@ export function MetasList({ view }: { view: MetasView }) {
       {view.family.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="px-1 text-sm font-semibold text-inactive">Da família</h2>
-          <div className="flex flex-col gap-2">
+          <div className="grid gap-2 lg:grid-cols-2">
             {view.family.map((f) => (
               <Link
                 key={f.id}

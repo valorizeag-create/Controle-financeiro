@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react'
+import { WIDE } from '@/ui/columns'
 import { Button } from '@/ui/button'
 import { todayInSaoPaulo } from '@/domain/dates'
 import { loadGoals, loadGoalMovements } from '@/features/metas/queries'
@@ -12,7 +13,7 @@ export default async function MetasPage() {
   const view = buildMetas({ goals, movements, today: todayInSaoPaulo(), familyGoals })
 
   return (
-    <main className="mx-auto flex max-w-[720px] flex-col gap-3.5 px-4 pt-5 md:px-9 md:pt-7">
+    <main className={`mx-auto flex max-w-[720px] ${WIDE} flex-col gap-3.5 px-4 pt-5 md:px-9 md:pt-7`}>
       <header className="flex items-center justify-between gap-2">
         <h1 className="text-[22px] font-semibold tracking-tight text-ink">Suas metas</h1>
         <Button href="/metas/nova">
