@@ -114,7 +114,14 @@ export async function expectNoHorizontalScroll(page: Page, label: string): Promi
 // Espera as animações de entrada (painéis, valores contando) terminarem: no meio delas o texto ainda
 // está transparente ou esmaecido, e o contraste medido não é o que a pessoa vê.
 export async function settleMotion(page: Page): Promise<void> {
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))))
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity) // o brilho do "carregando" não termina nunca
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  )
   await expect(page.locator('[data-counting]')).toHaveCount(0)
 }
 

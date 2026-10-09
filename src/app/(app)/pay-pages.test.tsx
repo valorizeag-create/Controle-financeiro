@@ -51,7 +51,7 @@ afterEach(() => vi.useRealTimers())
 
 // Esquenta os módulos das páginas: o primeiro import dinâmico, com a máquina ocupada, passava dos 5 s do teste.
 beforeAll(async () => {
-  await import("./contas/page")
+  await import("./contas/(tela)/page")
   await import("./familia/contas/page")
 }, 60_000)
 
@@ -64,7 +64,7 @@ beforeEach(() => {
 
 describe('/contas com ?pagar=', () => {
   const run = async (pagar: string | string[] | undefined, aba?: string) => {
-    const { default: Page } = await import('./contas/page')
+    const { default: Page } = await import('./contas/(tela)/page')
     return findPay(await Page({ searchParams: Promise.resolve({ mes: '2026-10', aba, pagar }) }))
   }
 

@@ -58,6 +58,10 @@
   @keyframes encher { from { transform: scaleX(0) } to { transform: scaleX(1) } }
   @keyframes aparece { from { opacity: 0; transform: translateY(6px) scale(0.96) } to { opacity: 1; transform: none } }
   @keyframes desenha { from { stroke-dashoffset: 24 } to { stroke-dashoffset: 0 } }
+
+  /* Carregando: um brilho atravessa os blocos cinza. */
+  --animate-brilho: brilho 1.4s linear infinite;
+  @keyframes brilho { from { background-position: 200% 0 } to { background-position: -200% 0 } }
   /* Meta concluída: pontinhos saem do centro e somem (--x/--y vêm de cada pontinho). */
   @keyframes estoura {
     0% { opacity: 1; transform: translate(0, 0) scale(1) }
@@ -91,8 +95,18 @@
   :focus-visible { outline: 2px solid var(--color-brand-text); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
+    /* Um brilho que se repete sem fim piscaria a cada 0,01 ms: parado é melhor. */
+    .animate-brilho { animation: none !important; }
+    /* A troca de tela (View Transitions) não passa pelas regras acima: desliga aqui. */
+    ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   }
 }
+
+/* Troca de tela: a tela que sai some rápido; a que entra aparece subindo de leve, logo depois. */
+::view-transition-old(.troca-tela) { animation: 120ms ease-out both sai-tela; }
+::view-transition-new(.troca-tela) { animation: 240ms var(--ease-suave) 60ms both entra-tela; }
+@keyframes sai-tela { to { opacity: 0 } }
+@keyframes entra-tela { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
 
 @utility num {
   font-variant-numeric: tabular-nums;

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 
 // De 768 a 1023 px o menu lateral já ocupa 248 px: três colunas ali ficariam com ~140 px.
-const GRIDS = ['src/app/(app)/inicio/page.tsx', 'src/features/familia/family-month.tsx']
+const GRIDS = ['src/app/(app)/inicio/(tela)/page.tsx', 'src/features/familia/family-month.tsx']
 const SPANS = ['src/features/seu-mes/hero.tsx', 'src/features/seu-mes/categories-card.tsx', 'src/features/seu-mes/featured-goal.tsx', 'src/features/seu-mes/planned-card.tsx', 'src/features/familia/family-month.tsx']
 const read = (f: string) => readFileSync(f, 'utf8')
 const classNames = (src: string) => [...src.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)].map((m) => m[1] ?? m[2])
