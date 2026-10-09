@@ -11,7 +11,7 @@ import type { FamilyMonthView } from './view-model'
 
 const H2 = 'text-[17px] font-semibold text-ink'
 const SECONDARY =
-  'inline-flex min-h-12 items-center justify-center rounded-panel border border-control bg-card px-5 text-base font-semibold text-ink transition-colors duration-[120ms] hover:bg-canvas active:scale-[0.98]'
+  'inline-flex min-h-12 items-center justify-center rounded-panel border border-control bg-card px-5 text-base font-semibold text-ink transition-[background-color,transform] duration-150 ease-(--ease-suave) hover:bg-canvas active:scale-[0.97]'
 const SEE_ALL = '-my-2 inline-flex min-h-11 items-center text-sm font-medium text-brand-text'
 
 function TotalCard({ view }: { view: FamilyMonthView }) {

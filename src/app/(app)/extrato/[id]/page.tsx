@@ -39,8 +39,8 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
       goalName: goal?.name ?? 'excluída',
     })
     return (
-      <main className="min-h-dvh bg-[rgba(18,40,1,.32)] md:flex md:justify-end">
-        <section aria-labelledby="gasto-meta-titulo" data-sheet className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-5 bg-card px-4 pb-8 pt-4 md:mx-0 md:w-[480px] md:max-w-none md:px-7 md:shadow-sheet">
+      <main className="min-h-dvh animate-fundo bg-[rgba(18,40,1,.32)] md:flex md:justify-end">
+        <section aria-labelledby="gasto-meta-titulo" data-sheet className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-5 bg-card px-4 pb-8 pt-4 animate-painel md:mx-0 md:w-[480px] md:max-w-none md:px-7 md:shadow-sheet md:animate-painel-lado">
           <div className="flex items-center gap-2">
             <h1 id="gasto-meta-titulo" className="flex-1 text-xl font-semibold tracking-tight text-ink">{v.title}</h1>
             <SheetClose href={`/extrato?mes=${monthOf(tx.paidOn ?? tx.occurredOn)}`} />
@@ -71,8 +71,8 @@ export default async function EditarRegistroPage({ params, searchParams }: Props
   }
 
   return (
-    <main className="min-h-dvh bg-[rgba(18,40,1,.32)] md:flex md:justify-end">
-      <section aria-labelledby="editar-titulo" data-sheet className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-5 bg-card px-4 pb-8 pt-4 md:mx-0 md:w-[480px] md:max-w-none md:px-7 md:shadow-sheet">
+    <main className="min-h-dvh animate-fundo bg-[rgba(18,40,1,.32)] md:flex md:justify-end">
+      <section aria-labelledby="editar-titulo" data-sheet className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-5 bg-card px-4 pb-8 pt-4 animate-painel md:mx-0 md:w-[480px] md:max-w-none md:px-7 md:shadow-sheet md:animate-painel-lado">
         <div className="flex items-center gap-2">
           <h1 id="editar-titulo" className="flex-1 text-xl font-semibold tracking-tight text-ink">
             {isExpense ? 'Editar gasto' : 'Editar entrada'}

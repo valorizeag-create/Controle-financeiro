@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Plus, Target } from 'lucide-react'
 import { Button } from '@/ui/button'
-import { Money } from '@/ui/money'
+import { AnimatedMoney } from '@/ui/animated-money'
 import { ProgressBar } from '@/ui/progress-bar'
 import { ConfirmAction } from '@/ui/confirm'
 import { formatBRL } from '@/domain/money'
@@ -20,7 +20,7 @@ export function GoalHero({ view, myPartCents, showUseLink = true }: { view: Goal
     <section data-testid="meta-resumo" className="flex flex-col gap-3.5 rounded-hero border border-brand-wash-border bg-brand-wash p-5">
       <span className="text-[15px] font-medium text-brand-text">Guardado</span>
       <div className="flex items-baseline gap-2">
-        <Money cents={balanceCents} className="text-[40px] font-bold leading-none text-brand-ink" />
+        <AnimatedMoney cents={balanceCents} className="text-[40px] font-bold leading-none text-brand-ink" />
         <span className="text-[15px] text-brand-text">de {formatBRL(goal.targetCents)}</span>
       </div>
       <ProgressBar percent={percent} size="lg" label={`Progresso de ${goal.name}`} />

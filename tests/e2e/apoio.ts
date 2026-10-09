@@ -111,8 +111,16 @@ export async function expectNoHorizontalScroll(page: Page, label: string): Promi
   expect(scroll, `${label}: rolagem horizontal (${scroll} > ${limit})`).toBeLessThanOrEqual(limit)
 }
 
+// Espera as animações de entrada (painéis, valores contando) terminarem: no meio delas o texto ainda
+// está transparente ou esmaecido, e o contraste medido não é o que a pessoa vê.
+export async function settleMotion(page: Page): Promise<void> {
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))))
+  await expect(page.locator('[data-counting]')).toHaveCount(0)
+}
+
 // Nenhuma regra é desligada: qualquer violação WCAG 2.0/2.1/2.2 A ou AA reprova.
 export async function expectNoA11yViolations(page: Page, label: string): Promise<void> {
+  await settleMotion(page)
   const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze()
   const resumo = violations
     .map((v) => `${v.id} (${v.impact}): ${v.help}\n${v.nodes.map((n) => `  ${n.target.join(' ')}`).join('\n')}`)

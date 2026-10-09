@@ -14,8 +14,8 @@ export default async function GuardarPage({ params }: Props) {
   if (data.goal.status !== 'active') redirect(`/metas/${id}`)
 
   return (
-    <main className="min-h-dvh bg-[rgba(18,40,1,.32)] md:flex md:justify-end">
-      <section aria-labelledby="guardar-titulo" data-sheet className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-5 bg-card px-4 pb-8 pt-4 md:mx-0 md:w-[480px] md:max-w-none md:px-7 md:shadow-sheet">
+    <main className="min-h-dvh animate-fundo bg-[rgba(18,40,1,.32)] md:flex md:justify-end">
+      <section aria-labelledby="guardar-titulo" data-sheet className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-5 bg-card px-4 pb-8 pt-4 animate-painel md:mx-0 md:w-[480px] md:max-w-none md:px-7 md:shadow-sheet md:animate-painel-lado">
         <div className="flex items-center gap-2">
           <div className="flex flex-1 flex-col">
             <h1 id="guardar-titulo" className="text-xl font-semibold tracking-tight text-ink">Guardar dinheiro nesta meta</h1>

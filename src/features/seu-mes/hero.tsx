@@ -1,4 +1,5 @@
 import { ArrowDownLeft, ArrowUpRight, CircleHelp, Target } from 'lucide-react'
+import { AnimatedMoney } from '@/ui/animated-money'
 import { Money } from '@/ui/money'
 import type { MonthSummary } from '@/domain/summary'
 
@@ -18,7 +19,7 @@ export function Hero({ summary }: { summary: MonthSummary }) {
         </details>
       </div>
       <p data-testid="disponivel" className="num text-[clamp(32px,11vw,44px)] font-bold leading-none text-brand-ink md:text-[56px]">
-        <Money cents={s.disponivelCents} />
+        <AnimatedMoney cents={s.disponivelCents} />
       </p>
       <div className="flex items-center justify-between rounded-panel bg-card px-3.5 py-3">
         <span className="text-sm">Disponível depois das contas</span>

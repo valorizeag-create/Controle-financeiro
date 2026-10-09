@@ -18,8 +18,8 @@ export function BottomNav() {
           if (item === 'anotar') {
             return (
               <li key="anotar" className="flex justify-center">
-                <Link href="/anotar" className="-mt-7 flex flex-col items-center gap-1 text-xs font-semibold text-brand-ink">
-                  <span className="flex size-14 items-center justify-center rounded-full bg-brand shadow-[0_4px_12px_rgba(18,40,1,.1)]">
+                <Link href="/anotar" className="group -mt-7 flex flex-col items-center gap-1 text-xs font-semibold text-brand-ink">
+                  <span className="flex size-14 items-center justify-center rounded-full bg-brand shadow-[0_4px_12px_rgba(18,40,1,.1)] transition-transform duration-150 ease-(--ease-suave) group-active:scale-90">
                     <Plus className="size-6" strokeWidth={2.2} aria-hidden="true" />
                   </span>
                   Anotar

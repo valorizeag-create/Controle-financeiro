@@ -10,7 +10,7 @@ const styles: Record<Variant, string> = {
 }
 
 const base =
-  'inline-flex min-h-12 items-center justify-center gap-2 rounded-panel px-5 text-base font-semibold transition-colors duration-[120ms] active:scale-[0.98] disabled:bg-sunken disabled:text-[#737373]'
+  'inline-flex min-h-12 items-center justify-center gap-2 rounded-panel px-5 text-base font-semibold transition-[background-color,color,transform] duration-150 ease-(--ease-suave) active:scale-[0.97] disabled:active:scale-100 disabled:bg-sunken disabled:text-[#737373]'
 
 type Props = { variant?: Variant; href?: string; className?: string; children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>
 

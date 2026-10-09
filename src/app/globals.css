@@ -34,6 +34,18 @@
 
   --shadow-card: 0 1px 2px rgba(18, 40, 1, 0.04);
   --shadow-sheet: 0 24px 48px rgba(18, 40, 1, 0.12);
+
+  /* Movimento: saída suave, sem quique (a Íris é calma). */
+  --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Painel do Anotar: sobe do rodapé no celular, entra pela direita no computador; o fundo escurece junto. */
+  --animate-painel: painel 380ms var(--ease-suave) both;
+  --animate-painel-lado: painel-lado 380ms var(--ease-suave) both;
+  --animate-fundo: fundo 240ms ease-out both;
+
+  @keyframes painel { from { opacity: 0; transform: translateY(32px) } to { opacity: 1; transform: none } }
+  @keyframes painel-lado { from { opacity: 0; transform: translateX(40px) } to { opacity: 1; transform: none } }
+  @keyframes fundo { from { opacity: 0 } to { opacity: 1 } }
 }
 
 @layer base {
@@ -48,7 +60,7 @@
   }
   :focus-visible { outline: 2px solid var(--color-brand-text); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
   }
 }
 
