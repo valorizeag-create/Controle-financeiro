@@ -26,6 +26,12 @@ const data: ExportData = {
   budgets: [{ month: '2026-10', categoryId: 'c-mercado', amountCents: 80000 }],
   prefs: { bills: true, income: true, budget: true, goal: true, summary: true, daily: false, comeback: true, family: true },
   family: null,
+  importRules: [
+    { merchantKey: 'padaria do ze', kind: 'expense', categoryId: 'c-mercado', source: null },
+    { merchantKey: 'empresa x', kind: 'income', categoryId: null, source: 'Salário' },
+    { merchantKey: '=cmd', kind: 'expense', categoryId: 'c-lazer', source: null },
+    { merchantKey: 'sumida', kind: 'expense', categoryId: 'c-apagada', source: null },
+  ],
 }
 const txs: TxRow[] = [
   { ...base, note: '=1+1', cardId: 'k1', installmentPlanId: 'p1', installmentNumber: 2, installmentCount: 6, familyId: 'f1' },
@@ -47,7 +53,7 @@ async function build(d: ExportData = data): Promise<string> {
   for await (const part of exportCsv(d, pages(txs.slice(0, 3), txs.slice(3)), pages(moves))) out += part
   return out
 }
-const TITLES = ['Cadastro', 'Registros', 'Contas e entradas que se repetem', 'Compras parceladas', 'Cartões', 'Metas', 'Movimentos das metas', 'Planejamento', 'Categorias', 'Lembretes']
+const TITLES = ['Cadastro', 'Registros', 'Contas e entradas que se repetem', 'Compras parceladas', 'Cartões', 'Metas', 'Movimentos das metas', 'Planejamento', 'Categorias', 'Memória de categorias', 'Lembretes']
 
 test('nome do arquivo sem dado pessoal', () => {
   expect(exportFileName('2026-10-02')).toBe('iris-meus-dados-2026-10-02.csv')
@@ -124,4 +130,20 @@ test('registro pago com uma meta que a pessoa não alcança mais sai como "Meta 
   const orphan = { ...base, id: 't9', goalId: 'sumiu', goalFundedCents: 500, paidOn: '2026-10-03' }
   for await (const part of exportCsv(data, pages([orphan]), pages())) out += part
   expect(out).toContain('"Meta da família";5,00;;03/10/2026;\r\n')
+})
+
+test('memória de categorias: depois de Categorias, com a categoria ou a origem; regra de categoria apagada some', async () => {
+  const csv = await build()
+  expect(csv).toContain('"Memória de categorias"\r\n"Descrição";"Categoria ou origem"\r\n')
+  expect(csv).toContain('"padaria do ze";"Mercado"\r\n')
+  expect(csv).toContain('"empresa x";"Salário"\r\n')
+  expect(csv).toContain(`"'=cmd";"Lazer"\r\n`)
+  expect(csv).not.toContain('sumida')
+  expect(csv.indexOf('"Categorias"\r\n')).toBeLessThan(csv.indexOf('"Memória de categorias"'))
+  expect(csv.indexOf('"Memória de categorias"')).toBeLessThan(csv.indexOf('"Lembretes"'))
+})
+
+test('memória vazia: só título e cabeçalho', async () => {
+  const csv = await build({ ...data, importRules: [] })
+  expect(csv).toContain('"Memória de categorias"\r\n"Descrição";"Categoria ou origem"\r\n\r\n')
 })

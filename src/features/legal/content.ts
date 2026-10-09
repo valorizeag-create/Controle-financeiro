@@ -117,6 +117,7 @@ export function privacyDoc(c: LegalController): LegalDoc {
             'Seu cadastro: nome, e-mail e senha. A senha fica guardada de forma protegida (um resumo cifrado, nunca a senha em si).',
             'Se você entra com o Google (quando essa opção está ativa): o nome, o e-mail e um identificador que o Google informa. Nunca a sua senha do Google.',
             'O que você anota: gastos, entradas, contas a pagar e a receber, compras parceladas, metas, planejamento, categorias e notas.',
+            'Se você importar o extrato do seu banco, o arquivo é lido no seu próprio aparelho e não é enviado nem guardado pela Íris. Só os registros que você confirmar são salvos, como se tivessem sido anotados à mão.',
             'Cartões: só o apelido, o tipo e a cor. Nenhum número de cartão.',
             'Família, se você participar de uma: o nome da família, quem participa e o que é marcado como da família (gastos, contas da família e metas).',
             'Lembretes: quais estão ligados e, se você ativar os lembretes num aparelho, o endereço técnico que o navegador fornece para a Íris enviar avisos a ele.',

@@ -423,3 +423,21 @@ Continuam por fazer:
 - Axe nas telas com dados espera o marco `main` (o `/anotar` não tem `h1`) e confere a rota; os testes em laço (axe público, axe das telas, 375 px, colunas) ganharam tempo para a primeira compilação (`test.slow()` / 180 s), sem tentativas repetidas.
 - A 1024 px a rolagem horizontal agora é conferida em Seu mês, Extrato, Contas, Relatórios, Planejamento e Família (colunas de ~340 px), além de Configurações em duas colunas.
 - Conferência de textos: minúsculas em ternários e `&&` dentro do JSX e prosa sob chaves como `value:` passam a ser conferidas; valores de opção, medidas e classes (`numeric`, `2-digit`, `192x192`, `device-width`, `bg-brand`…) saem por regra, sem entradas em `ignorar.json` (sobraram 15 palavras soltas em minúsculas em `src/`); texto repartido por interpolações ("Oi, {nome}, tudo bem") vira um modelo só.
+## Importar extrato · 2026-10-10
+
+**Entregue**
+- Tela `/extrato/importar` (entradas: botão no Extrato, linha em Mais, item no menu lateral e link no Anotar): lê PDF, CSV ou OFX de até 5 MB no próprio aparelho, sem enviar o arquivo; escolha da origem (conta do banco ou cartão) e do período; ajuste de colunas para CSV sem cabeçalho.
+- Revisão por dia, com categoria sugerida pela memória da pessoa e por um dicionário de estabelecimentos; linhas já importadas, já anotadas, faturas e transferências vêm desmarcadas; conta a pagar pode ser marcada como paga; "Pôr em Outros" em massa; limite de 1.000 registros por vez.
+- Salvamento no servidor em uma só chamada (`import_statement`, tudo ou nada), com a memória de categorias (`import_rules`) atualizada.
+- "Baixar meus dados" ganhou o bloco "Memória de categorias" e a Política de privacidade ganhou a frase sobre a importação (rascunho, pendente de revisão jurídica).
+- Textos novos listados em `docs/decisoes-para-revisao.md` (seção "Importar extrato (2026-10-10)"); README, item 24.
+
+**Testes**
+- Unitários e de componentes para domínio, leitura, revisão, ações, consultas, exportação e privacidade: 1633 passando em 210 arquivos.
+- Testes do banco (`npm run test:db`) e ponta a ponta (Playwright com login) **escritos e não executados: Docker ausente**.
+
+**Pendências**
+- Docker: `npx supabase db reset && npm run test:db && npm run test:e2e`.
+- Validar com extratos reais de PDF, CSV e OFX dos principais bancos e ajustar o dicionário (README, item 24).
+- Revisão jurídica da frase nova da Política de privacidade e aprovação dos textos de "Importar extrato".
+- `npm run textos` ainda lista palavras do dicionário de estabelecimentos e identificadores de acessibilidade da revisão: não são texto de tela.

@@ -70,7 +70,7 @@ test('toda leitura é da própria pessoa; nada de push, fila de avisos, convites
   expect(data.family).toBeNull()
   const tables = [...new Set(reads.map((r) => r.table))].sort()
   expect(tables).toEqual([
-    'budgets', 'cards', 'categories', 'family_members', 'goal_movements', 'goals', 'installment_plans',
+    'budgets', 'cards', 'categories', 'family_members', 'goal_movements', 'goals', 'import_rules', 'installment_plans',
     'notification_prefs', 'profiles', 'recurrences', 'transactions',
   ])
   for (const r of reads) {

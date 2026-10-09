@@ -151,6 +151,14 @@ export async function* exportCsv(
 
   yield block('Categorias', ['Nome'], data.categories.map((c) => [csvText(c.name)]))
 
+  // Regra de gasto cuja categoria não está mais na lista não tem o que mostrar: fica de fora.
+  const memory = data.importRules.flatMap((r) => {
+    if (r.kind === 'income') return [[csvText(r.merchantKey), csvText(r.source)]]
+    const name = r.categoryId ? categoryName.get(r.categoryId) : undefined
+    return name ? [[csvText(r.merchantKey), csvText(name)]] : []
+  })
+  yield block('Memória de categorias', ['Descrição', 'Categoria ou origem'], memory)
+
   yield block('Lembretes', ['Lembrete', 'Ligado'], PREF_ORDER.map((k) => [csvText(PREF_LABELS[k]), yesNo(data.prefs[k])]))
 
   if (data.family) {

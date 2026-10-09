@@ -691,3 +691,70 @@ Bandeira do cartão (2026-10-09, depois do Plano 10): textos novos, para aprova�
 - "Outra" (opção sem bandeira; o cartão continua mostrando "Íris")
 - "VISA" e "AMEX" (escritos dentro dos logos desenhados no cartão)
 - Adaptado: "A Íris guarda só o apelido, o tipo, a cor e a bandeira. Nenhum número do cartão." (antes: "A Íris guarda só o apelido, o tipo e a cor. Nenhum número do cartão.")
+
+## Importar extrato (2026-10-10)
+
+Tela nova para ler o extrato do banco (PDF, CSV ou OFX) no próprio aparelho, revisar e anotar. Nenhum arquivo vai para o servidor; só os registros confirmados são salvos. Todos os textos abaixo estão exatamente como no código, **para a sua aprovação**, em tom calmo e sem exclamação. `{…}` são valores.
+
+**Textos novos**
+
+*Entradas na tela* (`src/features/shell/nav-items.ts`, `src/app/(app)/mais/page.tsx`, `src/app/(app)/extrato/(tela)/page.tsx`, `src/features/registro/anotar-form.tsx`)
+- "Importar extrato" (título da tela, item do menu lateral, linha em Mais e botão no Extrato)
+- "Tem o extrato do banco?" seguido do link "Importar" (rodapé do Anotar; só aparece ao anotar um registro novo)
+- "Tem o extrato do banco?" (o trecho de texto, sozinho, como a conferência o lê)
+
+*Escolher o arquivo* (`etapa-arquivo.tsx`)
+- "Escolher arquivo"
+- "PDF, CSV ou OFX, até 5 MB."
+- "De onde é este extrato?"
+- "Conta do banco" (os cartões aparecem com o apelido deles)
+- "De" e "Até" (período)
+- "O arquivo é lido aqui no seu aparelho. Só os registros que você confirmar são salvos."
+- "Ver o que a Íris encontrou"
+
+*Erros ao ler o arquivo* (`ler-arquivo.ts`)
+- "Escolha um arquivo PDF, CSV ou OFX."
+- "Este arquivo passa de 5 MB. Escolha um período menor no app do banco."
+- "Este PDF tem senha. Baixe de novo sem senha, ou use o CSV ou o OFX."
+- "Não conseguimos ler este PDF. Tente o arquivo CSV ou OFX do seu banco."
+- "Nenhum registro neste período." (também quando o CSV não tem linhas depois de escolhidas as colunas; `importar.tsx`)
+
+*Colunas do CSV* (`ajuste-colunas.tsx`, `src/domain/importacao/csv.ts`)
+- "Qual coluna é a data? E a descrição? E o valor?"
+- "Usar estas colunas"
+- "Coluna {n}" (nome da coluna quando o CSV não tem cabeçalho)
+- Rótulos dos três seletores: "Data", "Descrição", "Valor"
+
+*Revisão* (`etapa-revisao.tsx`, `linha-revisao.tsx`)
+- "Escolha a categoria" (título da seção das linhas sem categoria e primeira opção de cada lista)
+- "Pôr em Outros as {n} sem categoria" e, no singular, "Pôr em Outros a 1 sem categoria"
+- "Parece que você já anotou isto: {categoria}, {valor}, {dd/mm/aaaa}"
+- "Pagamento de fatura: as compras do cartão já contam uma a uma."
+- "Parece dinheiro entre suas contas."
+- "Pagamento da própria fatura: não é gasto."
+- "Marcar {conta} como paga"
+- "{n} linhas já importadas antes." e "1 linha já importada antes."
+- "{n} linhas que a Íris não entendeu." e "1 linha que a Íris não entendeu."
+- "{n} gastos · {n} entradas", com os singulares "1 gasto" e "1 entrada"
+- "Anotar {n} registros" e "Anotar 1 registro"
+- "São mais de 1.000 registros. Escolha um período menor." (decisão do controlador: o servidor aceita até 1.000 linhas por vez; o botão fica desligado)
+- "Voltar" (rótulo acessível do botão de voltar)
+
+*Depois de salvar* (`actions.ts`)
+- "{n} registros anotados." e "1 registro anotado." (aviso no Seu mês)
+- "Esses registros já tinham sido anotados." (todas as linhas já existiam)
+
+*Dados e privacidade*
+- Bloco do arquivo "Baixar meus dados": título "Memória de categorias", colunas "Descrição" e "Categoria ou origem" (`src/features/dados/export-csv.ts`)
+- Frase da Política de privacidade, na seção "O que a Íris guarda": "Se você importar o extrato do seu banco, o arquivo é lido no seu próprio aparelho e não é enviado nem guardado pela Íris. Só os registros que você confirmar são salvos, como se tivessem sido anotados à mão." **Pede revisão jurídica** (README, item 24).
+
+**Reaproveitados (já aprovados; não contam como novos):** "Não informar" (origem da entrada, como no Anotar), "Gasto" e "Entrada" (tipo da linha), "Algo não saiu como esperado do nosso lado. Tente novamente em instantes.", "Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo." e o padrão "Marcar {conta} como paga" (Contas).
+
+**Decisões do controlador**
+- Limite de 1.000 registros por importação, com o texto "São mais de 1.000 registros. Escolha um período menor." no lugar de deixar o servidor recusar.
+- Singulares escritos por extenso nos contadores e nos botões ("1 linha…", "1 gasto", "1 entrada", "Anotar 1 registro", "1 registro anotado.", "Pôr em Outros a 1 sem categoria").
+- "Esses registros já tinham sido anotados." quando o salvamento não grava nada novo.
+- CSV sem cabeçalho: as colunas aparecem como "Coluna {n}".
+- A memória de categorias (descrição do banco → categoria ou origem) entra no "Baixar meus dados".
+
+**Conferência de textos:** ver o resultado de `npm run textos` em `.superpowers/sdd/2026-10-09-importar-extrato/task-9-report.md`.

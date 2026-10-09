@@ -48,6 +48,7 @@ test('a política diz o que o app faz de verdade', () => {
     'a que item, mês ou dia ele se refere', 'ligado ao seu cadastro', 'ainda está a confirmar', 'um resumo cifrado, nunca a senha em si',
     'como "Ex-membro", sem o seu nome', 'Google, Mozilla, Apple ou Microsoft', 'Autoridade Nacional de Proteção de Dados',
     'Ele não traz as famílias de que você já saiu',
+    'Se você importar o extrato do seu banco, o arquivo é lido no seu próprio aparelho e não é enviado nem guardado pela Íris. Só os registros que você confirmar são salvos, como se tivessem sido anotados à mão.',
   ]) {
     expect(p, fact).toContain(fact)
   }

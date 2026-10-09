@@ -28,6 +28,13 @@ export interface ExportGoal {
   family: boolean
 }
 
+export interface ExportImportRule {
+  merchantKey: string
+  kind: 'income' | 'expense'
+  categoryId: string | null
+  source: string | null
+}
+
 export type ExportRecurrence = RecurrenceRow & { familyId: string | null; note: string | null; paymentMethod: string | null; cardId: string | null }
 
 export interface ExportData {
@@ -40,6 +47,7 @@ export interface ExportData {
   budgets: BudgetRow[]
   prefs: Record<PrefKind, boolean>
   family: { name: string; role: 'admin' | 'member'; joinedOn: ISODate } | null
+  importRules: ExportImportRule[]
 }
 
 export const EXPORT_PAGE = 1000
@@ -135,7 +143,7 @@ async function loadFamilyGoals(supabase: SupabaseClient, userId: string, familyI
 export async function loadExportData({ supabase, user }: ExportScope): Promise<ExportData> {
   const uid = user.id
 
-  const [profile, categories, cards, recurrences, plans, goals, budgets, prefs, membership] = await Promise.all([
+  const [profile, categories, cards, recurrences, plans, goals, budgets, prefs, membership, importRules] = await Promise.all([
     loadProfile(supabase, user),
     allPages<Raw>((from, to) =>
       supabase.from('categories').select('id, name, default_key, sort_order').eq('user_id', uid).order('sort_order').order('id').range(from, to),
@@ -157,6 +165,9 @@ export async function loadExportData({ supabase, user }: ExportScope): Promise<E
     ),
     supabase.from('notification_prefs').select('kind, enabled').eq('user_id', uid),
     loadFamily(supabase, uid),
+    allPages<{ merchant_key: string; kind: string; category_id: string | null; source: string | null }>((from, to) =>
+      supabase.from('import_rules').select('merchant_key, kind, category_id, source').eq('user_id', uid).order('merchant_key').order('kind').range(from, to),
+    ),
   ])
   if (prefs.error) throw prefs.error
 
@@ -179,6 +190,12 @@ export async function loadExportData({ supabase, user }: ExportScope): Promise<E
     budgets: budgets.map(toBudgetRow),
     prefs: resolvePrefs((prefs.data ?? []) as { kind: string; enabled: boolean }[]),
     family: membership?.info ?? null,
+    importRules: importRules.map((r) => ({
+      merchantKey: r.merchant_key,
+      kind: r.kind === 'income' ? 'income' : 'expense',
+      categoryId: r.category_id,
+      source: r.source,
+    })),
   }
 }
 
