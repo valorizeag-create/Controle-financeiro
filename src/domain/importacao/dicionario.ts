@@ -12,10 +12,13 @@ const ENTRADAS: ReadonlyArray<readonly [string, string]> = [
   ['lanchonete', 'comer_fora'], ['padaria', 'comer_fora'], ['pizzaria', 'comer_fora'],
   ['sorveteria', 'comer_fora'], ['cafeteria', 'comer_fora'], ['bar', 'comer_fora'],
   // transporte
-  ['uber', 'transporte'], ['99', 'transporte'], ['99app', 'transporte'], ['99pop', 'transporte'],
+  ['uber', 'transporte'], ['99app', 'transporte'], ['99pop', 'transporte'], ['99 pop', 'transporte'],
+  ['99 taxi', 'transporte'], ['99taxi', 'transporte'],
   ['cabify', 'transporte'], ['posto', 'transporte'], ['shell', 'transporte'], ['ipiranga', 'transporte'],
   ['estacionamento', 'transporte'], ['sem parar', 'transporte'], ['metro', 'transporte'],
   ['bilhete unico', 'transporte'],
+  // marketplaces antes de "mercado"
+  ['mercado livre', 'compras'], ['mercado pago', 'compras'], ['mercadopago', 'compras'],
   // mercado
   ['supermercado', 'mercado'], ['mercado', 'mercado'], ['atacadao', 'mercado'], ['carrefour', 'mercado'],
   ['pao de acucar', 'mercado'], ['assai', 'mercado'], ['hortifruti', 'mercado'], ['sacolao', 'mercado'],

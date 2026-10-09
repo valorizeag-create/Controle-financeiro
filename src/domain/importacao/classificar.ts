@@ -12,14 +12,25 @@ export type Classification = {
   via: 'memoria' | 'dicionario' | null
 }
 
+const EMISSORES =
+  /\b(cartao|credito|card|nubank|nu pagamentos|itaucard|bradescard|santander cartao|c6|inter|picpay card|porto seguro cartao|ourocard|elo|visa|mastercard|amex|hipercard)\b/
+
+// Fatura de cartão exige contexto de cartão, para não pegar contas de consumo ("PAGAMENTO FATURA CLARO").
+function ehPagamentoDeFatura(s: string): boolean {
+  if (/\bfatura (do )?cartao\b/.test(s)) return true
+  const verbo = /\b(pagamento|pagto|pgto|pagt|pag)\b/.test(s)
+  const fatura = /\b(fatura|fat|cartao)\b/.test(s)
+  return verbo && fatura && EMISSORES.test(s)
+}
+
 export function specialOf(desc: string, origin: 'conta' | 'cartao'): Special | null {
-  const s = semAcento(desc).toLowerCase()
+  const s = semAcento(desc).toLowerCase().replace(/[.]/g, ' ')
   if (/\bestorno\b/.test(s)) return 'estorno'
   if (origin === 'cartao') {
     return /\bpagamento (recebido|efetuado|de fatura|fatura|on ?line)\b/.test(s) ? 'pagamento-fatura-no-cartao' : null
   }
-  if (/\b(pagamento|pagto|pgto|pag) fatura\b|\bfatura cartao\b/.test(s)) return 'fatura'
-  if (/\b(aplicacao|resgate|mesma titularidade|entre contas)\b/.test(s)) return 'transferencia'
+  if (ehPagamentoDeFatura(s)) return 'fatura'
+  if (/\b(aplicacao|aplic|apl|resgate|resg|mesma titularidade|entre contas)\b/.test(s)) return 'transferencia'
   if (/\b(salario|folha)\b/.test(s)) return 'salario'
   return null
 }

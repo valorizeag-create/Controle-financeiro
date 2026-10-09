@@ -15,6 +15,13 @@ describe('dictionaryKey', () => {
     ['cinemark', 'lazer'],
     ['99app', 'transporte'],
     ['99 pop', 'transporte'],
+    ['99 taxi', 'transporte'],
+    ['mercado livre', 'compras'],
+    ['mercado pago', 'compras'],
+    ['mercadopago', 'compras'],
+    ['mercadolivre', 'compras'],
+    ['uber eats', 'comer_fora'],
+    ['mcdonalds', 'comer_fora'],
     ['uber eats', 'comer_fora'],
   ])('%s -> %s', (merchant, key) => {
     expect(dictionaryKey(merchant)).toBe(key)
@@ -25,6 +32,7 @@ describe('dictionaryKey', () => {
   })
 
   it('palavra curta não casa dentro de outra palavra', () => {
+    expect(dictionaryKey('99 farmacia')).not.toBe('transporte')
     expect(dictionaryKey('otimo servico')).toBeNull() // tim
     expect(dictionaryKey('barbearia do ze')).toBeNull() // bar
     expect(dictionaryKey('bar do ze')).toBe('comer_fora')
