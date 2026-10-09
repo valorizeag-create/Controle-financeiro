@@ -1,0 +1,133 @@
+import { describe, expect, it } from 'vitest'
+import type { Category } from '@/features/registro/queries'
+import type { TxRow } from '@/features/registro/tx-row'
+import { buildReview, importKeys } from './revisar'
+import type { RawLine } from './tipos'
+
+const categories: Category[] = [{ id: 'c-mercado', name: 'Supermercado', defaultKey: 'mercado' }]
+
+const out = (date: string, description: string, amountCents: number): RawLine => ({ date, description, amountCents, direction: 'out' })
+const inn = (date: string, description: string, amountCents: number): RawLine => ({ date, description, amountCents, direction: 'in' })
+
+function tx(p: Partial<TxRow> & { importKey?: string | null }): TxRow & { importKey: string | null } {
+  return {
+    id: 't1', kind: 'expense', amountCents: 8900, categoryId: null, source: null, note: null, paymentMethod: null,
+    occurredOn: '2026-10-05', status: 'confirmed', dueOn: null, paidOn: null, goalFundedCents: 0, createdAt: '2026-10-05T00:00:00Z',
+    cardId: null, cardDeleted: false, installmentPlanId: null, installmentNumber: null, installmentCount: null, goalId: null,
+    familyId: null, importKey: null, ...p,
+  }
+}
+
+const base = { from: '2026-10-01', to: '2026-10-31', origin: 'conta' as const, rules: [], categories, existing: [], usedKeys: new Set<string>() }
+
+describe('importKeys', () => {
+  it('gera SHA-256 hex, estável, e distingue linhas idênticas', async () => {
+    const l = out('2026-10-07', 'PADARIA DO ZE', 1000)
+    const a = await importKeys([l, l, out('2026-10-08', 'OUTRA', 5)])
+    const b = await importKeys([l, l, out('2026-10-08', 'OUTRA', 5)])
+    expect(a).toEqual(b)
+    expect(a[0]).toMatch(/^[0-9a-f]{64}$/)
+    expect(new Set(a).size).toBe(3)
+  })
+})
+
+describe('buildReview', () => {
+  it('inclui from e to e exclui o dia anterior e o seguinte', async () => {
+    const r = await buildReview({
+      ...base,
+      lines: [out('2026-09-30', 'A', 100), out('2026-10-01', 'B', 100), out('2026-10-31', 'C', 100), out('2026-11-01', 'D', 100)],
+    })
+    expect(r.lines.map((l) => l.description).sort()).toEqual(['B', 'C'])
+  })
+
+  it('esconde linhas já importadas e conta', async () => {
+    const lines = [out('2026-10-07', 'MERCADO X', 1000), out('2026-10-08', 'OUTRO', 200)]
+    const keys = await importKeys(lines)
+    const r = await buildReview({ ...base, lines, usedKeys: new Set([keys[0]]) })
+    expect(r.alreadyImported).toBe(1)
+    expect(r.lines).toHaveLength(1)
+    expect(r.lines[0].description).toBe('OUTRO')
+  })
+
+  it('chaves não mudam quando o período corta linhas iguais', async () => {
+    const l = out('2026-10-07', 'PADARIA', 1000)
+    const full = await buildReview({ ...base, lines: [l, l] })
+    const keys = full.lines.map((x) => x.importKey)
+    expect(new Set(keys).size).toBe(2)
+  })
+
+  it('marca como já anotada à mão, uma vez por registro', async () => {
+    const r = await buildReview({
+      ...base,
+      lines: [out('2026-10-07', 'PADARIA', 8900), out('2026-10-07', 'PADARIA', 8900)],
+      existing: [tx({ id: 'manual' })],
+    })
+    const anotadas = r.lines.filter((l) => l.reason === 'ja-anotada')
+    expect(anotadas).toHaveLength(1)
+    expect(anotadas[0]).toMatchObject({ checked: false, similarTxId: 'manual' })
+    const outra = r.lines.find((l) => l.reason === null)!
+    expect(outra.checked).toBe(true)
+    expect(outra.similarTxId).toBeNull()
+  })
+
+  it('não casa com registro importado, pendente, de outro tipo ou a mais de 2 dias', async () => {
+    const r = await buildReview({
+      ...base,
+      lines: [out('2026-10-07', 'PADARIA', 8900)],
+      existing: [
+        tx({ id: 'a', importKey: 'k' }),
+        tx({ id: 'b', status: 'pending', dueOn: '2026-10-20' }),
+        tx({ id: 'c', kind: 'income' }),
+        tx({ id: 'd', occurredOn: '2026-10-04' }),
+      ],
+    })
+    expect(r.lines[0].reason).toBeNull()
+  })
+
+  it('casa com conta pendente (até 5%)', async () => {
+    const pend = tx({ id: 'bill', status: 'pending', amountCents: 10000, dueOn: '2026-10-10', occurredOn: '2026-10-10', categoryId: 'c-mercado' })
+    const r = await buildReview({ ...base, lines: [out('2026-10-12', 'ENERGIA', 10200)], existing: [pend] })
+    expect(r.lines[0]).toMatchObject({ billId: 'bill', categoryId: 'c-mercado', checked: true, reason: null })
+    const r2 = await buildReview({ ...base, lines: [out('2026-10-12', 'ENERGIA', 12000)], existing: [pend] })
+    expect(r2.lines[0].billId).toBeNull()
+  })
+
+  it('cada conta pendente casa uma vez só', async () => {
+    const pend = tx({ id: 'bill', status: 'pending', amountCents: 10000, dueOn: '2026-10-10' })
+    const r = await buildReview({ ...base, lines: [out('2026-10-10', 'A', 10000), out('2026-10-11', 'B', 10000)], existing: [pend] })
+    expect(r.lines.filter((l) => l.billId === 'bill')).toHaveLength(1)
+  })
+
+  it('fatura e transferência vêm desmarcadas', async () => {
+    const r = await buildReview({
+      ...base,
+      lines: [out('2026-10-05', 'PAGAMENTO FATURA NUBANK', 50000), out('2026-10-06', 'APLICACAO CDB', 30000)],
+    })
+    expect(r.lines.find((l) => l.description.includes('FATURA'))).toMatchObject({ checked: false, reason: 'fatura' })
+    expect(r.lines.find((l) => l.description.includes('APLICACAO'))).toMatchObject({ checked: false, reason: 'transferencia' })
+  })
+
+  it('cartão: pagamento desmarcado e estorno vira entrada', async () => {
+    const r = await buildReview({
+      ...base,
+      origin: 'cartao',
+      lines: [inn('2026-10-05', 'PAGAMENTO RECEBIDO', 50000), inn('2026-10-06', 'ESTORNO LOJA X', 3000)],
+    })
+    expect(r.lines.find((l) => l.description === 'PAGAMENTO RECEBIDO')).toMatchObject({ checked: false, reason: 'pagamento-fatura-no-cartao' })
+    expect(r.lines.find((l) => l.description.startsWith('ESTORNO'))).toMatchObject({ kind: 'income', checked: true })
+  })
+
+  it('ordem: marcadas sem categoria primeiro, depois por data decrescente', async () => {
+    const r = await buildReview({
+      ...base,
+      lines: [
+        out('2026-10-20', 'SUPERMERCADO ABC', 1000),
+        out('2026-10-02', 'COISA ESTRANHA', 500),
+        inn('2026-10-25', 'PIX RECEBIDO FULANO', 700),
+        out('2026-10-10', 'OUTRA COISA ESTRANHA', 300),
+      ],
+    })
+    const d = r.lines.map((l) => l.date)
+    expect(d).toEqual(['2026-10-10', '2026-10-02', '2026-10-25', '2026-10-20'])
+  })
+})
