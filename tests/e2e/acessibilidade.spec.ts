@@ -26,7 +26,7 @@ test('@publico 375 px: a landing e o acesso não rolam na horizontal', async ({ 
   }
 })
 
-const APP = ['/inicio', '/extrato', '/anotar', '/contas', '/metas', '/planejamento', '/relatorios', '/familia', '/categorias', '/cartoes', '/configuracoes', '/configuracoes/instalar', '/configuracoes/dados']
+const APP = ['/inicio', '/extrato', '/extrato/importar', '/anotar', '/contas', '/metas', '/planejamento', '/relatorios', '/familia', '/categorias', '/cartoes', '/configuracoes', '/configuracoes/instalar', '/configuracoes/dados']
 
 test('telas do app com dados: sem violações WCAG A/AA e sem rolagem horizontal', async ({ page }, info) => {
   test.setTimeout(180_000) // cadastro, dados e ~14 rotas compilando a frio, cada uma com o axe
