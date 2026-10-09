@@ -37,3 +37,9 @@ test('é o alvo do "Pular para o conteúdo" e recebe o foco', () => {
   expect(frame.id).toBe('conteudo')
   expect(frame.getAttribute('tabindex')).toBe('-1')
 })
+
+test('pode ficar mais estreito que o conteúdo: uma nota longa (cortada com …) não alarga a página no celular', () => {
+  const { container } = render(<MainFrame><p>conteúdo</p></MainFrame>)
+  const frame = container.firstChild as HTMLElement
+  expect(frame.className.split(' ')).toContain('min-w-0')
+})

@@ -93,7 +93,7 @@ test('celular: 375 px sem rolagem horizontal nas telas que mudaram', async ({ pa
   test.skip(info.project.name !== 'celular')
   test.setTimeout(180_000)
   const u = await makeUser('Fábio')
-  await seedExpense(u.id, 'mercado', 89000, 'Feira')
+  await seedExpense(u.id, 'mercado', 89000, 'Feira da semana no mercado do bairro, com a lista inteira do mês')
   await entrar(page, u.email)
   await page.setViewportSize({ width: 375, height: 812 })
   for (const path of ['/inicio', '/relatorios', '/planejamento', '/contas', '/extrato', '/metas', '/familia', '/configuracoes', '/configuracoes/instalar', '/cartoes']) {

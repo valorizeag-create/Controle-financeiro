@@ -36,7 +36,7 @@ export function FiltersBar({ filters, categories, categoryName, cards, cardName 
         />
       </form>
 
-      <nav aria-label="Filtros" className="flex flex-wrap gap-2">
+      <nav aria-label="Filtros" className="relative flex flex-wrap gap-2 md:static">
         <Link href={withFilters({ kind: isIncome ? null : 'income', categoryId: null, cardId: null })} aria-current={isIncome ? 'true' : undefined} className={chip(isIncome)}>
           Entradas
         </Link>
@@ -44,12 +44,12 @@ export function FiltersBar({ filters, categories, categoryName, cards, cardName 
           Gastos
         </Link>
         {/* key: remonta fechado depois de escolher (ou limpar) uma categoria. */}
-        <details key={filters.categoryId ?? 'none'} role="group" aria-label="Categoria" className="relative">
+        <details key={filters.categoryId ?? 'none'} role="group" aria-label="Categoria" className="md:relative">
           <summary className={`${chip(Boolean(filters.categoryId))} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
             {categoryName ?? 'Categoria'}
             <ChevronDown className="size-4" aria-hidden="true" />
           </summary>
-          <ul className="absolute left-0 top-12 z-10 flex max-h-72 w-56 flex-col overflow-y-auto rounded-card border border-line bg-card py-1 shadow-sheet">
+          <ul className="absolute inset-x-0 top-full z-10 mt-2 flex max-h-72 flex-col md:inset-x-auto md:left-0 md:top-12 md:mt-0 md:w-56 overflow-y-auto rounded-card border border-line bg-card py-1 shadow-sheet">
             {categories.map((c) => {
               const selected = filters.categoryId === c.id
               return (
@@ -68,12 +68,12 @@ export function FiltersBar({ filters, categories, categoryName, cards, cardName 
         </details>
         {cards.length > 0 && (
           // key: remonta fechado depois de escolher (ou limpar) um cartão.
-          <details key={filters.cardId ?? 'none'} role="group" aria-label="Cartão" className="relative">
+          <details key={filters.cardId ?? 'none'} role="group" aria-label="Cartão" className="md:relative">
             <summary className={`${chip(Boolean(filters.cardId))} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
               {cardName ?? 'Cartão'}
               <ChevronDown className="size-4" aria-hidden="true" />
             </summary>
-            <ul className="absolute left-0 top-12 z-10 flex max-h-72 w-56 flex-col overflow-y-auto rounded-card border border-line bg-card py-1 shadow-sheet">
+            <ul className="absolute inset-x-0 top-full z-10 mt-2 flex max-h-72 flex-col md:inset-x-auto md:left-0 md:top-12 md:mt-0 md:w-56 overflow-y-auto rounded-card border border-line bg-card py-1 shadow-sheet">
               {cards.map((c) => {
                 const selected = filters.cardId === c.id
                 return (

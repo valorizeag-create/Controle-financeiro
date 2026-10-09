@@ -11,11 +11,12 @@ const ViewTransition = (React as { ViewTransition?: typeof React.ViewTransition 
 
 // O layout é Server Component e não sabe a rota atual; este invólucro cliente
 // reserva o espaço da barra inferior só onde ela aparece. Nos painéis (Anotar,
-// Editar) o espaço sobrava como uma faixa vazia no fim da tela.
+// Editar) o espaço sobrava como uma faixa vazia no fim da tela. min-w-0: como item flexível, sem
+// isso a área não fica mais estreita que o conteúdo, e uma nota longa (cortada com …) alargava a página.
 export function MainFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   return (
-    <div id={CONTENT_ID} tabIndex={-1} className={`flex-1 outline-none ${isSheetRoute(pathname) ? '' : 'pb-28 md:pb-10'}`}>
+    <div id={CONTENT_ID} tabIndex={-1} className={`min-w-0 flex-1 outline-none ${isSheetRoute(pathname) ? '' : 'pb-28 md:pb-10'}`}>
       {ViewTransition ? <ViewTransition default="troca-tela">{children}</ViewTransition> : children}
     </div>
   )
