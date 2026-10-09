@@ -23,8 +23,9 @@ export function parseAmount(s: string): { cents: number; direction: Direction } 
   } else if (t.startsWith('+')) {
     t = t.slice(1)
   }
-  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.')
-  else if ((t.match(/\./g) ?? []).length > 1) t = t.replace(/\./g, '')
+  if (t.includes(',') && t.lastIndexOf(',') < t.lastIndexOf('.')) t = t.replace(/,/g, '') // 1,234.56 (americano)
+  else if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.')
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '') // 1.234 = milhar, sem decimais
   if (!/^\d+(\.\d+)?$/.test(t)) return null
   const cents = Math.round(Number(t) * 100)
   if (cents <= 0) return null

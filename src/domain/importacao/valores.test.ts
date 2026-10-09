@@ -9,6 +9,13 @@ describe('parseAmount', () => {
     expect(parseAmount('1234.56')).toEqual({ cents: 123456, direction: 'in' })
     expect(parseAmount('R$ -12,30')).toEqual({ cents: 1230, direction: 'out' })
     expect(parseAmount('(12,30)')).toEqual({ cents: 1230, direction: 'out' })
+    expect(parseAmount('-12.30')).toEqual({ cents: 1230, direction: 'out' })
+  })
+  it('lê milhar sem decimais e formato americano', () => {
+    expect(parseAmount('1.234')).toEqual({ cents: 123400, direction: 'in' })
+    expect(parseAmount('-12.500')).toEqual({ cents: 1250000, direction: 'out' })
+    expect(parseAmount('1.234.567')).toEqual({ cents: 123456700, direction: 'in' })
+    expect(parseAmount('1,234.56')).toEqual({ cents: 123456, direction: 'in' })
   })
   it('rejeita vazio, texto e zero', () => {
     expect(parseAmount('')).toBeNull()

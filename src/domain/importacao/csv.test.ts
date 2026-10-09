@@ -70,6 +70,34 @@ describe('parseCsv', () => {
     expect(mapped).toMatchObject({ ok: true, skipped: 0 })
     if (mapped.ok) expect(mapped.lines).toHaveLength(6)
   })
+
+  it('com mapping, não perde a primeira linha de um CSV sem cabeçalho', () => {
+    const r = parseCsv('01/10/2026;Café;-5,00\n02/10/2026;Pão;-3,00', { date: 0, description: 1, amount: 2 })
+    expect(r).toMatchObject({ ok: true, skipped: 0 })
+    if (r.ok) expect(r.lines).toHaveLength(2)
+  })
+
+  it('sem cabeçalho e sem reconhecer: usa Coluna N e inclui todas as linhas na prévia', () => {
+    const r = parseCsv('01/10/2026;Café;-5,00\n02/10/2026;Pão;-3,00')
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.headers).toEqual(['Coluna 1', 'Coluna 2', 'Coluna 3'])
+      expect(r.preview).toHaveLength(2)
+      expect(r.preview[0][1]).toBe('Café')
+    }
+  })
+
+  it('aceita CRLF, linha em branco e quebra final', () => {
+    const r = parseCsv('Data;Histórico;Valor\r\n01/10/2026;Café;-5,00\r\n\r\n02/10/2026;Pão;-3,00\r\n')
+    expect(r).toMatchObject({ ok: true, skipped: 0 })
+    if (r.ok) expect(r.lines).toHaveLength(2)
+  })
+
+  it('conta uma vez a linha com data e valor ilegível', () => {
+    const r = parseCsv('Data;Histórico;Valor\n01/10/2026;Café;abc\n02/10/2026;Pão;-3,00')
+    expect(r).toMatchObject({ ok: true, skipped: 1 })
+    if (r.ok) expect(r.lines).toHaveLength(1)
+  })
 })
 
 describe('periodOf', () => {

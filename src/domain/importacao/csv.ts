@@ -93,25 +93,36 @@ function readLine(row: string[], m: CsvMapping): RawLine | null {
 }
 
 // Sem mapping, procura o cabeçalho sozinho; se não achar, devolve cabeçalho e prévia para o usuário mapear.
-// Com mapping, a primeira linha é tratada como cabeçalho.
+// Com mapping, todas as linhas passam pelo leitor; uma primeira linha sem data válida é cabeçalho e não conta.
 export function parseCsv(text: string, mapping?: CsvMapping): CsvResult {
   const rows = splitRows(text, detectSeparator(text))
-  let headerAt = 0
+  let headerAt = -1
   let m = mapping ?? null
   if (!m) {
-    for (headerAt = 0; headerAt < Math.min(rows.length, MAX_HEADER_LINE); headerAt++) {
-      m = mappingFromHeader(rows[headerAt])
-      if (m) break
+    for (let i = 0; i < Math.min(rows.length, MAX_HEADER_LINE); i++) {
+      m = mappingFromHeader(rows[i])
+      if (m) {
+        headerAt = i
+        break
+      }
     }
   }
-  if (!m) return { ok: false, headers: rows[0] ?? [], preview: rows.slice(1, 6) }
+  if (!m) {
+    const hasHeader = rows.length > 0 && !rows[0].some((f) => parseDate(f))
+    return {
+      ok: false,
+      headers: hasHeader ? rows[0] : Array.from({ length: rows[0]?.length ?? 0 }, (_, i) => `Coluna ${i + 1}`),
+      preview: rows.slice(hasHeader ? 1 : 0, hasHeader ? 6 : 5),
+    }
+  }
   const lines: RawLine[] = []
   let skipped = 0
-  for (const row of rows.slice(headerAt + 1)) {
+  rows.forEach((row, i) => {
+    if (i <= headerAt) return
     const line = readLine(row, m)
     if (line) lines.push(line)
-    else skipped++
-  }
+    else if (!(mapping && i === 0 && !parseDate(row[m.date] ?? ''))) skipped++
+  })
   return { ok: true, lines, skipped }
 }
 
