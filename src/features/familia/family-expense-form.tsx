@@ -42,7 +42,7 @@ export function FamilyExpenseForm({ expense, author, today }: Props) {
           <input
             id="amount" name="amount" inputMode="decimal" autoComplete="off" placeholder="R$ 0,00" defaultValue={v.amount}
             aria-invalid={e.amount ? true : undefined} aria-describedby={e.amount ? 'amount-error' : undefined}
-            className={`num h-16 border-0 border-b-2 bg-transparent text-[40px] font-bold text-brand-ink placeholder:text-[#a3a3a3] ${e.amount ? 'border-error-ink' : 'border-brand'}`}
+            className={`num h-16 w-full min-w-0 border-0 border-b-2 bg-transparent text-[40px] font-bold text-brand-ink placeholder:text-[#a3a3a3] ${e.amount ? 'border-error-ink' : 'border-brand'}`}
           />
           {e.amount && <span id="amount-error" className="text-sm text-error-ink">{e.amount}</span>}
         </div>

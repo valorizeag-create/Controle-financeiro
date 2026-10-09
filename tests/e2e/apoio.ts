@@ -99,12 +99,16 @@ export async function entrar(page: Page, email: string): Promise<void> {
   await expect(page).toHaveURL(/\/inicio/)
 }
 
+// Compara com a largura da tela do aparelho, não com a da página: no celular emulado (isMobile),
+// conteúdo largo demais alarga a própria página, e scrollWidth e clientWidth crescem juntos.
 export async function expectNoHorizontalScroll(page: Page, label: string): Promise<void> {
+  const screen = page.viewportSize()?.width ?? Infinity
   const { scroll, client } = await page.evaluate(() => ({
     scroll: document.documentElement.scrollWidth,
     client: document.documentElement.clientWidth,
   }))
-  expect(scroll, `${label}: rolagem horizontal (${scroll} > ${client})`).toBeLessThanOrEqual(client)
+  const limit = Math.min(client, screen)
+  expect(scroll, `${label}: rolagem horizontal (${scroll} > ${limit})`).toBeLessThanOrEqual(limit)
 }
 
 // Nenhuma regra é desligada: qualquer violação WCAG 2.0/2.1/2.2 A ou AA reprova.

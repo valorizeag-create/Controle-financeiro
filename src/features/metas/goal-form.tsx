@@ -61,7 +61,7 @@ export function GoalForm({ action, goal, minMonth, inFamily = false }: Props) {
           defaultValue={v.target}
           aria-invalid={e.target ? true : undefined}
           aria-describedby={e.target ? 'target-error' : undefined}
-          className={`num h-16 border-0 border-b-2 bg-transparent text-[40px] font-bold text-brand-ink placeholder:text-[#a3a3a3] ${
+          className={`num h-16 w-full min-w-0 border-0 border-b-2 bg-transparent text-[40px] font-bold text-brand-ink placeholder:text-[#a3a3a3] ${
             e.target ? 'border-error-ink' : 'border-brand'
           }`}
         />
