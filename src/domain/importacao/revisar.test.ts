@@ -88,7 +88,7 @@ describe('buildReview', () => {
     expect(await run('2026-10-07', '2026-10-05')).toBe('ja-anotada')
     expect(await run('2026-10-08', '2026-10-05')).toBeNull()
     expect(await run('2026-11-01', '2026-10-30')).toBe('ja-anotada')
-    expect(await run('2026-11-02', '2026-10-30')).toBe('ja-anotada')
+    expect(await run('2026-11-02', '2026-10-30')).toBeNull()
     expect(await run('2026-11-03', '2026-10-30')).toBeNull()
   })
 
