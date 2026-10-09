@@ -13,7 +13,7 @@ const base: TxRow = {
 const data: ExportData = {
   profile: { displayName: 'Camila', email: 'camila@teste.iris.dev', initialBalanceCents: 100000, createdOn: '2026-09-01' },
   categories: [{ id: 'c-casa', name: 'Casa' }, { id: 'c-mercado', name: 'Mercado' }, { id: 'c-lazer', name: 'Lazer' }, { id: 'c-extras', name: '+Extras' }],
-  cards: [{ id: 'k1', nickname: 'Roxinho', kind: 'credit', color: 'purple' }],
+  cards: [{ id: 'k1', nickname: 'Roxinho', kind: 'credit', color: 'purple', brand: 'mastercard' }, { id: 'k2', nickname: 'Azul', kind: 'debit', color: 'blue', brand: null }],
   recurrences: [{
     id: 'r1', kind: 'expense', name: 'Luz', amountCents: 18000, categoryId: 'c-casa', source: null, frequency: 'monthly',
     dueDay: 10, dueMonth: null, startsOn: '2026-09-01', endedOn: null, familyId: null, note: '=cmd', paymentMethod: null, cardId: 'k1',
@@ -86,7 +86,8 @@ test('os outros blocos', async () => {
   const csv = await build()
   expect(csv).toContain(`"Luz";"Conta";180,00;"Casa";;"Todo mês";10;;01/09/2026;;"Não";"'=cmd";"Roxinho"\r\n`)
   expect(csv).toContain('02/09/2026;600,00;6;"Em andamento";\r\n')
-  expect(csv).toContain('"Roxinho";"Crédito";"Roxo"\r\n')
+  expect(csv).toContain('"Roxinho";"Crédito";"Roxo";"Mastercard"\r\n')
+  expect(csv).toContain('"Azul";"Débito";"Azul";\r\n')
   expect(csv).toContain('"Viagem";4000,00;03/2027;"Ativa";"Não"\r\n')
   expect(csv).toContain(`"'@casa";1000,00;;"Excluída";"Não"\r\n`)
   expect(csv).toContain('15/09/2026;"Viagem";"Guardou";1000,00\r\n')
@@ -99,7 +100,7 @@ test('os outros blocos', async () => {
 
 test('com família, o último bloco é o dela; bloco vazio fica só com título e cabeçalho', async () => {
   const csv = await build({ ...data, cards: [], family: { name: 'Família Souza', role: 'admin', joinedOn: '2026-09-10' } })
-  expect(csv).toContain('"Cartões"\r\n"Apelido";"Tipo";"Cor"\r\n\r\n')
+  expect(csv).toContain('"Cartões"\r\n"Apelido";"Tipo";"Cor";"Bandeira"\r\n\r\n')
   expect(csv.endsWith('"Família"\r\n"Família";"Papel";"Desde"\r\n"Família Souza";"Administra";10/09/2026\r\n\r\n')).toBe(true)
 })
 

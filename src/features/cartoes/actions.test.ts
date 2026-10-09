@@ -89,9 +89,9 @@ afterEach(() => vi.restoreAllMocks())
 describe('createCard', () => {
   test('guarda só apelido, tipo e cor, da própria pessoa (RN-29)', async () => {
     h.supabase = fakeSupabase()
-    const url = await redirectOf(actions.createCard({ status: 'idle' }, form({ nickname: 'Nubank pessoal', kind: 'credit', color: 'purple', user_id: 'outra' })))
+    const url = await redirectOf(actions.createCard({ status: 'idle' }, form({ nickname: 'Nubank pessoal', kind: 'credit', color: 'purple', brand: 'visa', user_id: 'outra' })))
     expect(url).toBe('/cartoes')
-    expect(calls).toEqual([{ op: 'insert:cards', filters: {}, payload: { user_id: 'u1', nickname: 'Nubank pessoal', kind: 'credit', color: 'purple' } }])
+    expect(calls).toEqual([{ op: 'insert:cards', filters: {}, payload: { user_id: 'u1', nickname: 'Nubank pessoal', kind: 'credit', color: 'purple', brand: 'visa' } }])
     expect(h.setFlash).toHaveBeenCalledWith('Cartão criado.')
     expect(h.revalidatePath).toHaveBeenCalledWith('/', 'layout')
   })
@@ -113,9 +113,9 @@ describe('createCard', () => {
 describe('updateCard', () => {
   test('altera só o cartão da própria pessoa', async () => {
     h.supabase = fakeSupabase()
-    const url = await redirectOf(actions.updateCard({ status: 'idle' }, form({ id: ID, nickname: 'Inter', kind: 'debit', color: 'orange' })))
+    const url = await redirectOf(actions.updateCard({ status: 'idle' }, form({ id: ID, nickname: 'Inter', kind: 'debit', color: 'orange', brand: '' })))
     expect(url).toBe('/cartoes')
-    expect(calls).toEqual([{ op: 'update:cards', filters: { id: ID, user_id: 'u1' }, payload: { nickname: 'Inter', kind: 'debit', color: 'orange' } }])
+    expect(calls).toEqual([{ op: 'update:cards', filters: { id: ID, user_id: 'u1' }, payload: { nickname: 'Inter', kind: 'debit', color: 'orange', brand: null } }])
     expect(h.setFlash).toHaveBeenCalledWith('Alterações salvas.')
   })
 

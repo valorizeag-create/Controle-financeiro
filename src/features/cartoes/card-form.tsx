@@ -5,13 +5,20 @@ import { Button } from '@/ui/button'
 import { FormAlert } from '@/ui/form-alert'
 import { idle, type FormState } from '@/lib/forms'
 import { CardFace } from './card-face'
+import { CHIP } from '@/ui/chip'
 import { CARD_COLORS } from './palette'
-import type { CardColor, CardKind, CardRow } from './types'
+import { CARD_BRANDS, CARD_BRAND_LABELS, type CardBrand, type CardColor, type CardKind, type CardRow } from './types'
 
 type Props = {
   action: (s: FormState, fd: FormData) => Promise<FormState>
   card?: CardRow
 }
+
+// "Outra" (vazio) = sem bandeira: o cartão mostra "Íris" no lugar do logo.
+const BRAND_OPTIONS: { value: CardBrand | ''; label: string }[] = [
+  ...CARD_BRANDS.map((b) => ({ value: b, label: CARD_BRAND_LABELS[b] })),
+  { value: '', label: 'Outra' },
+]
 
 const KIND_OPTIONS: { value: CardKind; label: string }[] = [
   { value: 'credit', label: 'Crédito' },
@@ -21,18 +28,19 @@ const KIND_OPTIONS: { value: CardKind; label: string }[] = [
 export function CardForm({ action, card }: Props) {
   const [state, formAction, pending] = useActionState(action, idle)
   const err = state.status === 'error' ? state : null
-  const v = err?.values ?? (card ? { nickname: card.nickname, kind: card.kind, color: card.color } : {})
+  const v = err?.values ?? (card ? { nickname: card.nickname, kind: card.kind, color: card.color, brand: card.brand ?? '' } : {})
   const e = err?.fieldErrors ?? {}
 
   const [nickname, setNickname] = useState(v.nickname ?? '')
   const [kind, setKind] = useState<CardKind>((v.kind as CardKind) ?? 'credit')
   const [color, setColor] = useState<CardColor>((v.color as CardColor) ?? 'green')
+  const [brand, setBrand] = useState<CardBrand | ''>(CARD_BRANDS.includes(v.brand as CardBrand) ? (v.brand as CardBrand) : '')
 
   return (
     <form key={err ? err.submission : 'idle'} action={formAction} noValidate className="flex flex-col gap-5">
       {card && <input type="hidden" name="id" value={card.id} />}
 
-      <CardFace nickname={nickname} kind={kind} color={color} />
+      <CardFace nickname={nickname} kind={kind} color={color} brand={brand || null} />
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="nickname" className="text-sm font-medium text-[#262626]">Como você chama esse cartão?</label>
@@ -74,6 +82,25 @@ export function CardForm({ action, card }: Props) {
       </fieldset>
 
       <fieldset>
+        <legend className="mb-2.5 text-[15px] font-medium">Bandeira</legend>
+        <div className="grid grid-cols-2 gap-2">
+          {BRAND_OPTIONS.map((o) => (
+            <label key={o.value || 'outra'} className={CHIP}>
+              <input
+                type="radio"
+                name="brand"
+                value={o.value}
+                checked={brand === o.value}
+                onChange={() => setBrand(o.value)}
+                className="sr-only"
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend className="mb-2.5 text-[15px] font-medium">Cor</legend>
         <div className="flex flex-wrap gap-3">
           {CARD_COLORS.map(({ key, label, gradient }) => (
@@ -96,7 +123,7 @@ export function CardForm({ action, card }: Props) {
         </div>
       </fieldset>
 
-      <p className="text-[13px] text-muted">A Íris guarda só o apelido, o tipo e a cor. Nenhum número do cartão.</p>
+      <p className="text-[13px] text-muted">A Íris guarda só o apelido, o tipo, a cor e a bandeira. Nenhum número do cartão.</p>
 
       {err?.message && <FormAlert>{err.message}</FormAlert>}
 

@@ -13,7 +13,7 @@ const row = (p: Partial<TxRow> & Pick<TxRow, 'id' | 'amountCents' | 'occurredOn'
 const inst = (n: number, occurredOn: string, extra: Partial<TxRow> = {}) =>
   row({ id: `i${n}`, amountCents: 10000, occurredOn, installmentNumber: n, installmentCount: 5, ...extra })
 const categories = [{ id: 'c1', name: 'Compras', defaultKey: 'compras' }]
-const cards = [{ id: 'k1', nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const }]
+const cards = [{ id: 'k1', nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const, brand: null }]
 const plan: PlanRow = { id: 'p1', totalCents: 50000, count: 5, purchasedOn: '2026-07-10', status: 'active', closedOn: null }
 const five = [inst(1, '2026-07-10'), inst(2, '2026-08-10'), inst(3, '2026-09-10'), inst(4, '2026-10-10'), inst(5, '2026-11-10')]
 const today = '2026-09-30'

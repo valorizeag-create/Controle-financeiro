@@ -11,7 +11,7 @@ test('cada cartão: editar, "Gasto neste cartão em {mês}" e "Ver gastos"', () 
   render(
     <CardsList
       items={[{
-        card: { id: 'k1', nickname: 'Nubank pessoal', kind: 'credit', color: 'purple' },
+        card: { id: 'k1', nickname: 'Nubank pessoal', kind: 'credit', color: 'purple', brand: null },
         spentCents: 128450, spentLabel: 'Gasto neste cartão em setembro', gastosHref: '/extrato?mes=2026-09&cartao=k1',
       }]}
     />,
@@ -31,7 +31,7 @@ test('sem cartões: convite calmo para adicionar', () => {
 
 test('desktop: cartões em duas colunas a partir de 1024 px', () => {
   const item = (id: string, nickname: string) => ({
-    card: { id, nickname, kind: 'credit' as const, color: 'purple' as const },
+    card: { id, nickname, kind: 'credit' as const, color: 'purple' as const, brand: null },
     spentCents: 1000, spentLabel: 'Gasto neste cartão em setembro', gastosHref: `/extrato?cartao=${id}`,
   })
   const { container } = render(<CardsList items={[item('k1', 'Nubank'), item('k2', 'Itaú')]} />)

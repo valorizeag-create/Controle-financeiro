@@ -159,8 +159,8 @@ describe('se repete (só ao criar)', () => {
 })
 
 const cards = [
-  { id: 'k1', nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const },
-  { id: 'k2', nickname: 'Inter', kind: 'debit' as const, color: 'orange' as const },
+  { id: 'k1', nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const, brand: null },
+  { id: 'k2', nickname: 'Inter', kind: 'debit' as const, color: 'orange' as const, brand: null },
 ]
 
 describe('Como pagou? (K6 A)', () => {

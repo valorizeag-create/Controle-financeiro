@@ -1,9 +1,10 @@
-import { CARD_KIND_LABELS, type CardColor, type CardKind } from './types'
+import { CARD_KIND_LABELS, type CardBrand, type CardColor, type CardKind } from './types'
 import { cardColor } from './palette'
+import { BrandMark } from './brand-mark'
 
-type Props = { nickname: string; kind: CardKind; color: CardColor }
+type Props = { nickname: string; kind: CardKind; color: CardColor; brand?: CardBrand | null }
 
-export function CardFace({ nickname, kind, color }: Props) {
+export function CardFace({ nickname, kind, color, brand = null }: Props) {
   return (
     <div
       data-testid="card-face"
@@ -16,7 +17,7 @@ export function CardFace({ nickname, kind, color }: Props) {
       </div>
       <div className="flex items-end justify-between">
         <div aria-hidden="true" className="h-[30px] w-10 rounded-[6px] bg-white/22" />
-        <span className="text-[13px] font-medium">Íris</span>
+        {brand ? <BrandMark brand={brand} /> : <span className="text-[13px] font-medium">Íris</span>}
       </div>
     </div>
   )

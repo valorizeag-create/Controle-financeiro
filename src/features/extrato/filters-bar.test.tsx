@@ -14,7 +14,7 @@ const categories = [
   { id: '33333333-3333-4333-8333-333333333333', name: 'Outros', defaultKey: 'outros' },
 ]
 const K1 = '44444444-4444-4444-8444-444444444444'
-const cards = [{ id: K1, nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const }]
+const cards = [{ id: K1, nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const, brand: null }]
 
 test('busca envia para /extrato mantendo mês e filtros', () => {
   render(<FiltersBar filters={{ month: '2026-09', kind: 'income', categoryId: null, cardId: null, q: 'sal' }} categories={categories} categoryName={null} cards={[]} cardName={null} />)

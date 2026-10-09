@@ -333,3 +333,31 @@ describe('conta que se repete com cartão (decisão 58)', () => {
     expect(error).toBeNull()
   })
 })
+
+describe('bandeira do cartão', () => {
+  test('aceita visa, mastercard, amex ou vazia; recusa qualquer outra', async () => {
+    for (const brand of ['visa', 'mastercard', 'amex', null]) {
+      const id = await newCard(a, { brand })
+      const { data } = await a.client.from('cards').select('brand').eq('id', id).single()
+      expect(data?.brand).toBe(brand)
+    }
+    const { error } = await a.client.from('cards').insert({ user_id: a.id, nickname: 'Outro', kind: 'credit', color: 'blue', brand: 'elo' })
+    expect(error?.code).toBe('23514')
+  })
+
+  test('cartão criado sem bandeira fica sem bandeira', async () => {
+    const id = await newCard(a)
+    const { data } = await a.client.from('cards').select('brand').eq('id', id).single()
+    expect(data?.brand).toBeNull()
+  })
+
+  test('outra pessoa não lê nem troca a bandeira do seu cartão', async () => {
+    const id = await newCard(a, { brand: 'visa' })
+    const { data: seen } = await b.client.from('cards').select('brand').eq('id', id)
+    expect(seen).toEqual([])
+    const { data: changed } = await b.client.from('cards').update({ brand: 'amex' }).eq('id', id).select()
+    expect(changed).toEqual([])
+    const { data } = await a.client.from('cards').select('brand').eq('id', id).single()
+    expect(data?.brand).toBe('visa')
+  })
+})

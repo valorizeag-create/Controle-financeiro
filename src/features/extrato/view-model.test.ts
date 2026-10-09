@@ -217,7 +217,7 @@ describe('buildExtrato', () => {
 })
 
 const K1 = '44444444-4444-4444-8444-444444444444'
-const cards = [{ id: K1, nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const }]
+const cards = [{ id: K1, nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const, brand: null }]
 const withCards: TxRow[] = [
   row({ id: 'c1', kind: 'expense', amountCents: 12000, occurredOn: '2026-09-20', categoryId: MERCADO, cardId: K1 }),
   row({ id: 'c2', kind: 'expense', amountCents: 10000, occurredOn: '2026-09-10', categoryId: SAUDE, note: 'Óculos', cardId: K1, installmentPlanId: 'p1', installmentNumber: 2, installmentCount: 5 }),

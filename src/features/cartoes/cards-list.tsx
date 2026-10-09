@@ -19,7 +19,7 @@ export function CardsList({ items }: { items: CartoesItem[] }) {
       {items.map(({ card, spentCents, spentLabel, gastosHref }) => (
         <article key={card.id} aria-label={card.nickname} className="flex flex-col gap-0">
           <Link href={`/cartoes/${card.id}`} aria-label={`Editar cartão ${card.nickname}`}>
-            <CardFace nickname={card.nickname} kind={card.kind} color={card.color} />
+            <CardFace nickname={card.nickname} kind={card.kind} color={card.color} brand={card.brand} />
           </Link>
           <div className="flex items-center justify-between gap-3 rounded-card border border-line bg-card px-4 py-3.5">
             <div className="flex flex-col gap-0.5">

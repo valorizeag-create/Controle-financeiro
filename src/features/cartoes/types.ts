@@ -3,6 +3,16 @@ import type { TxRow } from '@/features/registro/tx-row'
 
 export type CardKind = 'credit' | 'debit'
 export type CardColor = 'green' | 'purple' | 'blue' | 'orange' | 'graphite' | 'pink'
+export type CardBrand = 'visa' | 'mastercard' | 'amex'
+
+// Bandeira é opcional: sem ela (null) o cartão mostra "Íris" no lugar do logo. A ordem é a do formulário.
+export const CARD_BRANDS: readonly CardBrand[] = ['visa', 'mastercard', 'amex']
+
+export const CARD_BRAND_LABELS: Record<CardBrand, string> = {
+  visa: 'Visa',
+  mastercard: 'Mastercard',
+  amex: 'American Express',
+}
 
 export const CARD_KINDS: readonly CardKind[] = ['credit', 'debit']
 
@@ -16,6 +26,7 @@ export interface CardRow {
   nickname: string
   kind: CardKind
   color: CardColor
+  brand: CardBrand | null
 }
 
 export type CardRawRow = {
@@ -23,9 +34,10 @@ export type CardRawRow = {
   nickname: string
   kind: string
   color: string
+  brand: string | null
 }
 
-export const CARD_COLUMNS = 'id, nickname, kind, color'
+export const CARD_COLUMNS = 'id, nickname, kind, color, brand'
 
 export function toCardRow(r: CardRawRow): CardRow {
   return {
@@ -33,6 +45,7 @@ export function toCardRow(r: CardRawRow): CardRow {
     nickname: r.nickname,
     kind: r.kind as CardKind,
     color: r.color as CardColor,
+    brand: (CARD_BRANDS as readonly string[]).includes(r.brand ?? '') ? (r.brand as CardBrand) : null,
   }
 }
 

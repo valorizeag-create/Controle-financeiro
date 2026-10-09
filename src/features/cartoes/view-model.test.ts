@@ -8,8 +8,8 @@ const row = (p: Partial<TxRow> & Pick<TxRow, 'id' | 'amountCents' | 'occurredOn'
   installmentPlanId: null, installmentNumber: null, installmentCount: null, goalId: null, familyId: null, ...p,
 })
 const cards = [
-  { id: 'k1', nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const },
-  { id: 'k2', nickname: 'Inter', kind: 'debit' as const, color: 'orange' as const },
+  { id: 'k1', nickname: 'Nubank pessoal', kind: 'credit' as const, color: 'purple' as const, brand: null },
+  { id: 'k2', nickname: 'Inter', kind: 'debit' as const, color: 'orange' as const, brand: null },
 ]
 
 test('cada cartão com o gasto do mês, parcelas incluídas, e o caminho para os gastos (RF-59)', () => {

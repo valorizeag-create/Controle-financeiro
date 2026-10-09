@@ -8,4 +8,6 @@ export const cardSchema = z.object({
   nickname: z.string().trim().min(1, { error: 'Falta o nome.' }).max(30, { error: 'Use até 30 caracteres.' }),
   kind: z.enum(['credit', 'debit']).catch('credit'),
   color: z.enum(colorKeys).catch('green'),
+  // "Outra" (vazio) ou qualquer valor desconhecido: cartão sem bandeira.
+  brand: z.enum(['visa', 'mastercard', 'amex']).nullable().catch(null).default(null),
 })

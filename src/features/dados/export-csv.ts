@@ -3,7 +3,7 @@ import type { ISODate } from '@/domain/dates'
 import type { GoalMovementKind } from '@/domain/summary'
 import { PREF_LABELS, PREF_ORDER } from '@/domain/notifications'
 import { cardColor } from '@/features/cartoes/palette'
-import { CARD_KIND_LABELS, paymentText } from '@/features/cartoes/types'
+import { CARD_BRAND_LABELS, CARD_KIND_LABELS, paymentText } from '@/features/cartoes/types'
 import type { GoalMovementRow } from '@/features/metas/types'
 import type { PlanStatus } from '@/features/parcelas/types'
 import type { TxRow } from '@/features/registro/tx-row'
@@ -113,8 +113,13 @@ export async function* exportCsv(
 
   yield block(
     'Cartões',
-    ['Apelido', 'Tipo', 'Cor'],
-    data.cards.map((c) => [csvText(c.nickname), csvText(CARD_KIND_LABELS[c.kind]), csvText(cardColor(c.color).label)]),
+    ['Apelido', 'Tipo', 'Cor', 'Bandeira'],
+    data.cards.map((c) => [
+      csvText(c.nickname),
+      csvText(CARD_KIND_LABELS[c.kind]),
+      csvText(cardColor(c.color).label),
+      c.brand ? csvText(CARD_BRAND_LABELS[c.brand]) : '',
+    ]),
   )
 
   yield block(

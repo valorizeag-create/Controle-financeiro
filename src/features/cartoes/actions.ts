@@ -9,7 +9,7 @@ import { setFlash } from '@/lib/flash'
 import { cardSchema } from './schemas'
 
 const SAVE_FAILED = 'Não conseguimos salvar agora. Seus dados estão aqui, é só tentar de novo.'
-const CARD_FIELDS = ['nickname', 'kind', 'color'] as const
+const CARD_FIELDS = ['nickname', 'kind', 'color', 'brand'] as const
 
 const recordId = z.uuid()
 
@@ -25,6 +25,7 @@ export async function createCard(_: FormState, fd: FormData): Promise<FormState>
     nickname: d.nickname,
     kind: d.kind,
     color: d.color,
+    brand: d.brand,
   })
   if (error) return errorState({ message: SAVE_FAILED, values })
   await setFlash('Cartão criado.')
@@ -43,7 +44,7 @@ export async function updateCard(_: FormState, fd: FormData): Promise<FormState>
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('cards')
-    .update({ nickname: d.nickname, kind: d.kind, color: d.color })
+    .update({ nickname: d.nickname, kind: d.kind, color: d.color, brand: d.brand })
     .eq('id', parsedId.data)
     .eq('user_id', user.id)
     .select('id')
