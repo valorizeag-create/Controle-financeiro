@@ -1,10 +1,11 @@
-import { CalendarDays, ChartColumn, CreditCard, Ellipsis, House, ReceiptText, SlidersHorizontal, Tag, Target, Users, Wallet, type LucideIcon } from 'lucide-react'
+import { CalendarDays, ChartColumn, CreditCard, Ellipsis, FileUp, House, ReceiptText, SlidersHorizontal, Tag, Target, Users, Wallet, type LucideIcon } from 'lucide-react'
 
 // `match`: caminhos que marcam o item como atual (a página e as subpáginas).
-export type NavItem = { href: string; label: string; icon: LucideIcon; match: string[] }
+// `exclude`: subpáginas que têm item próprio e por isso não marcam este.
+export type NavItem = { href: string; label: string; icon: LucideIcon; match: string[]; exclude?: string[] }
 
 const SEU_MES: NavItem = { href: '/inicio', label: 'Seu mês', icon: House, match: ['/inicio'] }
-const EXTRATO: NavItem = { href: '/extrato', label: 'Extrato', icon: ReceiptText, match: ['/extrato'] }
+const EXTRATO: NavItem = { href: '/extrato', label: 'Extrato', icon: ReceiptText, match: ['/extrato'], exclude: ['/extrato/importar'] }
 const CONTAS: NavItem = { href: '/contas', label: 'Contas', icon: CalendarDays, match: ['/contas'] }
 const CARTOES: NavItem = { href: '/cartoes', label: 'Cartões', icon: CreditCard, match: ['/cartoes'] }
 const METAS: NavItem = { href: '/metas', label: 'Metas', icon: Target, match: ['/metas'] }
@@ -26,6 +27,7 @@ export const BOTTOM_NAV_ITEMS: NavItem[] = [
 export const SIDEBAR_ITEMS: NavItem[] = [
   SEU_MES,
   EXTRATO,
+  { href: '/extrato/importar', label: 'Importar extrato', icon: FileUp, match: ['/extrato/importar'] },
   CONTAS,
   PLANEJAMENTO,
   METAS,
@@ -37,7 +39,8 @@ export const SIDEBAR_ITEMS: NavItem[] = [
 ]
 
 export function isActive(pathname: string, item: NavItem): boolean {
-  return item.match.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  const under = (p: string) => pathname === p || pathname.startsWith(`${p}/`)
+  return item.match.some(under) && !(item.exclude ?? []).some(under)
 }
 
 // Painéis que cobrem a tela inteira (Anotar e Editar registro) têm navegação

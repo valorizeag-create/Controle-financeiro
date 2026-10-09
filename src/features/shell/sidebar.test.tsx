@@ -20,7 +20,7 @@ test('menu lateral lista as áreas que já existem e marca a atual', () => {
   pathname = '/categorias/nova'
   render(<Sidebar displayName="Ana" />)
   const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
-  expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Seu mês', 'Extrato', 'Contas', 'Planejamento', 'Metas', 'Cartões', 'Relatórios', 'Família', 'Categorias', 'Configurações'])
+  expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Seu mês', 'Extrato', 'Importar extrato', 'Contas', 'Planejamento', 'Metas', 'Cartões', 'Relatórios', 'Família', 'Categorias', 'Configurações'])
   expect(screen.getByRole('link', { name: 'Categorias' }).getAttribute('aria-current')).toBe('page')
   expect(screen.getByRole('link', { name: 'Seu mês' }).getAttribute('aria-current')).toBeNull()
 })
@@ -49,4 +49,13 @@ test('o mês da família marca Seu mês, não Família', () => {
   render(<Sidebar displayName="Ana" />)
   expect(screen.getByRole('link', { name: 'Seu mês' }).getAttribute('aria-current')).toBe('page')
   expect(screen.getByRole('link', { name: 'Família' }).getAttribute('aria-current')).toBeNull()
+})
+
+test('na tela de importar, só Importar extrato fica marcado', () => {
+  pathname = '/extrato/importar'
+  render(<Sidebar displayName="Ana" />)
+  const link = screen.getByRole('link', { name: 'Importar extrato' })
+  expect(link.getAttribute('href')).toBe('/extrato/importar')
+  expect(link.getAttribute('aria-current')).toBe('page')
+  expect(screen.getByRole('link', { name: 'Extrato' }).getAttribute('aria-current')).toBeNull()
 })

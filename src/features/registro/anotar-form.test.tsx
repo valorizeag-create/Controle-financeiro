@@ -69,6 +69,18 @@ describe('AnotarForm', () => {
   })
 })
 
+describe('AnotarForm: importar extrato', () => {
+  test('ao anotar, o fim do painel leva a /extrato/importar', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} />)
+    expect(screen.getByText(/Tem o extrato do banco?/).textContent).toBe('Tem o extrato do banco? Importar')
+    expect(screen.getByRole('link', { name: 'Importar' }).getAttribute('href')).toBe('/extrato/importar')
+  })
+  test('ao editar, o link não aparece', () => {
+    render(<AnotarForm kind="expense" categories={categories} today={today} record={{ id: 'r1', kind: 'expense', amountCents: 100, categoryId: '1', source: null, note: null, paymentMethod: null, occurredOn: '2026-09-01' }} />)
+    expect(screen.queryByRole('link', { name: 'Importar' })).toBeNull()
+  })
+})
+
 describe('AnotarForm editando', () => {
   const gasto = {
     id: 'r1', kind: 'expense' as const, amountCents: 14230, categoryId: '2', source: null, note: 'feira', paymentMethod: 'pix', occurredOn: '2026-08-15',

@@ -1,4 +1,4 @@
-import { CalendarDays, ChartColumn, CreditCard, SlidersHorizontal, Tag, Users, Wallet } from 'lucide-react'
+import { CalendarDays, ChartColumn, CreditCard, FileUp, SlidersHorizontal, Tag, Users, Wallet } from 'lucide-react'
 import { loadFamilySummary } from '@/features/familia/queries'
 import { loadProfile } from '@/features/perfil/queries'
 import { SignOutButton } from '@/features/shell/sign-out-button'
@@ -21,6 +21,7 @@ export default async function MaisPage() {
       <nav aria-label="Mais opções">
         <ListCard>
           <ListRow><RowLink href="/contas" title="Contas" icon={<CalendarDays className="size-5" strokeWidth={1.8} aria-hidden="true" />} /></ListRow>
+          <ListRow><RowLink href="/extrato/importar" title="Importar extrato" icon={<FileUp className="size-5" strokeWidth={1.8} aria-hidden="true" />} /></ListRow>
           <ListRow><RowLink href="/planejamento" title="Planejamento" icon={<Wallet className="size-5" strokeWidth={1.8} aria-hidden="true" />} /></ListRow>
           <ListRow><RowLink href="/cartoes" title="Cartões" icon={<CreditCard className="size-5" strokeWidth={1.8} aria-hidden="true" />} /></ListRow>
           <ListRow><RowLink href="/relatorios" title="Relatórios" icon={<ChartColumn className="size-5" strokeWidth={1.8} aria-hidden="true" />} /></ListRow>

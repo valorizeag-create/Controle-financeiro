@@ -31,3 +31,8 @@ test('desktop: filtros à direita, lista à esquerda; filtros antes da lista no 
   expect(container.querySelectorAll('main')).toHaveLength(1)
   expect(container.querySelector('main')?.className).toContain('lg:max-w-[1180px]')
 })
+
+test('o cabeçalho tem o botão Importar extrato', async () => {
+  const { getByRole } = await show()
+  expect(getByRole('link', { name: 'Importar extrato' }).getAttribute('href')).toBe('/extrato/importar')
+})

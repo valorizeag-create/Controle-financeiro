@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import Link from 'next/link'
 import { ChevronDown } from 'lucide-react'
 import { Button } from '@/ui/button'
 import { FormAlert } from '@/ui/form-alert'
@@ -294,6 +295,12 @@ export function AnotarForm({ kind, categories, today, record, cards = [], lastCa
       <Button type="submit" disabled={pending} className="h-[52px]">
         {record ? 'Salvar alterações' : isExpense ? 'Salvar gasto' : 'Salvar entrada'}
       </Button>
+
+      {!record && (
+        <p className="text-center text-sm text-muted">
+          Tem o extrato do banco? <Link href="/extrato/importar" className="font-semibold text-brand-text underline-offset-2 hover:underline">Importar</Link>
+        </p>
+      )}
     </form>
   )
 }

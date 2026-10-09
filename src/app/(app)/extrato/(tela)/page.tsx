@@ -6,6 +6,7 @@ import { loadFamilySummary } from '@/features/familia/queries'
 import { MonthNav } from '@/features/seu-mes/month-nav'
 import { FiltersBar } from '@/features/extrato/filters-bar'
 import { ExtratoList } from '@/features/extrato/extrato-list'
+import { Button } from '@/ui/button'
 import { AsideColumn, Columns, MainColumn, WIDE } from '@/ui/columns'
 import { buildExtrato, extratoParams, parseExtratoFilters } from '@/features/extrato/view-model'
 
@@ -23,7 +24,10 @@ export default async function ExtratoPage({ searchParams }: { searchParams: Prom
     <main className={`mx-auto flex max-w-[720px] ${WIDE} flex-col gap-4 px-4 pt-5 md:px-9 md:pt-7`}>
       <header className="flex flex-col gap-3.5 md:flex-row md:items-center md:justify-between">
         <h1 className="text-[22px] font-semibold tracking-tight text-ink md:text-[26px]">Tudo o que entrou e saiu</h1>
-        <MonthNav month={view.filters.month} label={view.monthLabel} basePath="/extrato" query={query} />
+        <div className="flex flex-wrap items-center gap-3">
+          <MonthNav month={view.filters.month} label={view.monthLabel} basePath="/extrato" query={query} />
+          <Button variant="secondary" href="/extrato/importar">Importar extrato</Button>
+        </div>
       </header>
       <Columns>
         <AsideColumn row={1}>
