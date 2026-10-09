@@ -76,7 +76,7 @@ A publicação só acontece quando a pessoa responsável pelo projeto decidir �
 5. Nas variáveis de ambiente da Netlify, defina `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `NEXT_PUBLIC_SITE_URL` (com a URL pública do site). `SUPABASE_SECRET_KEY` **não** é necessária em produção — ela só é usada pelos testes locais de banco e end-to-end.
 6. No provedor de login Google (OAuth), atualize a URL de redirecionamento para corresponder ao `NEXT_PUBLIC_SITE_URL` de produção.
 
-**Na Vercel (hospedagem atual):** as variáveis são as mesmas do passo 5. O servidor do site precisa rodar na **mesma região do banco**: cada tela faz várias consultas em sequência, e cada uma atravessa a distância entre os dois. O `vercel.json` fixa a região em `pdx1` (Oregon), a mesma do projeto Supabase atual (`us-west-2`). Se o banco mudar de região (por exemplo, para São Paulo, `sa-east-1`), troque também a região no `vercel.json` (São Paulo é `gru1`).
+**Na Vercel (hospedagem atual):** as variáveis são as mesmas do passo 5. O servidor do site precisa rodar na **mesma região do banco**: cada tela faz várias consultas em sequência, e cada uma atravessa a distância entre os dois. O `vercel.json` fixa a região em `gru1` (São Paulo), a mesma do projeto Supabase atual (`sa-east-1`), perto de quem usa o app. Se o banco mudar de região, troque também a região no `vercel.json` (Oregon/`us-west-2` é `pdx1`; Virgínia/`us-east-1` é `iad1`).
 
 ### Lista de lançamento: o que depende de você
 
