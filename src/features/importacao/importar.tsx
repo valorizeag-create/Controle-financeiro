@@ -15,7 +15,7 @@ import { EtapaRevisao } from './etapa-revisao'
 import { readStatementFile } from './ler-arquivo'
 import type { ImportContext } from './queries'
 
-const CONTEXT_FAILED = 'Algo não saiu como esperado do nosso lado. Tente novamente em instantes.'
+const UNEXPECTED = 'Algo não saiu como esperado do nosso lado. Tente novamente em instantes.'
 const NO_LINES = 'Nenhum registro neste período.'
 
 type Props = {
@@ -26,22 +26,34 @@ type Props = {
 }
 type Parsed = { lines: RawLine[]; skipped: number }
 type Columns = { text: string; headers: string[]; preview: string[][] }
-type Review = { lines: ReviewLine[]; alreadyImported: number; context: ImportContext; version: number }
+// O cartão fica junto da revisão: é com ele que ela foi montada e é ele que vai no salvamento.
+type Review = { lines: ReviewLine[]; alreadyImported: number; context: ImportContext; cardId: string | null; version: number }
 
 const BACK = '-ml-2 flex size-11 shrink-0 items-center justify-center rounded-full text-[#262626] hover:bg-sunken'
 
 // Etapas no cliente: escolher o arquivo (e, se preciso, as colunas do CSV), revisar e salvar.
 export function Importar({ cards, today, loadContext = loadContextAction }: Props) {
-  const [cardId, setCardId] = useState<string | null>(null)
+  const [cardId, setCardIdState] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [columns, setColumns] = useState<Columns | null>(null)
   const [parsed, setParsed] = useState<Parsed | null>(null)
-  const [period, setPeriod] = useState<Period | null>(null)
+  const [period, setPeriodState] = useState<Period | null>(null)
   const [review, setReview] = useState<Review | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [readingFile, setReadingFile] = useState(false)
+  const [loadingContext, setLoadingContext] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Escolher outro arquivo antes do anterior terminar de ser lido descarta o resultado antigo.
-  const reading = useRef(0)
+  // Muda a cada troca de arquivo, período ou origem: um resultado que chega depois de uma troca é descartado.
+  const generation = useRef(0)
+
+  function setCardId(id: string | null) {
+    generation.current++
+    setCardIdState(id)
+  }
+
+  function setPeriod(p: Period) {
+    generation.current++
+    setPeriodState(p)
+  }
 
   function acceptLines(result: Parsed) {
     const range = periodOf(result.lines)
@@ -50,36 +62,45 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
       return
     }
     setParsed(result)
-    setPeriod(range)
+    setPeriodState(range)
     setColumns(null)
   }
 
   async function chooseFile(file: File) {
-    const id = ++reading.current
-    setBusy(true)
+    const gen = ++generation.current
+    setReadingFile(true)
     setError(null)
     setParsed(null)
-    setPeriod(null)
+    setPeriodState(null)
     setColumns(null)
     setFileName(file.name)
-    const result = await readStatementFile(file)
-    if (id !== reading.current) return
-    setBusy(false)
-    if (result.kind === 'erro') setError(result.message)
-    else if (result.kind === 'colunas') setColumns(result)
-    else acceptLines(result)
+    try {
+      const result = await readStatementFile(file)
+      if (gen !== generation.current) return
+      if (result.kind === 'erro') setError(result.message)
+      else if (result.kind === 'colunas') setColumns(result)
+      else acceptLines(result)
+    } catch {
+      if (gen === generation.current) setError(UNEXPECTED)
+    } finally {
+      if (gen === generation.current) setReadingFile(false)
+    }
   }
 
   function applyColumns(mapping: CsvMapping) {
     if (!columns) return
+    generation.current++
     setError(null)
     const result = parseCsv(columns.text, mapping)
     if (result.ok) acceptLines(result)
+    else setError(NO_LINES)
   }
 
   async function showReview() {
     if (!parsed || !period) return
-    setBusy(true)
+    const gen = generation.current
+    const origin = cardId
+    setLoadingContext(true)
     setError(null)
     try {
       const context = await loadContext(period.from, period.to)
@@ -87,18 +108,20 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
         lines: parsed.lines,
         from: period.from,
         to: period.to,
-        origin: cardId ? 'cartao' : 'conta',
+        origin: origin ? 'cartao' : 'conta',
         rules: context.rules,
         categories: context.categories,
         existing: context.existing,
         usedKeys: new Set(context.usedKeys),
       })
-      setReview({ ...built, context, version: (review?.version ?? 0) + 1 })
+      // Arquivo, período ou origem mudaram enquanto carregava: a revisão não vale mais.
+      if (gen !== generation.current) return
+      setReview({ ...built, context, cardId: origin, version: (review?.version ?? 0) + 1 })
       window.scrollTo?.(0, 0)
     } catch {
-      setError(CONTEXT_FAILED)
+      if (gen === generation.current) setError(UNEXPECTED)
     } finally {
-      setBusy(false)
+      setLoadingContext(false)
     }
   }
 
@@ -124,7 +147,7 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
           alreadyImported={review.alreadyImported}
           skipped={parsed?.skipped ?? 0}
           context={review.context}
-          cardId={cardId}
+          cardId={review.cardId}
           today={today}
         />
       ) : (
@@ -138,7 +161,7 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
           range={parsed && periodOf(parsed.lines)}
           period={period}
           onPeriod={setPeriod}
-          busy={busy}
+          busy={readingFile || loadingContext}
           error={error}
           onSubmit={showReview}
         />

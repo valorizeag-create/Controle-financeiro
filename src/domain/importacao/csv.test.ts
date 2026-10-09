@@ -40,10 +40,15 @@ describe('parseCsv', () => {
     if (r.ok) expect(r.lines).toHaveLength(1)
   })
 
-  it('ignora saldo e conta como ignorada', () => {
-    const r = parseCsv('Data;Histórico;Valor\n01/10/2026;Café;-5,00\n01/10/2026;SALDO DO DIA;95,00')
-    expect(r).toMatchObject({ ok: true, skipped: 1 })
+  it('ignora saldo em silêncio (como o PDF), com ou sem acento e em qualquer caixa', () => {
+    const r = parseCsv('Data;Histórico;Valor\n01/10/2026;Café;-5,00\n01/10/2026;SALDO DO DIA;95,00\n01/10/2026;Saldo anterior;100,00\n02/10/2026;  Sáldo final;90,00')
+    expect(r).toMatchObject({ ok: true, skipped: 0 })
     if (r.ok) expect(r.lines).toHaveLength(1)
+  })
+
+  it('saldo sem data válida também não conta como linha não entendida', () => {
+    const r = parseCsv('Data;Histórico;Valor\n01/10/2026;Café;-5,00\n;Saldo anterior;100,00')
+    expect(r).toMatchObject({ ok: true, skipped: 0 })
   })
 
   it('conta linha com data inválida como ignorada', () => {

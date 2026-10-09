@@ -5,7 +5,7 @@ import { formatBRL } from '@/domain/money'
 import type { Category } from '@/features/registro/queries'
 import { INCOME_SOURCES } from '@/features/registro/labels'
 import { CHIP } from '@/ui/chip'
-import { SELECT } from './ajuste-colunas'
+import { SELECT } from './estilos'
 
 export function needsCategory(l: ReviewLine): boolean {
   return l.checked && l.kind === 'expense' && l.categoryId === null && l.billId === null
@@ -76,7 +76,7 @@ export function LinhaRevisao({ line, reasonText, bill, categories, onChange }: P
             aria-labelledby={name}
             className={SELECT}
           >
-            <option value="" />
+            <option value="">Não informar</option>
             {INCOME_SOURCES.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}

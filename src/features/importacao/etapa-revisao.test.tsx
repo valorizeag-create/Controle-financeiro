@@ -80,8 +80,10 @@ test('sem categoria vêm primeiro, destacadas; "Anotar" só liga depois de escol
   expect(within(rows[0]).getByText('Loja Sem')).toBeTruthy()
   expect(rows[0].getAttribute('data-sem-categoria')).toBe('true')
   expect(rows[1].getAttribute('data-sem-categoria')).toBeNull()
-  // Lista por dia, com títulos.
-  expect(screen.getByRole('heading', { name: '3 de outubro' })).toBeTruthy()
+  // Primeiro a seção das sem categoria, com os dias dentro; depois o resto, por dia.
+  const secao = screen.getByRole('region', { name: 'Escolha a categoria' })
+  expect(within(secao).getByRole('heading', { name: '3 de outubro' })).toBeTruthy()
+  expect(within(secao).queryByText('Mercado Bom')).toBeNull()
   expect(screen.getByRole('heading', { name: '5 de outubro' })).toBeTruthy()
   expect(save()).toHaveProperty('disabled', true)
   expect(save().textContent).toBe('Anotar 2 registros')
@@ -134,10 +136,65 @@ test('trocar gasto por entrada mostra a origem e deixa escolher', () => {
   fireEvent.click(within(row).getByRole('radio', { name: 'Entrada' }))
   const origem = within(row).getByRole('combobox', { name: /Pix Ana/ }) as HTMLSelectElement
   expect([...origem.options].map((o) => o.value)).toEqual(['', 'Salário', 'Freela', 'Presente', 'Outros'])
+  expect(origem.options[0].textContent).toBe('Não informar')
   fireEvent.change(origem, { target: { value: 'Freela' } })
   expect(screen.getByText('0 gastos · 1 entrada')).toBeTruthy()
   expect(save()).toHaveProperty('disabled', false)
 })
+
+test('gasto que virou entrada vai sem categoria e com a origem escolhida', async () => {
+  show([line({ note: 'Pix Bia', amountCents: 7000, categoryId: MERCADO })], { cardId: 'k1' })
+  const row = screen.getAllByRole('listitem')[0]
+  fireEvent.click(within(row).getByRole('radio', { name: 'Entrada' }))
+  fireEvent.change(within(row).getByRole('combobox', { name: /Pix Bia/ }), { target: { value: 'Presente' } })
+  fireEvent.click(save())
+  await waitFor(() => expect(saveImport).toHaveBeenCalledTimes(1))
+  expect(vi.mocked(saveImport).mock.calls[0][0]).toEqual({
+    cardId: 'k1',
+    lines: [expect.objectContaining({ kind: 'income', categoryId: null, source: 'Presente', billId: null, amountCents: 7000 })],
+  })
+})
+
+test('marcar de novo uma linha sem categoria volta a travar o botão', () => {
+  show([line({ note: 'Sem Cat' }), line({ categoryId: MERCADO })])
+  const box = screen.getByRole('checkbox', { name: /Sem Cat/ })
+  fireEvent.click(box)
+  expect(save()).toHaveProperty('disabled', false)
+  fireEvent.click(box)
+  expect(save()).toHaveProperty('disabled', true)
+})
+
+test('singular da ação em massa: "Pôr em Outros a 1 sem categoria"', () => {
+  show([line({}), line({ categoryId: MERCADO })])
+  expect(screen.getByRole('button', { name: 'Pôr em Outros a 1 sem categoria' })).toBeTruthy()
+})
+
+test('títulos de dia não se repetem: sem categoria numa seção, o resto por dia', () => {
+  show([
+    line({ date: '2026-10-05', note: 'A' }),
+    line({ date: '2026-10-03', note: 'B' }),
+    line({ date: '2026-10-05', note: 'C', categoryId: MERCADO }),
+    line({ date: '2026-10-05', note: 'D', categoryId: MERCADO }),
+    line({ date: '2026-10-03', note: 'E', categoryId: MERCADO }),
+  ])
+  const secao = screen.getByRole('region', { name: 'Escolha a categoria' })
+  expect(within(secao).getAllByRole('heading').map((h) => h.textContent)).toEqual(['Escolha a categoria', '5 de outubro', '3 de outubro'])
+  const todos = screen.getAllByRole('heading').map((h) => h.textContent)
+  expect(todos).toEqual(['Escolha a categoria', '5 de outubro', '3 de outubro', '5 de outubro', '3 de outubro'])
+  // Fora da seção, cada dia aparece uma vez.
+  const fora = todos.slice(3)
+  expect(new Set(fora).size).toBe(fora.length)
+})
+
+test('mais de 1.000 marcadas: avisa e não deixa anotar', () => {
+  const muitas = Array.from({ length: 1001 }, (_, i) => line({ categoryId: MERCADO, date: i % 2 ? '2026-10-04' : '2026-10-05' }))
+  show(muitas)
+  expect(screen.getByText('São mais de 1.000 registros. Escolha um período menor.')).toBeTruthy()
+  expect(save()).toHaveProperty('disabled', true)
+  fireEvent.click(screen.getAllByRole('checkbox')[0])
+  expect(screen.queryByText('São mais de 1.000 registros. Escolha um período menor.')).toBeNull()
+  expect(save()).toHaveProperty('disabled', false)
+}, 30_000)
 
 test('motivos: já anotada, fatura, transferência, pagamento no cartão; começam desmarcadas e dá para marcar', () => {
   const manual = existingTx({ id: 'm1', kind: 'expense', amountCents: 3990, categoryId: MERCADO, occurredOn: '2026-10-04' })

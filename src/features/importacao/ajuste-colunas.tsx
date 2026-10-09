@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import type { CsvMapping } from '@/domain/importacao/tipos'
 import { Button } from '@/ui/button'
-
-export const SELECT = 'h-11 w-full min-w-0 rounded-control border border-control bg-card px-3 text-base'
+import { SELECT } from './estilos'
 
 type Props = { headers: string[]; preview: string[][]; onUse: (mapping: CsvMapping) => void }
 

@@ -155,3 +155,57 @@ test('Voltar na revisão volta para o arquivo, sem perder o período', async () 
   fireEvent.click(screen.getByRole('button', { name: 'Voltar' }))
   expect(((await screen.findByLabelText('De')) as HTMLInputElement).value).toBe('2026-10-01')
 })
+
+test('ajuste de colunas que não acha linhas avisa', async () => {
+  const csv = 'quando;o que;quanto\n01/10/2026;LOJA ALFA;-10,00\n'
+  render(<Importar cards={cards} today="2026-10-09" />)
+  choose(new File([csv], 'banco.csv'))
+  await screen.findByText('Qual coluna é a data? E a descrição? E o valor?')
+  fireEvent.change(screen.getByLabelText('Data'), { target: { value: '1' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Usar estas colunas' }))
+  expect((await screen.findByRole('alert')).textContent).toBe('Nenhum registro neste período.')
+  expect(screen.getByRole('button', { name: 'Usar estas colunas' })).toBeTruthy()
+})
+
+test('erro inesperado ao ler o arquivo mostra o aviso e libera a tela', async () => {
+  render(<Importar cards={cards} today="2026-10-09" />)
+  // Uma falha fora das previstas (o navegador não entrega o conteúdo do arquivo).
+  const file = new File(['x'], 'extrato.csv')
+  Object.defineProperty(file, 'arrayBuffer', { value: () => Promise.reject(new Error('sem acesso')) })
+  choose(file)
+  expect((await screen.findByRole('alert')).textContent).toBe('Algo não saiu como esperado do nosso lado. Tente novamente em instantes.')
+  choose(new File([CSV], 'extrato.csv'))
+  expect(await screen.findByRole('button', { name: 'Ver o que a Íris encontrou' })).toHaveProperty('disabled', false)
+})
+
+test('trocar a origem enquanto carrega descarta o resultado; a revisão usa a origem da hora em que foi feita', async () => {
+  let resolve!: (c: ImportContext) => void
+  vi.mocked(loadContextAction).mockImplementationOnce(() => new Promise((r) => (resolve = r)))
+  render(<Importar cards={cards} today="2026-10-09" />)
+  choose(new File([CSV], 'extrato.csv'))
+  fireEvent.click(await screen.findByRole('button', { name: 'Ver o que a Íris encontrou' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Roxinho' }))
+  resolve(context)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Ver o que a Íris encontrou' })).toHaveProperty('disabled', false))
+  expect(screen.queryByRole('button', { name: /^Anotar/ })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Ver o que a Íris encontrou' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Pôr em Outros as 2 sem categoria' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Anotar 3 registros' }))
+  await waitFor(() => expect(saveImport).toHaveBeenCalledTimes(1))
+  expect(vi.mocked(saveImport).mock.calls[0][0]).toMatchObject({ cardId: CARD })
+})
+
+test('cartão e depois conta do banco: salva sem cartão', async () => {
+  render(<Importar cards={cards} today="2026-10-09" />)
+  fireEvent.click(screen.getByRole('radio', { name: 'Roxinho' }))
+  choose(new File([CSV], 'extrato.csv'))
+  fireEvent.click(await screen.findByRole('button', { name: 'Ver o que a Íris encontrou' }))
+  await screen.findByRole('button', { name: 'Anotar 3 registros' })
+  fireEvent.click(screen.getByRole('button', { name: 'Voltar' }))
+  fireEvent.click(await screen.findByRole('radio', { name: 'Conta do banco' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Ver o que a Íris encontrou' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Pôr em Outros as 2 sem categoria' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Anotar 3 registros' }))
+  await waitFor(() => expect(saveImport).toHaveBeenCalledTimes(1))
+  expect(vi.mocked(saveImport).mock.calls[0][0]).toMatchObject({ cardId: null })
+})

@@ -78,10 +78,15 @@ function mappingFromHeader(header: string[]): CsvMapping | null {
   }
 }
 
+// Linhas de saldo não são lançamentos: ficam de fora sem contar como não entendidas (como no PDF).
+function isSaldo(row: string[], m: CsvMapping): boolean {
+  return /^saldo(?![a-z])/.test(normalize(row[m.description] ?? ''))
+}
+
 function readLine(row: string[], m: CsvMapping): RawLine | null {
   const date = parseDate(row[m.date] ?? '')
   const description = row[m.description] ?? ''
-  if (!date || normalize(description).startsWith('saldo')) return null
+  if (!date) return null
   if (m.amount !== undefined) {
     const v = parseAmount(row[m.amount] ?? '')
     return v && { date, description, amountCents: v.cents, direction: v.direction }
@@ -119,6 +124,7 @@ export function parseCsv(text: string, mapping?: CsvMapping): CsvResult {
   let skipped = 0
   rows.forEach((row, i) => {
     if (i <= headerAt) return
+    if (isSaldo(row, m)) return
     const line = readLine(row, m)
     if (line) lines.push(line)
     else if (!(mapping && i === 0 && !parseDate(row[m.date] ?? ''))) skipped++

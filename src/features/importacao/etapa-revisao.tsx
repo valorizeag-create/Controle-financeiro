@@ -19,15 +19,26 @@ type Props = {
   cardId: string | null
   today: ISODate
 }
+type Day = { date: ISODate; rows: ReviewLine[] }
 
 const REASONS = {
   fatura: 'Pagamento de fatura: as compras do cartão já contam uma a uma.',
   transferencia: 'Parece dinheiro entre suas contas.',
   'pagamento-fatura-no-cartao': 'Pagamento da própria fatura: não é gasto.',
 } as const
+// O servidor aceita até 1.000 linhas por vez (schemas.ts).
+const MAX_LINES = 1000
+const TOO_MANY = 'São mais de 1.000 registros. Escolha um período menor.'
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 const ddmmyyyy = (d: ISODate) => d.split('-').reverse().join('/')
+
+// Agrupa por dia (cada dia uma vez), do mais recente para o mais antigo.
+function byDay(rows: ReviewLine[]): Day[] {
+  const groups = new Map<ISODate, ReviewLine[]>()
+  for (const row of rows) groups.set(row.date, [...(groups.get(row.date) ?? []), row])
+  return [...groups].sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0)).map(([date, dayRows]) => ({ date, rows: dayRows }))
+}
 
 export function EtapaRevisao({ lines, alreadyImported, skipped, context, cardId, today }: Props) {
   const [rows, setRows] = useState(lines)
@@ -35,6 +46,8 @@ export function EtapaRevisao({ lines, alreadyImported, skipped, context, cardId,
   // Liga na hora do toque (um segundo toque não salva de novo) e só desliga se der erro; no sucesso a tela muda.
   const [saving, setSaving] = useState(false)
   const [, startSaving] = useTransition()
+  // As que chegaram sem categoria ficam na seção delas: a lista não se reorganiza enquanto a pessoa edita.
+  const [firstKeys] = useState(() => new Set(lines.filter(needsCategory).map((l) => l.importKey)))
   const { categories, existing } = context
 
   // Textos fixos de cada linha, a partir do que a revisão encontrou (não mudam com as edições).
@@ -58,19 +71,14 @@ export function EtapaRevisao({ lines, alreadyImported, skipped, context, cardId,
     )
   }, [lines, existing, categories])
 
-  // Lista por dia, na ordem da revisão (sem categoria primeiro); a ordem não muda enquanto a pessoa edita.
-  const groups: { date: ISODate; rows: ReviewLine[] }[] = []
-  for (const row of rows) {
-    const last = groups[groups.length - 1]
-    if (last && last.date === row.date) last.rows.push(row)
-    else groups.push({ date: row.date, rows: [row] })
-  }
-
+  const first = byDay(rows.filter((l) => firstKeys.has(l.importKey)))
+  const rest = byDay(rows.filter((l) => !firstKeys.has(l.importKey)))
   const checked = rows.filter((l) => l.checked)
   const missing = rows.filter(needsCategory)
   const expenses = checked.filter((l) => l.kind === 'expense').length
   const incomes = checked.length - expenses
   const outros = categories.find((c) => c.defaultKey === 'outros')
+  const tooMany = checked.length > MAX_LINES
 
   function update(line: ReviewLine) {
     setRows((all) => all.map((l) => (l.importKey === line.importKey ? line : l)))
@@ -107,8 +115,22 @@ export function EtapaRevisao({ lines, alreadyImported, skipped, context, cardId,
     })
   }
 
+  function days(groups: Day[], Heading: 'h2' | 'h3', prefix: string) {
+    return groups.map((g) => (
+      <section key={g.date} aria-labelledby={`revisao-${prefix}-${g.date}`} className="flex flex-col gap-2">
+        <Heading id={`revisao-${prefix}-${g.date}`} className="px-1 text-sm font-semibold text-inactive">{dayLabel(g.date, today)}</Heading>
+        <ul className="overflow-hidden rounded-card border border-line bg-card">
+          {g.rows.map((l) => {
+            const n = notes.get(l.importKey)
+            return <LinhaRevisao key={l.importKey} line={l} reasonText={n?.reason ?? null} bill={n?.bill ?? null} categories={categories} onChange={update} />
+          })}
+        </ul>
+      </section>
+    ))
+  }
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-[18px]">
       {(alreadyImported > 0 || skipped > 0) && (
         <div className="flex flex-col gap-1 text-sm text-muted">
           {alreadyImported > 0 && <p>{plural(alreadyImported, '1 linha já importada antes.', `${alreadyImported} linhas já importadas antes.`)}</p>}
@@ -120,32 +142,30 @@ export function EtapaRevisao({ lines, alreadyImported, skipped, context, cardId,
         <p className="px-1 py-6 text-center text-[15px]">Nenhum registro neste período.</p>
       ) : (
         <>
-          {outros && missing.length > 0 && (
-            <Button type="button" variant="secondary" onClick={putInOutros} className="self-start">
-              {`Pôr em Outros as ${missing.length} sem categoria`}
-            </Button>
+          {first.length > 0 && (
+            <section aria-labelledby="revisao-sem-categoria" className="flex flex-col gap-3">
+              <h2 id="revisao-sem-categoria" className="px-1 text-[17px] font-semibold text-ink">Escolha a categoria</h2>
+              {outros && missing.length > 0 && (
+                <Button type="button" variant="secondary" onClick={putInOutros} className="self-start">
+                  {plural(missing.length, 'Pôr em Outros a 1 sem categoria', `Pôr em Outros as ${missing.length} sem categoria`)}
+                </Button>
+              )}
+              {days(first, 'h3', 'sem-categoria')}
+            </section>
           )}
-          <div className="flex flex-col gap-[18px]">
-            {groups.map((g, i) => (
-              <section key={`${g.date}-${i}`} aria-labelledby={`revisao-dia-${i}`} className="flex flex-col gap-2">
-                <h2 id={`revisao-dia-${i}`} className="px-1 text-sm font-semibold text-inactive">{dayLabel(g.date, today)}</h2>
-                <ul className="overflow-hidden rounded-card border border-line bg-card">
-                  {g.rows.map((l) => {
-                    const n = notes.get(l.importKey)
-                    return <LinhaRevisao key={l.importKey} line={l} reasonText={n?.reason ?? null} bill={n?.bill ?? null} categories={categories} onChange={update} />
-                  })}
-                </ul>
-              </section>
-            ))}
-          </div>
+          {days(rest, 'h2', 'dia')}
 
           <footer className="sticky bottom-0 z-10 -mx-4 border-t border-line bg-card px-4 pb-[env(safe-area-inset-bottom)] md:-mx-9 md:px-9">
-            {error && <div className="pt-3"><FormAlert>{error}</FormAlert></div>}
+            {(error || tooMany) && (
+              <div className="pt-3">
+                <FormAlert>{error ?? TOO_MANY}</FormAlert>
+              </div>
+            )}
             <div className="flex flex-col gap-2.5 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-[15px] text-inactive">
                 {`${expenses} ${plural(expenses, 'gasto', 'gastos')} · ${incomes} ${plural(incomes, 'entrada', 'entradas')}`}
               </p>
-              <Button type="button" onClick={save} disabled={saving || checked.length === 0 || missing.length > 0} className="h-[52px]">
+              <Button type="button" onClick={save} disabled={saving || checked.length === 0 || missing.length > 0 || tooMany} className="h-[52px]">
                 {plural(checked.length, 'Anotar 1 registro', `Anotar ${checked.length} registros`)}
               </Button>
             </div>
