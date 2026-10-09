@@ -49,11 +49,69 @@ describe('buildReview', () => {
     expect(r.lines[0].description).toBe('OUTRO')
   })
 
-  it('chaves não mudam quando o período corta linhas iguais', async () => {
-    const l = out('2026-10-07', 'PADARIA', 1000)
-    const full = await buildReview({ ...base, lines: [l, l] })
-    const keys = full.lines.map((x) => x.importKey)
-    expect(new Set(keys).size).toBe(2)
+  it('chaves são estáveis com períodos diferentes', async () => {
+    const lines = [out('2026-10-05', 'A', 100), out('2026-10-07', 'PADARIA', 1000), out('2026-10-07', 'PADARIA', 1000), out('2026-10-20', 'B', 5)]
+    const wide = await buildReview({ ...base, lines })
+    const narrow = await buildReview({ ...base, from: '2026-10-06', to: '2026-10-10', lines })
+    const wideKeys = new Set(wide.lines.map((l) => l.importKey))
+    expect(narrow.lines).toHaveLength(2)
+    for (const l of narrow.lines) expect(wideKeys.has(l.importKey)).toBe(true)
+  })
+
+  it('chaves são estáveis com um arquivo maior que o contém', async () => {
+    const shared = [out('2026-10-07', 'PADARIA', 1000), out('2026-10-07', 'PADARIA', 1000), out('2026-10-09', 'X', 50)]
+    const small = await buildReview({ ...base, lines: shared })
+    const big = await buildReview({ ...base, lines: [out('2026-10-01', 'ANTES', 1), ...shared, out('2026-10-30', 'DEPOIS', 2)] })
+    const bigKeys = new Set(big.lines.map((l) => l.importKey))
+    expect(small.lines).toHaveLength(3)
+    for (const l of small.lines) expect(bigKeys.has(l.importKey)).toBe(true)
+  })
+
+  it('linhas idênticas em outra ordem dão o mesmo conjunto de chaves', async () => {
+    const a = out('2026-10-07', 'PADARIA', 1000)
+    const b = out('2026-10-08', 'OUTRA', 20)
+    const k1 = (await importKeys([a, b, a, a])).sort()
+    const k2 = (await importKeys([a, a, b, a])).sort()
+    expect(k1).toEqual(k2)
+  })
+
+  it('linha que casa com anotação e com conta pendente fica como já anotada e não consome a conta', async () => {
+    const existing = [tx({ id: 'manual', amountCents: 10000, occurredOn: '2026-10-10' }), tx({ id: 'bill', status: 'pending', amountCents: 10000, dueOn: '2026-10-10' })]
+    const r = await buildReview({ ...base, lines: [out('2026-10-10', 'A', 10000), out('2026-10-12', 'B', 10000)], existing })
+    expect(r.lines.find((l) => l.description === 'A')).toMatchObject({ reason: 'ja-anotada', checked: false, billId: null })
+    expect(r.lines.find((l) => l.description === 'B')).toMatchObject({ billId: 'bill', checked: true })
+  })
+
+  it('anotação à mão: 2 dias casa, 3 dias não, inclusive na virada de mês', async () => {
+    const run = (date: string, occurredOn: string) =>
+      buildReview({ ...base, to: '2026-11-30', lines: [out(date, 'X', 8900)], existing: [tx({ occurredOn })] }).then((r) => r.lines[0].reason)
+    expect(await run('2026-10-07', '2026-10-05')).toBe('ja-anotada')
+    expect(await run('2026-10-08', '2026-10-05')).toBeNull()
+    expect(await run('2026-11-01', '2026-10-30')).toBe('ja-anotada')
+    expect(await run('2026-11-02', '2026-10-30')).toBe('ja-anotada')
+    expect(await run('2026-11-03', '2026-10-30')).toBeNull()
+  })
+
+  it('anotação à mão escolhe a data mais próxima', async () => {
+    const existing = [tx({ id: 'B', occurredOn: '2026-10-07' }), tx({ id: 'A', occurredOn: '2026-10-05' })]
+    const r = await buildReview({ ...base, lines: [out('2026-10-05', 'L1', 8900), out('2026-10-08', 'L2', 8900)], existing })
+    expect(r.lines.find((l) => l.description === 'L1')?.similarTxId).toBe('A')
+    expect(r.lines.find((l) => l.description === 'L2')?.similarTxId).toBe('B')
+  })
+
+  it('conta pendente: limites de 5 dias e 5%', async () => {
+    const run = (date: string, cents: number) =>
+      buildReview({ ...base, lines: [out(date, 'X', cents)], existing: [tx({ id: 'bill', status: 'pending', amountCents: 10000, dueOn: '2026-10-10' })] }).then((r) => r.lines[0].billId)
+    expect(await run('2026-10-15', 10500)).toBe('bill')
+    expect(await run('2026-10-05', 9500)).toBe('bill')
+    expect(await run('2026-10-16', 10000)).toBeNull()
+    expect(await run('2026-10-10', 10501)).toBeNull()
+  })
+
+  it('conta com vencimento no sábado paga na segunda casa', async () => {
+    const bill = tx({ id: 'bill', status: 'pending', amountCents: 10000, dueOn: '2026-10-10' })
+    const r = await buildReview({ ...base, lines: [out('2026-10-12', 'X', 10000)], existing: [bill] })
+    expect(r.lines[0].billId).toBe('bill')
   })
 
   it('marca como já anotada à mão, uma vez por registro', async () => {

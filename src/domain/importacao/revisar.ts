@@ -109,9 +109,16 @@ export async function buildReview(input: {
           : null
     if (reason) return { ...review, checked: false, reason }
 
-    const manual = manuals.find(
-      (t) => !usedManual.has(t.id) && t.kind === kind && t.amountCents === line.amountCents && dayDiff(t.occurredOn, line.date) <= MANUAL_DAYS,
-    )
+    let manual: ExistingTx | null = null
+    let manualDiff = Infinity
+    for (const t of manuals) {
+      if (usedManual.has(t.id) || t.kind !== kind || t.amountCents !== line.amountCents) continue
+      const diff = dayDiff(t.occurredOn, line.date)
+      if (diff <= MANUAL_DAYS && diff < manualDiff) {
+        manual = t
+        manualDiff = diff
+      }
+    }
     if (manual) {
       usedManual.add(manual.id)
       return { ...review, checked: false, reason: 'ja-anotada', similarTxId: manual.id }
