@@ -1,1 +1,138 @@
-[]
+[
+  {
+    "texto": "99 pop",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "99 taxi",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "SHA-256",
+    "motivo": "nome do algoritmo de resumo, não aparece na tela"
+  },
+  {
+    "texto": "ac al ap am ba ce df es go ma mt ms mg pa pb pr pe pi rj rn rs ro rr sc sp se to",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "amazon prime",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "belo horizonte",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "bilhete unico",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "burger king",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "casas bahia",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "dicionario",
+    "motivo": "etiqueta interna do código, nunca aparece na tela"
+  },
+  {
+    "texto": "droga raia",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "google one",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "ja-anotada",
+    "motivo": "etiqueta interna do código, nunca aparece na tela"
+  },
+  {
+    "texto": "joao pessoa",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "memoria",
+    "motivo": "etiqueta interna do código, nunca aparece na tela"
+  },
+  {
+    "texto": "mercado livre",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "mercado pago",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "pague menos",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "pao de acucar",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "porto alegre",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "prime video",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "ribeirao preto",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "rio de janeiro",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "santo andre",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "sao bernardo do campo",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "sao jose dos campos",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "sao paulo",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "sem parar",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "sem-texto",
+    "motivo": "etiqueta interna do código, nunca aparece na tela"
+  },
+  {
+    "texto": "senha",
+    "motivo": "etiqueta interna do código, nunca aparece na tela"
+  },
+  {
+    "texto": "uber eats",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "youtube premium",
+    "motivo": "chave de busca do dicionário de estabelecimentos/cidades (texto normalizado), não aparece na tela"
+  },
+  {
+    "texto": "{}-conta {}",
+    "motivo": "identificadores de acessibilidade (id), não aparecem na tela"
+  },
+  {
+    "texto": "{}-nome {}-valor",
+    "motivo": "identificadores de acessibilidade (id), não aparecem na tela"
+  }
+]

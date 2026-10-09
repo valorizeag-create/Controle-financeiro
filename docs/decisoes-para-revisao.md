@@ -372,7 +372,7 @@ Decisões 157 a 176 como ficaram depois da execução e das revisões. Sem prot�
 
 **Adaptados da copy por causa da terminologia fixa (conflitos 1 e 2; não contam como novos, mas peço a confirmação):** "Gratuito. Sem cartão. Sem acesso ao seu banco.", "A Íris não se conecta ao seu banco nem pede senha do banco.", "Você cria seu cadastro e já pode anotar o primeiro gasto."
 
-**Reaproveitados (já aprovados; não contam como novos):** as seções 1–9 da copy (exceto as três frases adaptadas), "Íris — Veja para onde seu dinheiro vai" e a descrição de "Meta (SEO)" (também texto alternativo da imagem de compartilhamento), "Entrar", "Termos de uso", "Política de privacidade", "Textos legais" e "Íris, página inicial" (Plano 9), e, no desenho do hero, "Seu mês até agora", "Disponível", "Entrou", "Saiu", "Guardado este mês" (RN-01) e "Seu maior gasto foi com {categoria}: {valor}.".
+**Reaproveitados (já aprovados; não contam como novos):** "Salário" (origem sugerida para entradas; é a mesma opção já usada no Anotar), as seções 1–9 da copy (exceto as três frases adaptadas), "Íris — Veja para onde seu dinheiro vai" e a descrição de "Meta (SEO)" (também texto alternativo da imagem de compartilhamento), "Entrar", "Termos de uso", "Política de privacidade", "Textos legais" e "Íris, página inicial" (Plano 9), e, no desenho do hero, "Seu mês até agora", "Disponível", "Entrou", "Saiu", "Guardado este mês" (RN-01) e "Seu maior gasto foi com {categoria}: {valor}.".
 
 ## Textos novos usados (fora da copy oficial)
 
@@ -757,4 +757,4 @@ Tela nova para ler o extrato do banco (PDF, CSV ou OFX) no próprio aparelho, re
 - CSV sem cabeçalho: as colunas aparecem como "Coluna {n}".
 - A memória de categorias (descrição do banco → categoria ou origem) entra no "Baixar meus dados".
 
-**Conferência de textos:** ver o resultado de `npm run textos` em `.superpowers/sdd/2026-10-09-importar-extrato/task-9-report.md`.
+**Conferência de textos:** `npm run textos` não lista nenhum texto desta funcionalidade; as chaves do dicionário e os identificadores internos estão em `scripts/conferir-textos/ignorar.json`, com o motivo.

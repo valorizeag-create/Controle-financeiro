@@ -423,6 +423,7 @@ Continuam por fazer:
 - Axe nas telas com dados espera o marco `main` (o `/anotar` não tem `h1`) e confere a rota; os testes em laço (axe público, axe das telas, 375 px, colunas) ganharam tempo para a primeira compilação (`test.slow()` / 180 s), sem tentativas repetidas.
 - A 1024 px a rolagem horizontal agora é conferida em Seu mês, Extrato, Contas, Relatórios, Planejamento e Família (colunas de ~340 px), além de Configurações em duas colunas.
 - Conferência de textos: minúsculas em ternários e `&&` dentro do JSX e prosa sob chaves como `value:` passam a ser conferidas; valores de opção, medidas e classes (`numeric`, `2-digit`, `192x192`, `device-width`, `bg-brand`…) saem por regra, sem entradas em `ignorar.json` (sobraram 15 palavras soltas em minúsculas em `src/`); texto repartido por interpolações ("Oi, {nome}, tudo bem") vira um modelo só.
+
 ## Importar extrato · 2026-10-10
 
 **Entregue**
@@ -440,4 +441,3 @@ Continuam por fazer:
 - Docker: `npx supabase db reset && npm run test:db && npm run test:e2e`.
 - Validar com extratos reais de PDF, CSV e OFX dos principais bancos e ajustar o dicionário (README, item 24).
 - Revisão jurídica da frase nova da Política de privacidade e aprovação dos textos de "Importar extrato".
-- `npm run textos` ainda lista palavras do dicionário de estabelecimentos e identificadores de acessibilidade da revisão: não são texto de tela.
