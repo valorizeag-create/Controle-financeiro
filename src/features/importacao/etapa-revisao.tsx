@@ -142,14 +142,15 @@ export function EtapaRevisao({ lines, alreadyImported, skipped, context, cardId,
         <p className="px-1 py-6 text-center text-[15px]">Nenhum registro neste período.</p>
       ) : (
         <>
+          {/* Fora da seção: uma linha marcada depois (ex.: fatura) também pode ficar sem categoria. */}
+          {outros && missing.length > 0 && (
+            <Button type="button" variant="secondary" onClick={putInOutros} className="self-start">
+              {plural(missing.length, 'Pôr em Outros a 1 sem categoria', `Pôr em Outros as ${missing.length} sem categoria`)}
+            </Button>
+          )}
           {first.length > 0 && (
             <section aria-labelledby="revisao-sem-categoria" className="flex flex-col gap-3">
               <h2 id="revisao-sem-categoria" className="px-1 text-[17px] font-semibold text-ink">Escolha a categoria</h2>
-              {outros && missing.length > 0 && (
-                <Button type="button" variant="secondary" onClick={putInOutros} className="self-start">
-                  {plural(missing.length, 'Pôr em Outros a 1 sem categoria', `Pôr em Outros as ${missing.length} sem categoria`)}
-                </Button>
-              )}
               {days(first, 'h3', 'sem-categoria')}
             </section>
           )}

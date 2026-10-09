@@ -209,3 +209,40 @@ test('cartão e depois conta do banco: salva sem cartão', async () => {
   await waitFor(() => expect(saveImport).toHaveBeenCalledTimes(1))
   expect(vi.mocked(saveImport).mock.calls[0][0]).toMatchObject({ cardId: null })
 })
+
+test('trocar a origem enquanto o arquivo é lido não descarta a leitura', async () => {
+  let resolve!: (r: { lines: { date: string; description: string; amountCents: number; direction: 'out' }[]; skipped: number }) => void
+  vi.mocked(readPdf).mockImplementationOnce(() => new Promise((r) => (resolve = r as typeof resolve)))
+  render(<Importar cards={cards} today="2026-10-09" />)
+  choose(new File(['%PDF'], 'extrato.pdf'))
+  fireEvent.click(screen.getByRole('radio', { name: 'Roxinho' }))
+  resolve({ lines: [{ date: '2026-09-05', description: 'LOJA ALFA', amountCents: 1000, direction: 'out' }], skipped: 0 })
+  expect(((await screen.findByLabelText('De')) as HTMLInputElement).value).toBe('2026-09-05')
+  const ver = screen.getByRole('button', { name: 'Ver o que a Íris encontrou' })
+  expect(ver).toHaveProperty('disabled', false)
+  expect(ver.getAttribute('aria-busy')).toBeNull()
+})
+
+test('carregamentos sobrepostos: o primeiro a terminar não religa o botão; vale o mais recente', async () => {
+  const pending: Array<(c: ImportContext) => void> = []
+  vi.mocked(loadContextAction).mockImplementation(() => new Promise((r) => pending.push(r)))
+  render(<Importar cards={cards} today="2026-10-09" />)
+  choose(new File([CSV], 'extrato.csv'))
+  const ver = await screen.findByRole('button', { name: 'Ver o que a Íris encontrou' })
+  fireEvent.click(ver)
+  expect(ver).toHaveProperty('disabled', true)
+  // Trocar a origem invalida o carregamento em curso e libera o botão para um novo.
+  fireEvent.click(screen.getByRole('radio', { name: 'Roxinho' }))
+  expect(ver).toHaveProperty('disabled', false)
+  fireEvent.click(ver)
+  expect(pending).toHaveLength(2)
+  pending[0](context)
+  await new Promise((r) => setTimeout(r, 20))
+  expect(ver).toHaveProperty('disabled', true)
+  expect(screen.queryByRole('button', { name: /^Anotar/ })).toBeNull()
+  pending[1](context)
+  fireEvent.click(await screen.findByRole('button', { name: 'Pôr em Outros as 2 sem categoria' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Anotar 3 registros' }))
+  await waitFor(() => expect(saveImport).toHaveBeenCalledTimes(1))
+  expect(vi.mocked(saveImport).mock.calls[0][0]).toMatchObject({ cardId: CARD })
+})

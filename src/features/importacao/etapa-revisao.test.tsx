@@ -267,3 +267,13 @@ test('o rodapé fica preso embaixo, com a área segura', () => {
   expect(footer.className).toContain('bottom-0')
   expect(footer.className).toContain('pb-[env(safe-area-inset-bottom)]')
 })
+
+test('marcar uma linha de fatura sem categoria faz a ação em massa aparecer e resolver', () => {
+  show([line({ categoryId: MERCADO }), line({ reason: 'fatura', checked: false, note: 'Pag Fatura' })])
+  expect(screen.queryByRole('button', { name: /^Pôr em Outros/ })).toBeNull()
+  fireEvent.click(screen.getByRole('checkbox', { name: /Pag Fatura/ }))
+  expect(save()).toHaveProperty('disabled', true)
+  fireEvent.click(screen.getByRole('button', { name: 'Pôr em Outros a 1 sem categoria' }))
+  expect(save()).toHaveProperty('disabled', false)
+  expect((screen.getByRole('combobox', { name: /Pag Fatura/ }) as HTMLSelectElement).value).toBe(OUTROS)
+})

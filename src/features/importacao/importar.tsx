@@ -42,16 +42,23 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
   const [readingFile, setReadingFile] = useState(false)
   const [loadingContext, setLoadingContext] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Muda a cada troca de arquivo, período ou origem: um resultado que chega depois de uma troca é descartado.
-  const generation = useRef(0)
+  // Só um arquivo escolhido depois descarta a leitura em curso.
+  const fileRead = useRef(0)
+  // Carregamento do contexto em curso; trocar arquivo, período ou origem o invalida (e libera o botão para outro).
+  const contextLoad = useRef(0)
+
+  function invalidateLoad() {
+    contextLoad.current++
+    setLoadingContext(false)
+  }
 
   function setCardId(id: string | null) {
-    generation.current++
+    invalidateLoad()
     setCardIdState(id)
   }
 
   function setPeriod(p: Period) {
-    generation.current++
+    invalidateLoad()
     setPeriodState(p)
   }
 
@@ -67,7 +74,8 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
   }
 
   async function chooseFile(file: File) {
-    const gen = ++generation.current
+    const id = ++fileRead.current
+    invalidateLoad()
     setReadingFile(true)
     setError(null)
     setParsed(null)
@@ -76,20 +84,20 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
     setFileName(file.name)
     try {
       const result = await readStatementFile(file)
-      if (gen !== generation.current) return
+      if (id !== fileRead.current) return
       if (result.kind === 'erro') setError(result.message)
       else if (result.kind === 'colunas') setColumns(result)
       else acceptLines(result)
     } catch {
-      if (gen === generation.current) setError(UNEXPECTED)
+      if (id === fileRead.current) setError(UNEXPECTED)
     } finally {
-      if (gen === generation.current) setReadingFile(false)
+      if (id === fileRead.current) setReadingFile(false)
     }
   }
 
   function applyColumns(mapping: CsvMapping) {
     if (!columns) return
-    generation.current++
+    invalidateLoad()
     setError(null)
     const result = parseCsv(columns.text, mapping)
     if (result.ok) acceptLines(result)
@@ -98,7 +106,7 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
 
   async function showReview() {
     if (!parsed || !period) return
-    const gen = generation.current
+    const req = ++contextLoad.current
     const origin = cardId
     setLoadingContext(true)
     setError(null)
@@ -115,13 +123,13 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
         usedKeys: new Set(context.usedKeys),
       })
       // Arquivo, período ou origem mudaram enquanto carregava: a revisão não vale mais.
-      if (gen !== generation.current) return
+      if (req !== contextLoad.current) return
       setReview({ ...built, context, cardId: origin, version: (review?.version ?? 0) + 1 })
       window.scrollTo?.(0, 0)
     } catch {
-      if (gen === generation.current) setError(UNEXPECTED)
+      if (req === contextLoad.current) setError(UNEXPECTED)
     } finally {
-      setLoadingContext(false)
+      if (req === contextLoad.current) setLoadingContext(false)
     }
   }
 
