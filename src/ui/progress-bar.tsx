@@ -22,7 +22,7 @@ export function ProgressBar({ percent, label, size = 'md', tone = 'brand' }: { p
       aria-valuenow={percent}
       className={`w-full overflow-hidden rounded-full ${track[size]}`}
     >
-      <div className={`h-full rounded-full ${fill[tone]}`} style={{ width: `${percent}%` }} />
+      <div className={`h-full origin-left animate-encher rounded-full ${fill[tone]}`} style={{ width: `${percent}%` }} />
     </div>
   )
 }

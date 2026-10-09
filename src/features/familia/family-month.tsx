@@ -77,7 +77,7 @@ function Categories({ categories }: { categories: FamilyMonthView['categories'] 
         {categories.map((c) => (
           <li key={c.label} className="grid grid-cols-[minmax(0,6rem)_1fr_auto] items-center gap-2.5 text-[15px]">
             <span className="min-w-0 truncate text-ink">{c.label}</span>
-            <span className="h-2 rounded-full bg-spend" style={{ width: `${Math.max(c.percent, 4)}%` }} aria-hidden="true" />
+            <span className="h-2 origin-left animate-encher rounded-full bg-spend" style={{ width: `${Math.max(c.percent, 4)}%` }} aria-hidden="true" />
             <Money cents={c.cents} className="text-right text-ink" />
           </li>
         ))}

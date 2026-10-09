@@ -17,7 +17,7 @@ export function ListSection({ title, children }: { title: string; children: Reac
 }
 
 export function ListCard({ children }: { children: ReactNode }) {
-  return <ul className="rounded-card border border-line bg-card px-4 py-1">{children}</ul>
+  return <ul className="em-sequencia rounded-card border border-line bg-card px-4 py-1">{children}</ul>
 }
 
 export function ListRow({ children }: { children: ReactNode }) {

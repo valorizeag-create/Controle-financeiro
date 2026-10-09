@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Plus, Target } from 'lucide-react'
 import { Button } from '@/ui/button'
 import { AnimatedMoney } from '@/ui/animated-money'
+import { Celebrate } from '@/ui/celebrate'
 import { ProgressBar } from '@/ui/progress-bar'
 import { ConfirmAction } from '@/ui/confirm'
 import { formatBRL } from '@/domain/money'
@@ -39,7 +40,10 @@ export function GoalHero({ view, myPartCents, showUseLink = true }: { view: Goal
 
       {state === 'complete' && (
         <div className="flex flex-col gap-3 rounded-card bg-brand p-[22px] text-brand-ink">
-          <Target className="size-8" aria-hidden="true" />
+          <span className="relative w-fit">
+            <Target className="size-8" aria-hidden="true" />
+            <Celebrate id={goal.id} />
+          </span>
           {celebration && <p className="text-xl font-bold leading-snug">{celebration}</p>}
           {showUseLink && (
             <Link

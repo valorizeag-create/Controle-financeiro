@@ -46,6 +46,36 @@
   @keyframes painel { from { opacity: 0; transform: translateY(32px) } to { opacity: 1; transform: none } }
   @keyframes painel-lado { from { opacity: 0; transform: translateX(40px) } to { opacity: 1; transform: none } }
   @keyframes fundo { from { opacity: 0 } to { opacity: 1 } }
+
+  /* Itens de lista entrando, barras enchendo, aviso aparecendo com o ✓ se desenhando. */
+  --animate-sobe: sobe 320ms var(--ease-suave) both;
+  --animate-encher: encher 700ms var(--ease-suave) both;
+  --animate-aparece: aparece 260ms var(--ease-suave) both;
+  --animate-desenha: desenha 360ms 120ms var(--ease-suave) both;
+  --animate-estoura: estoura 800ms var(--ease-suave) both;
+
+  @keyframes sobe { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+  @keyframes encher { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+  @keyframes aparece { from { opacity: 0; transform: translateY(6px) scale(0.96) } to { opacity: 1; transform: none } }
+  @keyframes desenha { from { stroke-dashoffset: 24 } to { stroke-dashoffset: 0 } }
+  /* Meta concluída: pontinhos saem do centro e somem (--x/--y vêm de cada pontinho). */
+  @keyframes estoura {
+    0% { opacity: 1; transform: translate(0, 0) scale(1) }
+    100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(0.4) }
+  }
+}
+
+/* Os filhos diretos entram um depois do outro (45 ms entre eles); do 9º em diante, juntos,
+   para uma lista longa não demorar a aparecer. */
+@utility em-sequencia {
+  & > * { animation: var(--animate-sobe); }
+  & > :nth-child(2) { animation-delay: 45ms; }
+  & > :nth-child(3) { animation-delay: 90ms; }
+  & > :nth-child(4) { animation-delay: 135ms; }
+  & > :nth-child(5) { animation-delay: 180ms; }
+  & > :nth-child(6) { animation-delay: 225ms; }
+  & > :nth-child(7) { animation-delay: 270ms; }
+  & > :nth-child(n + 8) { animation-delay: 315ms; }
 }
 
 @layer base {

@@ -40,7 +40,7 @@ export function ExtratoList({ view }: { view: ExtratoView }) {
       {view.groups.map((g) => (
         <section key={g.date} aria-labelledby={`dia-${g.date}`} className="flex flex-col gap-2">
           <h2 id={`dia-${g.date}`} className="px-1 text-sm font-semibold text-inactive">{g.label}</h2>
-          <ul className="overflow-hidden rounded-card border border-line bg-card">
+          <ul className="em-sequencia overflow-hidden rounded-card border border-line bg-card">
             {g.rows.map((r) => (
               <li key={r.id} className="border-b border-line last:border-b-0">
                 <Link href={r.href} className="flex min-h-[68px] items-center gap-3 px-4 py-3.5 hover:bg-canvas">
