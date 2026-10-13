@@ -22,7 +22,6 @@ describe('dictionaryKey', () => {
     ['mercadolivre', 'compras'],
     ['uber eats', 'comer_fora'],
     ['mcdonalds', 'comer_fora'],
-    ['uber eats', 'comer_fora'],
   ])('%s -> %s', (merchant, key) => {
     expect(dictionaryKey(merchant)).toBe(key)
   })
