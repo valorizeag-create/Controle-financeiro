@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/features/registro/queries'
 import type { TxRow } from '@/features/registro/tx-row'
-import { buildReview, importKeys } from './revisar'
+import { buildReview, frozenDescription, importKeys } from './revisar'
 import type { RawLine } from './tipos'
 
 const categories: Category[] = [{ id: 'c-mercado', name: 'Supermercado', defaultKey: 'mercado' }]
@@ -28,6 +28,17 @@ describe('importKeys', () => {
     expect(a).toEqual(b)
     expect(a[0]).toMatch(/^[0-9a-f]{64}$/)
     expect(new Set(a).size).toBe(3)
+  })
+})
+
+describe('chave de importação congelada', () => {
+  it('normalização mínima da descrição: minúsculas, sem acento, espaços colapsados', () => {
+    expect(frozenDescription('  Compra no Débito   PADARIA DO ZÉ  SAO PAULO SP ')).toBe('compra no debito padaria do ze sao paulo sp')
+  })
+
+  it('valor literal da chave de uma linha fixa (não pode mudar nunca)', async () => {
+    const [k] = await importKeys([out('2026-10-07', 'Compra no Débito PADARIA DO ZÉ  SAO PAULO SP', 1234)])
+    expect(k).toBe('c4daa9a732587a6b4d40e1b26278f7a081a726389ebdf78c25bd847623fcc84d')
   })
 })
 
@@ -133,7 +144,6 @@ describe('buildReview', () => {
       ...base,
       lines: [out('2026-10-07', 'PADARIA', 8900)],
       existing: [
-        tx({ id: 'a', importKey: 'k' }),
         tx({ id: 'b', status: 'pending', dueOn: '2026-10-20' }),
         tx({ id: 'c', kind: 'income' }),
         tx({ id: 'd', occurredOn: '2026-10-04' }),
@@ -173,6 +183,82 @@ describe('buildReview', () => {
     })
     expect(r.lines.find((l) => l.description === 'PAGAMENTO RECEBIDO')).toMatchObject({ checked: false, reason: 'pagamento-fatura-no-cartao' })
     expect(r.lines.find((l) => l.description.startsWith('ESTORNO'))).toMatchObject({ kind: 'income', checked: true })
+  })
+
+  it('cartão Nubank em CSV (compras positivas, pagamento negativo): sentido invertido', async () => {
+    const r = await buildReview({
+      ...base,
+      origin: 'cartao',
+      lines: [
+        inn('2026-10-03', 'SUPERMERCADO ABC', 4590),
+        inn('2026-10-04', 'LOJA QUALQUER', 12000),
+        inn('2026-10-04', 'FARMACIA', 2500),
+        out('2026-10-05', 'Pagamento recebido', 120000),
+        out('2026-10-06', 'Estorno LOJA QUALQUER', 3000),
+      ],
+    })
+    const by = (d: string) => r.lines.find((l) => l.description === d)
+    expect(by('SUPERMERCADO ABC')).toMatchObject({ kind: 'expense', checked: true, categoryId: 'c-mercado', reason: null })
+    expect(by('LOJA QUALQUER')).toMatchObject({ kind: 'expense', checked: true })
+    expect(by('Pagamento recebido')).toMatchObject({ checked: false, reason: 'pagamento-fatura-no-cartao' })
+    expect(by('Estorno LOJA QUALQUER')).toMatchObject({ kind: 'income', checked: true })
+  })
+
+  it('cartão em OFX (compras negativas): nada muda', async () => {
+    const r = await buildReview({
+      ...base,
+      origin: 'cartao',
+      lines: [
+        out('2026-10-03', 'SUPERMERCADO ABC', 4590),
+        out('2026-10-04', 'LOJA QUALQUER', 12000),
+        inn('2026-10-05', 'PAGAMENTO RECEBIDO', 120000),
+        inn('2026-10-06', 'ESTORNO LOJA', 3000),
+      ],
+    })
+    const by = (d: string) => r.lines.find((l) => l.description === d)
+    expect(by('SUPERMERCADO ABC')).toMatchObject({ kind: 'expense', checked: true, categoryId: 'c-mercado' })
+    expect(by('LOJA QUALQUER')).toMatchObject({ kind: 'expense', checked: true })
+    expect(by('PAGAMENTO RECEBIDO')).toMatchObject({ checked: false, reason: 'pagamento-fatura-no-cartao' })
+    expect(by('ESTORNO LOJA')).toMatchObject({ kind: 'income', checked: true })
+  })
+
+  it('cartão: as chaves não dependem da convenção de sinal do arquivo', async () => {
+    const asCsv = [inn('2026-10-03', 'LOJA', 4590), inn('2026-10-04', 'OUTRA', 100), out('2026-10-05', 'Pagamento recebido', 9000)]
+    const asOfx = [out('2026-10-03', 'LOJA', 4590), out('2026-10-04', 'OUTRA', 100), inn('2026-10-05', 'Pagamento recebido', 9000)]
+    const a = await buildReview({ ...base, origin: 'cartao', lines: asCsv })
+    const b = await buildReview({ ...base, origin: 'cartao', lines: asOfx })
+    expect(a.lines.map((l) => l.importKey).sort()).toEqual(b.lines.map((l) => l.importKey).sort())
+  })
+
+  it('conta do banco não inverte, mesmo com mais entradas que saídas', async () => {
+    const r = await buildReview({
+      ...base,
+      lines: [inn('2026-10-03', 'PIX RECEBIDO A', 100), inn('2026-10-04', 'PIX RECEBIDO B', 100), out('2026-10-05', 'PADARIA', 50)],
+    })
+    expect(r.lines.filter((l) => l.kind === 'income')).toHaveLength(2)
+  })
+
+  it('registro importado antes de outro arquivo (outra chave) conta como já anotado', async () => {
+    const r = await buildReview({
+      ...base,
+      lines: [out('2026-10-07', 'PADARIA DO ZE', 8900)],
+      existing: [tx({ id: 'pdf', importKey: 'f'.repeat(64), occurredOn: '2026-10-06' })],
+    })
+    expect(r.lines[0]).toMatchObject({ reason: 'ja-anotada', checked: false, similarTxId: 'pdf' })
+  })
+
+  it('registro com chave deste arquivo fica no caminho de já importada, não de já anotada', async () => {
+    const lines = [out('2026-10-07', 'PADARIA', 8900), out('2026-10-07', 'PADARIA', 8900)]
+    const keys = await importKeys(lines)
+    const r = await buildReview({
+      ...base,
+      lines,
+      existing: [tx({ id: 'imp', importKey: keys[0], occurredOn: '2026-10-07' })],
+      usedKeys: new Set([keys[0]]),
+    })
+    expect(r.alreadyImported).toBe(1)
+    expect(r.lines).toHaveLength(1)
+    expect(r.lines[0]).toMatchObject({ reason: null, checked: true, similarTxId: null })
   })
 
   it('ordem: marcadas sem categoria primeiro, depois por data decrescente', async () => {

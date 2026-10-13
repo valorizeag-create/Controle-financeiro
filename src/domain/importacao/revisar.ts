@@ -32,16 +32,29 @@ async function sha256Hex(text: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+// Normalização da descrição que entra na chave de importação. NUNCA MUDE esta função: mudar o resultado
+// muda a chave das linhas, e um arquivo já importado voltaria como novo. Por isso ela não usa normalizeMerchant,
+// que é heurística e continua evoluindo.
+export function frozenDescription(desc: string): string {
+  return desc.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
 export async function importKeys(lines: RawLine[]): Promise<string[]> {
   const seen = new Map<string, number>()
   return Promise.all(
     lines.map((l) => {
-      const base = `${l.date}|${l.amountCents}|${l.direction}|${normalizeMerchant(l.description)}`
+      const base = `${l.date}|${l.amountCents}|${l.direction}|${frozenDescription(l.description)}`
       const n = seen.get(base) ?? 0
       seen.set(base, n + 1)
       return sha256Hex(`${base}|${n}`)
     }),
   )
+}
+
+function cardConvention(lines: RawLine[]): RawLine[] {
+  const ins = lines.filter((l) => l.direction === 'in').length
+  if (ins <= lines.length - ins) return lines
+  return lines.map((l) => ({ ...l, direction: l.direction === 'in' ? 'out' : 'in' }))
 }
 
 function dayDiff(a: ISODate, b: ISODate): number {
@@ -58,9 +71,14 @@ export async function buildReview(input: {
   existing: ExistingTx[]
   usedKeys: Set<string>
 }): Promise<{ lines: ReviewLine[]; alreadyImported: number }> {
+  // Fatura de cartão em CSV ou PDF costuma trazer as compras sem sinal (e o pagamento negativo). Se a maioria das
+  // linhas do cartão vem como entrada, a convenção do arquivo é essa: inverte tudo. Antes das chaves, para um mesmo
+  // cartão dar a mesma chave qualquer que seja a convenção do arquivo.
+  const lines = input.origin === 'cartao' ? cardConvention(input.lines) : input.lines
   // As chaves são calculadas sobre todas as linhas do arquivo, para a posição entre iguais não depender do período.
-  const keys = await importKeys(input.lines)
-  const inPeriod = input.lines
+  const keys = await importKeys(lines)
+  const fileKeys = new Set(keys)
+  const inPeriod = lines
     .map((line, i) => ({ line, key: keys[i] }))
     .filter(({ line }) => line.date >= input.from && line.date <= input.to)
 
@@ -74,7 +92,9 @@ export async function buildReview(input: {
   })
   fresh.sort((a, b) => (a.line.date < b.line.date ? -1 : a.line.date > b.line.date ? 1 : 0))
 
-  const manuals = input.existing.filter((t) => t.status === 'confirmed' && t.importKey === null)
+  // Registros anotados à mão ou importados de outro arquivo (outra chave): a mesma compra não pode contar duas vezes.
+  // Os que têm chave deste arquivo já seguem pelo caminho de "já importada".
+  const manuals = input.existing.filter((t) => t.status === 'confirmed' && (t.importKey === null || !fileKeys.has(t.importKey)))
   const usedManual = new Set<string>()
   const bills = input.existing.filter((t) => t.status === 'pending' && t.kind === 'expense' && t.dueOn !== null)
   const usedBills = new Set<string>()
