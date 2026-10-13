@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { importLineSchema, importSchema } from './schemas'
 
 const KEY = 'a'.repeat(64)
@@ -42,6 +42,29 @@ describe('importLineSchema', () => {
 
   test('entrada não exige categoria', () => {
     expect(importLineSchema.safeParse(line({ kind: 'income', categoryId: null, source: 'Salário' })).success).toBe(true)
+  })
+
+  test('entrada não leva categoria nem conta a pagar; gasto não leva origem', () => {
+    expect(importLineSchema.safeParse(line({ kind: 'income', categoryId: CAT, source: null })).success).toBe(false)
+    expect(importLineSchema.safeParse(line({ kind: 'income', categoryId: null, billId: CAT })).success).toBe(false)
+    expect(importLineSchema.safeParse(line({ kind: 'income', categoryId: null, source: null })).success).toBe(true)
+    expect(importLineSchema.safeParse(line({ source: 'Salário' })).success).toBe(false)
+  })
+
+  describe('data entre 2000-01-01 e um ano depois de hoje (São Paulo)', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    test('limites', () => {
+      vi.useFakeTimers()
+      // 02:00 em UTC ainda é dia 13 em São Paulo.
+      vi.setSystemTime(new Date('2026-10-14T02:00:00Z'))
+      expect(importLineSchema.safeParse(line({ occurredOn: '1999-12-31' })).success).toBe(false)
+      expect(importLineSchema.safeParse(line({ occurredOn: '2000-01-01' })).success).toBe(true)
+      expect(importLineSchema.safeParse(line({ occurredOn: '2027-10-13' })).success).toBe(true)
+      expect(importLineSchema.safeParse(line({ occurredOn: '2027-10-14' })).success).toBe(false)
+    })
   })
 
   test('limites de texto e data', () => {
