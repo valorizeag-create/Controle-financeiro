@@ -7,7 +7,7 @@ const MAX_HEADER_LINE = 15
 const DESCRIPTION_KEYS = ['historico', 'descricao', 'description', 'lancamento', 'title', 'estabelecimento']
 
 function normalize(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 }
 
 // Divide o texto em linhas de campos, respeitando aspas (separador e quebra de linha dentro de aspas ficam no campo).

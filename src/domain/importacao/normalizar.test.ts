@@ -1,5 +1,17 @@
+import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { normalizeMerchant, prettyNote } from './normalizar'
+
+describe('código do núcleo de importação', () => {
+  // Acento combinante escrito direto no código some ao copiar e colar; a faixa vai como escape.
+  it('não tem acento combinante literal nas expressões regulares', () => {
+    const dir = 'src/domain/importacao'
+    const comLiteral = readdirSync(dir)
+      .filter((f) => f.endsWith('.ts'))
+      .filter((f) => /[\u0300-\u036f]/.test(readFileSync(`${dir}/${f}`, 'utf8')))
+    expect(comLiteral).toEqual([])
+  })
+})
 
 describe('normalizeMerchant', () => {
   it.each([

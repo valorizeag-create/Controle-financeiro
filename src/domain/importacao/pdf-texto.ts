@@ -31,7 +31,7 @@ const MONEY = /(?<![\d.,])(?:[-+]\s?)?(?:R\$\s?)?(?:[-+]\s?)?\d{1,3}(?:\.\d{3})*
 const SALDO = /^(?:saldo|s\s+a\s+l\s+d\s+o)(?![a-z])/
 
 function isSaldo(description: string): boolean {
-  return SALDO.test(description.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase())
+  return SALDO.test(description.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())
 }
 
 // Data de referência do fim do extrato: a maior data completa (dd/mm/aaaa ou dd/mm/aa) do texto.

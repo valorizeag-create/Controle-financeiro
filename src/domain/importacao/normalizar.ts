@@ -15,7 +15,7 @@ const PREFIXO_ADQUIRENTE = /^(ifd|mp|pag|pg)\s*\*\s*/
 const PARCELA = /\b(parcela|parc)\.?\s*\d+\s*(\/|de)\s*\d+\b/g
 
 export function semAcento(texto: string): string {
-  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '')
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
 // Limpa a descrição (minúsculas, sem acento, sem datas, números longos, prefixos e cidade/UF),
