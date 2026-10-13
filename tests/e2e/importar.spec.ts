@@ -32,6 +32,7 @@ test('importar extrato: CSV, escolher a categoria, anotar e ver o mês; reimport
     await expectNoHorizontalScroll(page, '375 revisão')
   }
   await page.locator('li[data-sem-categoria="true"] select').selectOption({ label: 'Mercado' })
+  await expect(page.getByText('2 gastos · 1 entrada', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Anotar 3 registros', exact: true }).click()
 
   await expect(page).toHaveURL(/\/inicio/)
