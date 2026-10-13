@@ -80,7 +80,7 @@ begin
         occurred_on, status, import_key
       ) values (
         v_uid, v_kind, (v_line ->> 'amount_cents')::bigint, v_cat, v_source,
-        v_line ->> 'note', case when v_kind = 'expense' then p_card_id end,
+        nullif(btrim(v_line ->> 'note'), ''), case when v_kind = 'expense' then p_card_id end,
         v_date, 'confirmed', v_key
       )
       on conflict (user_id, import_key) where import_key is not null do nothing;

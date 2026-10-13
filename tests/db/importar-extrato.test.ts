@@ -128,6 +128,55 @@ describe('importar extrato', () => {
     expect(still!.status).toBe('pending')
   })
 
+  test('nota em branco vira null e a nota é gravada sem espaços nas pontas', async () => {
+    const res = await importLines(a, [await expenseLine(a, 'note-1', { note: '   ' }), await expenseLine(a, 'note-2', { note: '  Padaria do Zé  ' })])
+    expect(res.error).toBeNull()
+    const { data: rows } = await a.client.from('transactions').select('import_key, note').like('import_key', 'note-%').order('import_key')
+    expect(rows).toEqual([
+      { import_key: 'note-1', note: null },
+      { import_key: 'note-2', note: 'Padaria do Zé' },
+    ])
+  })
+
+  test('import_key já usada com conta pendente: a conta não muda e a contagem é 0', async () => {
+    expect((await importLines(a, [await expenseLine(a, 'reuse-1')])).data).toBe(1)
+    const outros = await categoryId(a, 'outros')
+    const { data: bill, error } = await a.client.from('transactions').insert({
+      user_id: a.id, kind: 'expense', amount_cents: 1500, category_id: outros, occurred_on: today,
+      status: 'pending', due_on: today,
+    }).select('id').single()
+    if (error) throw error
+    const res = await importLines(a, [await expenseLine(a, 'reuse-1', { bill_id: bill.id })])
+    expect(res.error).toBeNull()
+    expect(res.data).toBe(0)
+    const { data: row } = await a.client.from('transactions').select('status, paid_on, import_key').eq('id', bill.id).single()
+    expect(row).toEqual({ status: 'pending', paid_on: null, import_key: null })
+  })
+
+  test('importar de novo o mesmo estabelecimento com outra categoria atualiza a memória', async () => {
+    const { data: cat, error } = await a.client.from('categories').insert({ user_id: a.id, name: 'Feiras' }).select('id').single()
+    if (error) throw error
+    expect((await importLines(a, [await expenseLine(a, 'rule-1', { merchant_key: 'feira do bairro' })])).error).toBeNull()
+    expect((await importLines(a, [await expenseLine(a, 'rule-2', { merchant_key: 'feira do bairro', category_id: cat.id })])).error).toBeNull()
+    const { data: rules } = await a.client.from('import_rules').select('kind, category_id').eq('merchant_key', 'feira do bairro')
+    expect(rules).toEqual([{ kind: 'expense', category_id: cat.id }])
+  })
+
+  test('categoria e cartão de outra pessoa são recusados e nada entra', async () => {
+    const outrosA = await categoryId(a, 'outros')
+    const cat = await importLines(b, [await expenseLine(b, 'alheia-1'), await expenseLine(b, 'alheia-2', { category_id: outrosA })])
+    expect(cat.error).not.toBeNull()
+    expect(await countByPrefix(b, 'alheia-')).toBe(0)
+
+    const { data: cardA, error } = await a.client.from('cards').insert({
+      user_id: a.id, nickname: 'Roxinho', kind: 'credit', color: 'purple',
+    }).select('id').single()
+    if (error) throw error
+    const card = await importLines(b, [await expenseLine(b, 'alheio-1')], cardA.id)
+    expect(card.error).not.toBeNull()
+    expect(await countByPrefix(b, 'alheio-')).toBe(0)
+  })
+
   test('gasto de cartão leva card_id; entrada não', async () => {
     const { data: card, error } = await a.client.from('cards').insert({
       user_id: a.id, nickname: 'Nubank', kind: 'credit', color: 'purple',
