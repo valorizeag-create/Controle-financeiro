@@ -230,6 +230,60 @@ describe('buildReview', () => {
     expect(a.lines.map((l) => l.importKey).sort()).toEqual(b.lines.map((l) => l.importKey).sort())
   })
 
+  it('cartão Nubank com 1 compra (+) e 1 pagamento (−): a compra vira gasto', async () => {
+    const r = await buildReview({
+      ...base,
+      origin: 'cartao',
+      lines: [inn('2026-10-03', 'LOJA QUALQUER', 4590), out('2026-10-05', 'Pagamento recebido', 4590)],
+    })
+    const by = (d: string) => r.lines.find((l) => l.description === d)
+    expect(by('LOJA QUALQUER')).toMatchObject({ kind: 'expense', checked: true })
+    expect(by('Pagamento recebido')).toMatchObject({ checked: false, reason: 'pagamento-fatura-no-cartao' })
+  })
+
+  it('cartão Nubank com 2 compras, pagamento e estorno: as compras viram gasto e o estorno entrada', async () => {
+    const r = await buildReview({
+      ...base,
+      origin: 'cartao',
+      lines: [
+        inn('2026-10-03', 'SUPERMERCADO ABC', 4590),
+        inn('2026-10-04', 'LOJA QUALQUER', 12000),
+        out('2026-10-05', 'Pagamento recebido', 120000),
+        out('2026-10-06', 'Estorno LOJA QUALQUER', 3000),
+      ],
+    })
+    const by = (d: string) => r.lines.find((l) => l.description === d)
+    expect(by('SUPERMERCADO ABC')).toMatchObject({ kind: 'expense', checked: true, categoryId: 'c-mercado' })
+    expect(by('LOJA QUALQUER')).toMatchObject({ kind: 'expense', checked: true })
+    expect(by('Pagamento recebido')).toMatchObject({ checked: false, reason: 'pagamento-fatura-no-cartao' })
+    expect(by('Estorno LOJA QUALQUER')).toMatchObject({ kind: 'income', checked: true })
+  })
+
+  it('cartão em OFX com 1 compra (−) e 1 pagamento (+): nada muda', async () => {
+    const r = await buildReview({
+      ...base,
+      origin: 'cartao',
+      lines: [out('2026-10-03', 'LOJA QUALQUER', 4590), inn('2026-10-05', 'PAGAMENTO RECEBIDO', 4590)],
+    })
+    const by = (d: string) => r.lines.find((l) => l.description === d)
+    expect(by('LOJA QUALQUER')).toMatchObject({ kind: 'expense', checked: true })
+    expect(by('PAGAMENTO RECEBIDO')).toMatchObject({ checked: false, reason: 'pagamento-fatura-no-cartao' })
+  })
+
+  it('cartão com 1 compra e 1 pagamento: as chaves não dependem da convenção', async () => {
+    const asCsv = [inn('2026-10-03', 'LOJA', 4590), out('2026-10-05', 'Pagamento recebido', 4590)]
+    const asOfx = [out('2026-10-03', 'LOJA', 4590), inn('2026-10-05', 'Pagamento recebido', 4590)]
+    const a = await buildReview({ ...base, origin: 'cartao', lines: asCsv })
+    const b = await buildReview({ ...base, origin: 'cartao', lines: asOfx })
+    expect(a.lines.map((l) => l.importKey).sort()).toEqual(b.lines.map((l) => l.importKey).sort())
+  })
+
+  it('cartão só com pagamento: o pagamento serve de âncora para as chaves', async () => {
+    const a = await buildReview({ ...base, origin: 'cartao', lines: [out('2026-10-05', 'Pagamento recebido', 4590)] })
+    const b = await buildReview({ ...base, origin: 'cartao', lines: [inn('2026-10-05', 'Pagamento recebido', 4590)] })
+    expect(a.lines[0].importKey).toBe(b.lines[0].importKey)
+  })
+
   it('conta do banco não inverte, mesmo com mais entradas que saídas', async () => {
     const r = await buildReview({
       ...base,

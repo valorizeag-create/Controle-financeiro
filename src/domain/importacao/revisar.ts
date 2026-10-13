@@ -51,9 +51,21 @@ export async function importKeys(lines: RawLine[]): Promise<string[]> {
   )
 }
 
+// Decide a convenção pelas compras (sem pagamento da fatura e sem estorno): compras como entrada em maioria ou
+// empate é a convenção comum de CSV e PDF de cartão no Brasil, e inverte. Sem compras, o pagamento serve de
+// âncora: pagamento como saída também é essa convenção.
 function cardConvention(lines: RawLine[]): RawLine[] {
-  const ins = lines.filter((l) => l.direction === 'in').length
-  if (ins <= lines.length - ins) return lines
+  const special = lines.map((l) => specialOf(l.description, 'cartao'))
+  const purchases = lines.filter((_, i) => special[i] !== 'pagamento-fatura-no-cartao' && special[i] !== 'estorno')
+  let flip: boolean
+  if (purchases.length > 0) {
+    const ins = purchases.filter((l) => l.direction === 'in').length
+    flip = ins >= purchases.length - ins
+  } else {
+    const payment = lines.find((_, i) => special[i] === 'pagamento-fatura-no-cartao')
+    flip = payment?.direction === 'out'
+  }
+  if (!flip) return lines
   return lines.map((l) => ({ ...l, direction: l.direction === 'in' ? 'out' : 'in' }))
 }
 
@@ -71,8 +83,8 @@ export async function buildReview(input: {
   existing: ExistingTx[]
   usedKeys: Set<string>
 }): Promise<{ lines: ReviewLine[]; alreadyImported: number }> {
-  // Fatura de cartão em CSV ou PDF costuma trazer as compras sem sinal (e o pagamento negativo). Se a maioria das
-  // linhas do cartão vem como entrada, a convenção do arquivo é essa: inverte tudo. Antes das chaves, para um mesmo
+  // Fatura de cartão em CSV ou PDF costuma trazer as compras sem sinal (e o pagamento negativo). Nessa convenção
+  // (ver cardConvention), inverte tudo. Antes das chaves, para um mesmo
   // cartão dar a mesma chave qualquer que seja a convenção do arquivo.
   const lines = input.origin === 'cartao' ? cardConvention(input.lines) : input.lines
   // As chaves são calculadas sobre todas as linhas do arquivo, para a posição entre iguais não depender do período.
