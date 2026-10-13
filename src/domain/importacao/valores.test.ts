@@ -16,6 +16,7 @@ describe('parseAmount', () => {
     expect(parseAmount('-12.500')).toEqual({ cents: 1250000, direction: 'out' })
     expect(parseAmount('1.234.567')).toEqual({ cents: 123456700, direction: 'in' })
     expect(parseAmount('1,234.56')).toEqual({ cents: 123456, direction: 'in' })
+    expect(parseAmount('0.500')).toEqual({ cents: 50, direction: 'in' })
   })
   it('rejeita vazio, texto e zero', () => {
     expect(parseAmount('')).toBeNull()
