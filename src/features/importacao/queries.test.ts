@@ -12,7 +12,7 @@ vi.mock('@/features/cartoes/queries', () => ({ loadCards: async () => [] }))
 
 const { loadImportContext } = await import('./queries')
 
-type Call = { table: string; or?: string; eq: Record<string, unknown> }
+type Call = { table: string; or?: string; eq: Record<string, unknown>; range?: [number, number] }
 const calls: Call[] = []
 
 function raw(over: Record<string, unknown>) {
@@ -40,8 +40,10 @@ function fakeSupabase(txs: unknown[], rules: unknown[]) {
           return b
         },
         order: () => b,
-        range: async () => ({ data: txs, error: null }),
-        then: (res: (v: unknown) => unknown) => res({ data: rules, error: null }),
+        range: async (a: number, z: number) => {
+          call.range = [a, z]
+          return { data: table === 'transactions' ? txs : rules.slice(a, z + 1), error: null }
+        },
       }
       return b
     },
@@ -67,6 +69,14 @@ describe('loadImportContext', () => {
     expect(ctx.rules).toEqual([{ merchantKey: 'padaria', kind: 'expense', categoryId: 'c1', source: null }])
     expect(ctx.categories).toHaveLength(1)
     expect(ctx.cards).toEqual([])
+  })
+
+  test('lê a memória de categorias em páginas', async () => {
+    const rules = Array.from({ length: 1001 }, (_, i) => ({ merchant_key: `loja ${i}`, kind: 'expense', category_id: 'c1', source: null }))
+    h.supabase = fakeSupabase([], rules)
+    const ctx = await loadImportContext('2026-09-10', '2026-09-20')
+    expect(calls.filter((c) => c.table === 'import_rules').map((c) => c.range)).toEqual([[0, 999], [1000, 1999]])
+    expect(ctx.rules).toHaveLength(1001)
   })
 
   test('recusa datas inválidas, intervalo invertido e mais de 400 dias', async () => {

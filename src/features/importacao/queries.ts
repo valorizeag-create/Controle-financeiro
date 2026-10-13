@@ -51,9 +51,17 @@ export async function loadImportContext(from: ISODate, to: ISODate): Promise<Imp
         .range(a, b)
       return { data: data as ImportTxRawRow[] | null, error }
     }),
-    supabase.from('import_rules').select('merchant_key, kind, category_id, source').eq('user_id', user.id),
+    fetchAllPages<RuleRawRow>(async (a, b) => {
+      const { data, error } = await supabase
+        .from('import_rules')
+        .select('merchant_key, kind, category_id, source')
+        .eq('user_id', user.id)
+        .order('merchant_key')
+        .order('kind')
+        .range(a, b)
+      return { data: data as RuleRawRow[] | null, error }
+    }),
   ])
-  if (rules.error) throw rules.error
 
   const existing: ExistingTx[] = rawTxs.map((t) => ({ ...toTxRow(t), importKey: t.import_key }))
   return {
@@ -61,7 +69,7 @@ export async function loadImportContext(from: ISODate, to: ISODate): Promise<Imp
     cards,
     existing,
     usedKeys: existing.flatMap((t) => (t.importKey === null ? [] : [t.importKey])),
-    rules: (rules.data as RuleRawRow[]).map((r) => ({
+    rules: rules.map((r) => ({
       merchantKey: r.merchant_key,
       kind: r.kind as 'income' | 'expense',
       categoryId: r.category_id,
