@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { FileUp } from 'lucide-react'
-import type { ISODate } from '@/domain/dates'
+import { addDays, type ISODate } from '@/domain/dates'
 import type { CardRow } from '@/features/cartoes/types'
 import { cardColor } from '@/features/cartoes/palette'
 import { Button, buttonClass } from '@/ui/button'
@@ -29,15 +29,33 @@ type Props = {
 
 const clamp = (d: ISODate, r: Period): ISODate => (d < r.from ? r.from : d > r.to ? r.to : d)
 
+// O servidor recusa períodos maiores: De e Até ficam a no máximo 400 dias (contando os dois).
+export const MAX_PERIOD_DAYS = 400
+
+// Período inicial: os últimos 400 dias do arquivo (ou o arquivo todo, se for menor).
+export function defaultPeriod(range: Period): Period {
+  const earliest = addDays(range.to, -(MAX_PERIOD_DAYS - 1))
+  return { from: range.from > earliest ? range.from : earliest, to: range.to }
+}
+
 export function EtapaArquivo({ cards, cardId, onCardId, fileName, onFile, columns, range, period, onPeriod, busy, error, onSubmit }: Props) {
   const [dragging, setDragging] = useState(false)
 
-  // Data vazia (campo apagado) não muda nada; fora do arquivo, encosta na ponta; De depois de Até puxa o outro junto.
+  // Data vazia (campo apagado) não muda nada; fora do arquivo, encosta na ponta; De depois de Até puxa o outro junto;
+  // mais de 400 dias entre os dois também puxa o outro.
   function change(field: 'from' | 'to', value: string) {
     if (!range || !period || !value) return
     const d = clamp(value as ISODate, range)
-    if (field === 'from') onPeriod({ from: d, to: d > period.to ? d : period.to })
-    else onPeriod({ from: d < period.from ? d : period.from, to: d })
+    const span = MAX_PERIOD_DAYS - 1
+    if (field === 'from') {
+      const to = d > period.to ? d : period.to
+      const latest = addDays(d, span)
+      onPeriod({ from: d, to: to > latest ? latest : to })
+    } else {
+      const from = d < period.from ? d : period.from
+      const earliest = addDays(d, -span)
+      onPeriod({ from: from < earliest ? earliest : from, to: d })
+    }
   }
 
   return (

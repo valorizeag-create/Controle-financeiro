@@ -117,6 +117,25 @@ test('o período escolhido fica dentro do arquivo e é o que a revisão usa', as
   expect(await screen.findByRole('button', { name: 'Anotar 2 registros' })).toBeTruthy()
 })
 
+test('arquivo com mais de 400 dias: o período começa nos últimos 400 dias e nunca passa disso', async () => {
+  const longo = 'Data;Descrição;Valor\n01/01/2025;LOJA VELHA;-10,00\n03/10/2026;LOJA NOVA;-20,00\n'
+  render(<Importar cards={cards} today="2026-10-09" />)
+  choose(new File([longo], 'extrato.csv'))
+  const de = (await screen.findByLabelText('De')) as HTMLInputElement
+  const ate = screen.getByLabelText('Até') as HTMLInputElement
+  expect(de.value).toBe('2025-08-30')
+  expect(ate.value).toBe('2026-10-03')
+  expect(de.min).toBe('2025-01-01')
+  fireEvent.change(de, { target: { value: '2025-06-01' } })
+  expect(de.value).toBe('2025-06-01')
+  expect(ate.value).toBe('2026-07-05')
+  fireEvent.change(ate, { target: { value: '2026-10-03' } })
+  expect(ate.value).toBe('2026-10-03')
+  expect(de.value).toBe('2025-08-30')
+  fireEvent.click(screen.getByRole('button', { name: 'Ver o que a Íris encontrou' }))
+  await waitFor(() => expect(loadContextAction).toHaveBeenCalledWith('2025-08-30', '2026-10-03'))
+})
+
 test('se o contexto não carrega, mostra o aviso de erro', async () => {
   vi.mocked(loadContextAction).mockRejectedValueOnce(new Error('falhou'))
   render(<Importar cards={cards} today="2026-10-09" />)

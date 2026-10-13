@@ -10,7 +10,7 @@ import type { CsvMapping, RawLine } from '@/domain/importacao/tipos'
 import type { CardRow } from '@/features/cartoes/types'
 import { loadContextAction } from './actions'
 import { AjusteColunas } from './ajuste-colunas'
-import { EtapaArquivo, type Period } from './etapa-arquivo'
+import { defaultPeriod, EtapaArquivo, type Period } from './etapa-arquivo'
 import { EtapaRevisao } from './etapa-revisao'
 import { readStatementFile } from './ler-arquivo'
 import type { ImportContext } from './queries'
@@ -69,7 +69,7 @@ export function Importar({ cards, today, loadContext = loadContextAction }: Prop
       return
     }
     setParsed(result)
-    setPeriodState(range)
+    setPeriodState(defaultPeriod(range))
     setColumns(null)
   }
 
